@@ -43,3 +43,14 @@ Docs: https://docs.expo.dev/eas/index.md
 ## Architecture
 
 - Follow the feature boundaries, dependency direction, route-to-screen pattern, and shared module conventions in [docs/architecture/feature-based.md](docs/architecture/feature-based.md).
+
+## VitaLoom project baseline
+
+- This is the active VitaLoom mobile repository; do not treat it as an untouched Expo starter.
+- Read [the UI foundation](./docs/ui/README.md), [tokens](./docs/ui/tokens.md) and [component/QA guidance](./docs/ui/components-and-qa.md) before creating or changing screens.
+- The source of truth for visual tokens is `src/theme/`; do not hardcode duplicate palettes, spacing scales or typography in screens.
+- Routes live in `src/app/`; feature-owned screens and logic live under `src/features/`. Keep route files thin.
+- The current home route renders the Water landing prototype. It uses local sample data and is not yet connected to the Backend API. Do not describe it as a completed end-to-end feature.
+- `src/app/explore.tsx` still contains Expo starter content; do not use it as a VitaLoom product requirement or visual reference.
+- The Backend API Contract is the source of truth for request/response shapes and behavior: https://github.com/vitaloom/vitaloom-backend/blob/main/docs/api/api-contract.md
+- Do not invent API fields or duplicate backend business calculations in the client.

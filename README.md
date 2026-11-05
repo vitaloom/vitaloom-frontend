@@ -1,56 +1,73 @@
-# Welcome to your Expo app 👋
+# VitaLoom Frontend
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+The active mobile application for VitaLoom, built with Expo, React Native and TypeScript.
+
+## Current baseline
+
+- Expo SDK 58, React Native 0.88 and Expo Router.
+- The home route currently renders the Water landing UI prototype.
+- The Water screen currently uses local sample data; Backend API integration is not complete.
+- The Explore route still contains some Expo starter content and is not a finalized VitaLoom product screen.
+- Shared visual tokens and UI guidance are maintained in `src/theme/` and `docs/ui/`.
+
+The repository is an active implementation workspace, not yet a complete four-metric MVP.
+
+## Prerequisites
+
+- Node.js and npm.
+- Expo Go or a compatible development environment for the target platform.
 
 ## Get started
 
-1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **src/app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+From the repository root:
 
 ```bash
-npm run reset-project
+npm install
+npx expo start
 ```
 
-This command will move the starter code to the **example** directory and create a blank **src/app** directory where you can start developing.
+Use the Expo CLI prompts to open the application in an emulator, simulator or Expo Go where supported.
 
-### Other setup steps
+## Development checks
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+```bash
+npm run lint
+npx tsc --noEmit
+```
 
-## Learn more
+Run the relevant checks after changing screens, navigation, theme or shared components. Do not report a check as passed unless it was actually run.
 
-To learn more about developing your project with Expo, look at the following resources:
+## Project structure
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+```text
+src/
+├── app/          # Expo Router routes and layouts
+├── features/     # Feature-owned screens and behavior
+├── components/   # Reusable UI components
+├── hooks/        # Shared React hooks
+└── theme/        # Source of truth for visual tokens
 
-## Join the community
+docs/ui/
+├── README.md
+├── tokens.md
+└── components-and-qa.md
+```
 
-Join our community of developers creating universal apps.
+## Design and UI conventions
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+Start with [UI Foundation](./docs/ui/README.md), [Design Tokens](./docs/ui/tokens.md) and [Components & Visual QA](./docs/ui/components-and-qa.md).
+
+- Prefer semantic theme roles over direct color values.
+- Create shared components when at least two screens need the same nameable structure.
+- Preserve native platform behavior, safe areas, accessibility labels and text scaling.
+- Treat inferred visual values as provisional until reviewed on real devices.
+
+## Backend integration
+
+The canonical API behavior is maintained in [vitaloom-backend/docs/api/api-contract.md](https://github.com/vitaloom/vitaloom-backend/blob/main/docs/api/api-contract.md). Coordinate API changes with the Backend repository rather than independently changing request/response shapes here.
+
+Add environment configuration (including a committed `.env.example`) as part of the first API integration task; the current UI prototype does not yet require an API base URL.
+
+## Scope boundaries
+
+VitaLoom's current product direction includes Heart Rate, Steps, Sleep and Water tracking, with broader account, profile, goals and reporting capabilities defined in the business specifications. A screen or capability is not considered implemented merely because it appears in a requirement document or design reference.
