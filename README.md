@@ -64,9 +64,9 @@ Start with [UI Foundation](./docs/ui/README.md), [Design Tokens](./docs/ui/token
 
 ## Backend integration
 
-The canonical API behavior is maintained in [vitaloom-backend/docs/api/api-contract.md](https://github.com/vitaloom/vitaloom-backend/blob/main/docs/api/api-contract.md). Coordinate API changes with the Backend repository rather than independently changing request/response shapes here.
+The canonical API behavior is maintained in [vitaloom-backend/docs/api/api-contract.md](https://github.com/vitaloom/vitaloom-backend/blob/main/docs/api/api-contract.md). The auth client uses `EXPO_PUBLIC_API_BASE_URL` as the backend origin; copy `.env.example` to `.env` and set a host reachable from the device. The example uses `http://10.0.2.2:8080` for an Android emulator. A physical device needs the development machine's current LAN address and the actual backend `SERVER_PORT` (for example, `http://192.168.1.7:6969` on one local network). Restart Expo after changing `.env` so the app receives the new URL.
 
-Add environment configuration (including a committed `.env.example`) as part of the first API integration task; the current UI prototype does not yet require an API base URL.
+After sign-in or registration, the access token stays in memory and the refresh token is stored with Expo SecureStore. Startup exchanges the stored refresh token and loads `/api/auth/me`; protected requests refresh once and retry once when needed. Sign-out clears local credentials. Lint, typecheck and auth concurrency tests pass; a device/emulator end-to-end walkthrough has not yet been run.
 
 ## Scope boundaries
 

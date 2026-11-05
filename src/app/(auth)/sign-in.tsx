@@ -1,5 +1,1 @@
-import { Redirect } from 'expo-router';
-
-export default function SignInRoute() {
-  return <Redirect href="/(tabs)/home" />;
-}
+export { default } from '@/features/auth/screens/sign-in-screen';
