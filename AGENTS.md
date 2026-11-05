@@ -39,3 +39,15 @@ Docs: https://docs.expo.dev/eas/index.md
 - If `ios/` and `android/` directories do not exist, they are generated (Continuous Native Generation). Never create or edit them by hand — configure native behavior in `app.json` and config plugins.
 - Expo Go only includes its bundled native modules. After adding a library with native code, the app needs a development build: `npx expo run:ios|android` locally, or `eas build --profile development`.
 - Prefer recommended Expo modules over third-party libraries, and check your available skills before adding dependencies. Docs: https://docs.expo.dev/versions/latest/index.md
+
+
+## VitaLoom project baseline
+
+- This is the active VitaLoom mobile repository; do not treat it as an untouched Expo starter.
+- Read [the UI foundation](./docs/ui/README.md), [tokens](./docs/ui/tokens.md) and [component/QA guidance](./docs/ui/components-and-qa.md) before creating or changing screens.
+- The source of truth for visual tokens is `src/theme/`; do not hardcode duplicate palettes, spacing scales or typography in screens.
+- Routes live in `src/app/`; feature-owned screens and logic live under `src/features/`. Keep route files thin.
+- The current home route renders the Water landing prototype. It uses local sample data and is not yet connected to the Backend API. Do not describe it as a completed end-to-end feature.
+- `src/app/explore.tsx` still contains Expo starter content; do not use it as a VitaLoom product requirement or visual reference.
+- The Backend API Contract is the source of truth for request/response shapes and behavior: https://github.com/vitaloom/vitaloom-backend/blob/main/docs/api/api-contract.md
+- Do not invent API fields or duplicate backend business calculations in the client.
