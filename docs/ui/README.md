@@ -24,4 +24,4 @@ The screenshot references are iPhone concepts. Exact palette, font family, radii
 - [Gluestack semantic tokens](https://gluestack.io/ui/docs/home/theme-configuration/default-tokens): role-based foreground, background, border, and state thinking; no Gluestack package is installed.
 - [Apple HIG color guidance](https://developer.apple.com/design/human-interface-guidelines/color), [Material Design 3 accessibility](https://m3.material.io/foundations/accessible-design/overview), and [WCAG 2.2](https://www.w3.org/TR/WCAG22/): adaptive presentation, touch access, and contrast.
 
-See [tokens.md](tokens.md) for values, [components-and-qa.md](components-and-qa.md) for application rules, and [water-landing-review.md](water-landing-review.md) for the Water Tracking validation exercise.
+See [tokens.md](tokens.md) for values, [components-and-qa.md](components-and-qa.md) for application rules, [layered-banners.md](layered-banners.md) for composed Home surfaces, and [water-landing-review.md](water-landing-review.md) for the Water Tracking validation exercise.
