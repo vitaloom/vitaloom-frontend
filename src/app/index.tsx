@@ -1,1 +1,5 @@
-export { default } from '@/features/water/water-landing';
+import { Redirect } from 'expo-router';
+
+export default function IndexRoute() {
+  return <Redirect href="/(tabs)/home" />;
+}
