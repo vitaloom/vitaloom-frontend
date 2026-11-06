@@ -72,7 +72,7 @@ export default function HeartRateScreen() {
         </View>
         {loading && !summary ? <View style={{ height: 48, width: 150, borderRadius: radius.md, backgroundColor: theme.accentSoft }} accessibilityLabel="Đang tải nhịp tim gần nhất" /> : !summary && error ? <ThemedText variant="body" themeColor="danger">Không tải được dữ liệu nhịp tim.</ThemedText> : summary?.latestRecorded ? <>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: spacing.sm }}><ThemedText variant="metricLarge">{summary.latestRecorded.heartRateBpm}</ThemedText><ThemedText variant="heading" themeColor="textSecondary">bpm</ThemedText></View>
-          <ThemedText variant="bodyStrong">Ghi nhận {localTimestamp(summary.latestRecorded.occurredAt)}</ThemedText>
+          <ThemedText variant="bodyStrong">Đo lúc {localTimestamp(summary.latestRecorded.occurredAt)}</ThemedText>
           <ThemedText variant="subhead" themeColor="textSecondary">Lần đo gần nhất đã được chấp nhận trong lịch sử của bạn.</ThemedText>
         </> : <ThemedText variant="body" themeColor="textSecondary">Chưa có lần đo nhịp tim nào.</ThemedText>}
       </View>
