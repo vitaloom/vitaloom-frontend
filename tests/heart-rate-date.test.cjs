@@ -12,7 +12,7 @@ require.extensions['.ts'] = (module, filename) => {
   module._compile(output, filename);
 };
 
-const { dateInHcm, shiftCalendarDate, isFutureHcmDate, heartRateSummaryPath } = require('../src/features/heart-rate/utils/heart-rate-date.ts');
+const { dateInHcm, shiftCalendarDate, weekDates, weekRangeLabel, isFutureHcmDate, heartRateSummaryPath } = require('../src/features/heart-rate/utils/heart-rate-date.ts');
 
 test('uses the Ho Chi Minh calendar date across UTC midnight boundaries', () => {
   assert.equal(dateInHcm(new Date('2026-11-06T16:59:00.000Z')), '2026-11-06');
@@ -22,6 +22,11 @@ test('uses the Ho Chi Minh calendar date across UTC midnight boundaries', () => 
 test('calendar shifts cross month and year boundaries without local-time drift', () => {
   assert.equal(shiftCalendarDate('2027-01-01', -1), '2026-12-31');
   assert.equal(shiftCalendarDate('2026-11-06', -7), '2026-10-30');
+});
+
+test('calendar week is Monday through Sunday and includes visible future dates', () => {
+  assert.deepEqual(weekDates('2026-11-06'), ['2026-11-02', '2026-11-03', '2026-11-04', '2026-11-05', '2026-11-06', '2026-11-07', '2026-11-08']);
+  assert.equal(weekRangeLabel(weekDates('2026-11-06')), '02/11–08/11/2026');
 });
 
 test('only dates after the Ho Chi Minh current date are considered future', () => {

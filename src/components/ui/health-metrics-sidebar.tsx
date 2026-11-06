@@ -13,7 +13,7 @@ const items = [
   { label: 'Bước chân', route: '/steps', marker: '⌁' },
 ] as const;
 
-export function HealthMetricsSidebar() {
+export function HealthMetricsSidebar({ brandedHeader = false }: { brandedHeader?: boolean }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const theme = useTheme();
@@ -31,10 +31,10 @@ export function HealthMetricsSidebar() {
   const go = (route: string) => { setOpen(false); Keyboard.dismiss(); router.push(route as never); };
   return <>
     <View style={{ width: '100%', maxWidth: 520, alignSelf: 'center', minHeight: sizing.controlComfortable, flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm }}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Mở điều hướng chỉ số sức khỏe" accessibilityState={{ expanded: open }} onPress={() => setOpen(true)} style={{ width: sizing.controlComfortable, height: sizing.controlComfortable, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md }}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Mở chỉ số sức khỏe" accessibilityState={{ expanded: open }} onPress={() => setOpen(true)} style={{ width: sizing.controlComfortable, height: sizing.controlComfortable, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md }}>
         <ThemedText variant="heading" themeColor="accent">☰</ThemedText>
       </Pressable>
-      <ThemedText variant="label" themeColor="textSecondary" style={{ marginLeft: spacing.sm }}>Chỉ số sức khỏe</ThemedText>
+      <ThemedText variant={brandedHeader ? 'heading' : 'label'} themeColor={brandedHeader ? 'text' : 'textSecondary'} style={{ marginLeft: spacing.sm }}>{brandedHeader ? 'VitaLoom' : 'Chỉ số sức khỏe'}</ThemedText>
     </View>
     {open ? <View style={{ position: 'absolute', zIndex: 50, top: -insets.top, left: -spacing.md, right: -spacing.md, bottom: -insets.bottom, flexDirection: 'row' }}>
       <Pressable accessibilityRole="button" accessibilityLabel="Đóng điều hướng" onPress={() => setOpen(false)} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: theme.overlay }} />
