@@ -3,6 +3,7 @@ import { Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
+import { HealthMetricsSidebar } from '@/components/ui/health-metrics-sidebar';
 import { useTheme } from '@/hooks/use-theme';
 import { radius, shadows, sizing, spacing } from '@/theme';
 
@@ -13,6 +14,7 @@ export default function StepsScreen() {
   return (
     <ScrollView style={{ flex: 1, backgroundColor: theme.background }} contentContainerStyle={{ flexGrow: 1, paddingTop: insets.top + spacing.md, paddingBottom: insets.bottom + spacing.lg, paddingHorizontal: spacing.md }}>
       <View style={{ width: '100%', maxWidth: 520, alignSelf: 'center', flex: 1, gap: spacing.lg }}>
+        <HealthMetricsSidebar />
         <Pressable accessibilityRole="button" accessibilityLabel="Back to Home" onPress={() => router.canGoBack() ? router.back() : router.replace('/')} style={{ minHeight: sizing.controlMin, alignSelf: 'flex-start', justifyContent: 'center', paddingHorizontal: spacing.sm }}>
           <ThemedText variant="bodyStrong" themeColor="accent">‹  Home</ThemedText>
         </Pressable>
