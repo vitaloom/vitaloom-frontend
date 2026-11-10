@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 390 570" width="390" height="570" role="img" aria-label="Calendar and habit reminders with hydration bottle clock and heart"><defs>
+<linearGradient id="mint" x2="1" y2="1"><stop stop-color="#B8F8DE"/><stop offset=".48" stop-color="#45CEAA"/><stop offset="1" stop-color="#078E7E"/></linearGradient>
+<linearGradient id="soft" x2="1" y2="1"><stop stop-color="#FFFFFF"/><stop offset="1" stop-color="#DAF7ED"/></linearGradient>
+<linearGradient id="peach" x2="1" y2="1"><stop stop-color="#FFE4C6"/><stop offset="1" stop-color="#EFA680"/></linearGradient>
+<linearGradient id="brown" x2="1" y2="1"><stop stop-color="#39231F"/><stop offset=".7" stop-color="#866046"/><stop offset="1" stop-color="#B58962"/></linearGradient>
+<filter id="shade" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur in="SourceAlpha" stdDeviation="5"/><feOffset dy="5"/><feComponentTransfer><feFuncA type="linear" slope=".18"/></feComponentTransfer><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+<g transform="translate(37 328) rotate(-21) scale(0.77)"><path d="M0 72Q-3 28 18 -34" fill="none" stroke="#269B82" stroke-width="4"/><path d="M0 42Q-35 37 -32 -4Q2 5 0 42Z" fill="#61CF9D"/><path d="M10 -5Q0 -37 37 -52Q35 -18 10 -5Z" fill="#91D95C"/><path d="M1 61Q15 23 53 42Q36 71 1 61Z" fill="url(#mint)"/></g><g transform="translate(355 345) rotate(20) scale(0.85)"><path d="M0 72Q-3 28 18 -34" fill="none" stroke="#269B82" stroke-width="4"/><path d="M0 42Q-35 37 -32 -4Q2 5 0 42Z" fill="#61CF9D"/><path d="M10 -5Q0 -37 37 -52Q35 -18 10 -5Z" fill="#91D95C"/><path d="M1 61Q15 23 53 42Q36 71 1 61Z" fill="url(#mint)"/></g>
+<g filter="url(#shade)"><rect x="71" y="105" width="249" height="288" rx="27" fill="url(#soft)" stroke="#85D9C5" stroke-width="3"/>
+<path d="M71 160V135Q71 105 103 105H290Q320 105 320 134V164Z" fill="url(#mint)"/>
+<path d="M119 132V92M200 132V92M271 132V92" stroke="#D2FFF2" stroke-width="10" stroke-linecap="round"/>
+<g fill="#C2EDE5">
+<rect x="97" y="187" width="39" height="38" rx="8"/><rect x="148" y="187" width="39" height="38" rx="8"/><rect x="199" y="187" width="39" height="38" rx="8"/><rect x="250" y="187" width="39" height="38" rx="8"/>
+<rect x="97" y="239" width="39" height="38" rx="8"/><rect x="148" y="239" width="39" height="38" rx="8"/><rect x="199" y="239" width="39" height="38" rx="8"/><rect x="250" y="239" width="39" height="38" rx="8"/>
+<rect x="97" y="291" width="39" height="38" rx="8"/><rect x="148" y="291" width="39" height="38" rx="8"/><rect x="199" y="291" width="39" height="38" rx="8"/><rect x="250" y="291" width="39" height="38" rx="8"/></g>
+<g stroke="#0AAB8E" stroke-width="7" fill="none" stroke-linejoin="round" stroke-linecap="round"><path d="M103 251L115 267L129 247"/><path d="M155 251L168 268L181 247"/><path d="M207 201L219 217L232 196"/></g></g>
+<g filter="url(#shade)"><circle cx="301" cy="279" r="59" fill="#C7F2E3" stroke="#209F88" stroke-width="9"/><circle cx="301" cy="279" r="39" fill="none" stroke="#54C9AD" stroke-width="9"/><circle cx="301" cy="279" r="22" fill="none" stroke="#158F7E" stroke-width="7"/><path d="M303 279L351 228" stroke="#158F7E" stroke-width="9" stroke-linecap="round"/></g>
+<g filter="url(#shade)"><rect x="37" y="388" width="94" height="171" rx="22" fill="url(#mint)" stroke="#188B7C" stroke-width="4"/><rect x="58" y="367" width="52" height="34" rx="6" fill="#187F77"/><path d="M55 426V535" stroke="#DEFFF4" stroke-width="11" opacity=".6" stroke-linecap="round"/></g>
+<g filter="url(#shade)"><circle cx="194" cy="474" r="54" fill="#858BE9" stroke="#6373D5" stroke-width="5"/><circle cx="194" cy="474" r="41" fill="#FAFFFE"/><path d="M194 448V475L213 485" stroke="#727ED2" stroke-width="6" stroke-linecap="round" fill="none"/><path d="M156 421L147 405M232 420L240 405" stroke="#6D75D3" stroke-width="11" stroke-linecap="round"/></g>
+<path d="M285 459Q254 427 247 465Q242 489 291 527Q339 486 339 467Q338 428 307 450Q298 455 291 464Z" fill="#F68B85" filter="url(#shade)"/>
+<path d="M256 479H273L282 467L291 491L301 479H328" stroke="white" stroke-width="3" fill="none"/>
+<text x="237" y="400" font-family="Arial,sans-serif" font-size="25" font-weight="700" fill="#737BD5">zZ</text>
+</svg>
