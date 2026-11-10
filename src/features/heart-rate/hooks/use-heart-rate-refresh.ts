@@ -10,7 +10,7 @@ export function useHeartRateRefresh(onRefresh: () => void, intervalMs?: number) 
   const lastRefresh = useRef(0);
   const hasFocused = useRef(false);
   const refreshRef = useRef(onRefresh);
-  refreshRef.current = onRefresh;
+  useEffect(() => { refreshRef.current = onRefresh; }, [onRefresh]);
 
   const refresh = useCallback(() => {
     const now = Date.now();
