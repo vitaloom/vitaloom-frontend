@@ -5,6 +5,7 @@ import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
 import { radius, shadows, sizing, spacing } from '@/theme';
 import { useAuth } from '../store/auth-context';
+import Svg, { Path } from 'react-native-svg';
 
 const benefits = [
   'Personalise your daily goals',
@@ -28,11 +29,23 @@ export default function ProfileSetupPromptScreen() {
       >
         <View style={{ width: '100%', maxWidth: 480, flex: 1, alignItems: 'center', justifyContent: 'space-between', gap: spacing.lg }}>
           <View style={{ alignItems: 'center', gap: spacing.xs }}>
-            <View accessible={false} style={{ height: 34, width: 48, alignItems: 'center', justifyContent: 'center' }}>
-              <View style={{ position: 'absolute', width: 18, height: 27, borderTopLeftRadius: 18, borderBottomRightRadius: 18, backgroundColor: theme.accent, transform: [{ rotate: '-28deg' }, { translateX: -9 }, { translateY: -2 }] }} />
-              <View style={{ position: 'absolute', width: 18, height: 27, borderTopLeftRadius: 18, borderBottomRightRadius: 18, backgroundColor: theme.success, transform: [{ rotate: '28deg' }, { translateX: 9 }, { translateY: -2 }] }} />
-              <View style={{ width: 2, height: 16, marginTop: 15, backgroundColor: theme.accent }} />
-            </View>
+           <Svg
+                         width={sizing.controlComfortable}
+                         height={sizing.iconLg}
+                         viewBox="0 0 48 32"
+                         aria-hidden>
+                         <Path
+                           fill={theme.accent}
+                           d="M24 27C10 29 2 17 2 3c13 0 24 7 24 20C29 12 36 7 46 6c0 14-6 23-20 23l-1 3h-2z"
+                         />
+                         <Path
+                           d="M24 29c-2-7-6-12-11-17m11 17c3-6 7-11 12-15"
+                           fill="none"
+                           stroke={theme.backgroundElement}
+                           strokeWidth={1.4}
+                           strokeLinecap="round"
+                         />
+                       </Svg>
             <ThemedText variant="heading" style={{ color: theme.text, fontWeight: '800', letterSpacing: -0.5 }}>Healthy Check</ThemedText>
           </View>
 
