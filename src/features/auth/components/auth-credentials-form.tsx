@@ -9,7 +9,7 @@ import { authErrorMessage, type AuthFormErrors, type AuthFormMode, validateCrede
 import { AuthFormField } from './auth-form-field';
 import { AuthPrimaryButton } from './auth-primary-button';
 
-export function AuthCredentialsForm({ mode }: { mode: AuthFormMode }) {
+export function AuthCredentialsForm({ mode, onChangeMode }: { mode: AuthFormMode; onChangeMode: (mode: AuthFormMode) => void }) {
   const { signIn, register } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -49,13 +49,13 @@ export function AuthCredentialsForm({ mode }: { mode: AuthFormMode }) {
     }
   }
 
-  const switchHref = mode === 'sign-in' ? '/(auth)/register' : '/(auth)/sign-in';
+  const nextMode = mode === 'sign-in' ? 'register' : 'sign-in';
   return <View style={{ gap: spacing.md }}>
     <AuthFormField label="Email" value={email} onChangeText={(value) => { setEmail(value); setErrors((current) => ({ ...current, email: undefined })); }} error={errors.email} inputRef={emailRef} onSubmitEditing={() => passwordRef.current?.focus()} returnKeyType="next" />
     <AuthFormField label="Password" value={password} onChangeText={(value) => { setPassword(value); setErrors((current) => ({ ...current, password: undefined })); }} error={errors.password} inputRef={passwordRef} onSubmitEditing={() => void submit()} returnKeyType="done" newPassword={mode === 'register'} />
     {mode === 'register' && !errors.password ? <ThemedText variant="subhead" themeColor="textSecondary">Password must be at least 8 characters.</ThemedText> : null}
     {apiError ? <ThemedText themeColor="danger" accessibilityRole="alert">{apiError}</ThemedText> : null}
-    <AuthPrimaryButton label={createdNeedsLogin ? 'Go to Sign In' : mode === 'sign-in' ? 'Sign In' : 'Create Account'} busy={busy} onPress={createdNeedsLogin ? () => router.replace('/(auth)/sign-in') : () => void submit()} />
-    <Pressable accessibilityRole="button" onPress={() => router.replace(switchHref)} style={{ minHeight: 44, alignItems: 'center', justifyContent: 'center' }}><ThemedText themeColor="accent" variant="bodyStrong">{mode === 'sign-in' ? 'Create account' : 'Already have an account? Sign in'}</ThemedText></Pressable>
+    <AuthPrimaryButton label={createdNeedsLogin ? 'Go to Sign In' : mode === 'sign-in' ? 'Sign In' : 'Create Account'} busy={busy} onPress={createdNeedsLogin ? () => onChangeMode('sign-in') : () => void submit()} />
+    <Pressable accessibilityRole="button" onPress={() => onChangeMode(nextMode)} style={{ minHeight: 44, alignItems: 'center', justifyContent: 'center' }}><ThemedText themeColor="accent" variant="bodyStrong">{mode === 'sign-in' ? 'Create account' : 'Already have an account? Sign in'}</ThemedText></Pressable>
   </View>;
 }

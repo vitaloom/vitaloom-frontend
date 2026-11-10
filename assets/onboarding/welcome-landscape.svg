@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 390 570" width="390" height="570" role="img" aria-label="Decorative transparent landscape layer"><defs>
-<linearGradient id="mint" x2="1" y2="1"><stop stop-color="#B8F8DE"/><stop offset=".48" stop-color="#45CEAA"/><stop offset="1" stop-color="#078E7E"/></linearGradient>
-<linearGradient id="soft" x2="1" y2="1"><stop stop-color="#FFFFFF"/><stop offset="1" stop-color="#DAF7ED"/></linearGradient>
-<linearGradient id="peach" x2="1" y2="1"><stop stop-color="#FFE4C6"/><stop offset="1" stop-color="#EFA680"/></linearGradient>
-<linearGradient id="brown" x2="1" y2="1"><stop stop-color="#39231F"/><stop offset=".7" stop-color="#866046"/><stop offset="1" stop-color="#B58962"/></linearGradient>
-<filter id="shade" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur in="SourceAlpha" stdDeviation="5"/><feOffset dy="5"/><feComponentTransfer><feFuncA type="linear" slope=".18"/></feComponentTransfer><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-</defs><path d="M0 95Q58 108 93 181T230 217Q309 164 390 138V570H0Z" fill="#E1F6EF" opacity=".88"/><path d="M0 249Q103 199 149 273T390 244V570H0Z" fill="#C8EEE3" opacity=".68"/><g fill="#54BFB0" opacity=".24"><path d="M0 385L24 289L49 385Z"/><path d="M9 332L26 263L42 332Z"/></g><path d="M0 516Q105 489 194 518T390 508V570H0Z" fill="#F5FFFA" opacity=".28"/></svg>

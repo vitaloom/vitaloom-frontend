@@ -11,8 +11,8 @@ export const onboardingSlides: readonly OnboardingSlide[] = [
   {
     id: 'ONB-SCR-001',
     title: 'Track · Improve · Feel Better',
-    description: 'Monitor your healthy habits, understand your progress, and build a better lifestyle.',
-    action: 'Get Started',
+    description: 'Monitor your habits, understand your progress, and build a lifestyle.',
+    action: 'Next',
     hero: require('@/assets/onboarding/welcome-hero.png'),
     showsBrand: true,
   },
