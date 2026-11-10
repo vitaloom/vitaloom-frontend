@@ -7,7 +7,7 @@ export default function RootLayout() {
 }
 
 function AuthenticatedNavigator() {
-  const { status } = useAuth();
+  const { status, pendingProfileInvitation } = useAuth();
   const authenticated = status === 'authenticated';
   const authenticationScreenAvailable = status === 'unauthenticated' || status === 'temporarilyUnavailable';
 
@@ -19,6 +19,9 @@ function AuthenticatedNavigator() {
       <Stack.Screen name="sleep" options={{ headerShown: true, title: 'Sleep Tracking' }} />
       <Stack.Screen name="steps" options={{ headerShown: false }} />
       <Stack.Screen name="heart-rate" options={{ headerShown: false }} />
+      <Stack.Protected guard={pendingProfileInvitation} redirectTo="/(tabs)/home">
+        <Stack.Screen name="profile-setup-prompt" options={{ headerShown: false }} />
+      </Stack.Protected>
     </Stack.Protected>
     <Stack.Protected guard={authenticationScreenAvailable} redirectTo="/">
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
