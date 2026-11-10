@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 390 570" width="390" height="570" role="img" aria-label="Welcome woman holding a mint water bottle"><defs>
+<linearGradient id="mint" x2="1" y2="1"><stop stop-color="#B8F8DE"/><stop offset=".48" stop-color="#45CEAA"/><stop offset="1" stop-color="#078E7E"/></linearGradient>
+<linearGradient id="soft" x2="1" y2="1"><stop stop-color="#FFFFFF"/><stop offset="1" stop-color="#DAF7ED"/></linearGradient>
+<linearGradient id="peach" x2="1" y2="1"><stop stop-color="#FFE4C6"/><stop offset="1" stop-color="#EFA680"/></linearGradient>
+<linearGradient id="brown" x2="1" y2="1"><stop stop-color="#39231F"/><stop offset=".7" stop-color="#866046"/><stop offset="1" stop-color="#B58962"/></linearGradient>
+<filter id="shade" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur in="SourceAlpha" stdDeviation="5"/><feOffset dy="5"/><feComponentTransfer><feFuncA type="linear" slope=".18"/></feComponentTransfer><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+<ellipse cx="102" cy="278" rx="58" ry="60" fill="url(#brown)"/>
+<path d="M76 339Q83 228 122 202Q170 161 207 203Q251 245 221 324Q186 360 109 368Z" fill="url(#brown)"/>
+<path d="M10 570Q9 447 74 388Q109 370 142 390L213 372Q288 394 309 570Z" fill="#7EDEC2"/>
+<path d="M102 391Q130 371 148 390Q174 426 214 388Q247 397 258 450L266 570H105Z" fill="#FAFCFC"/>
+<path d="M138 333L133 398Q161 438 203 402L202 336Z" fill="url(#peach)"/>
+<path d="M125 247Q125 191 181 184Q224 181 238 231Q240 251 249 269L257 284Q254 293 241 296Q231 350 197 356Q143 360 128 310Z" fill="url(#peach)"/>
+<path d="M117 260Q113 208 149 190Q196 159 229 208Q219 232 216 244Q192 229 186 203Q163 232 117 260Z" fill="url(#brown)"/>
+<path d="M187 268Q199 261 212 266" fill="none" stroke="#714C3F" stroke-width="3" stroke-linecap="round"/>
+<path d="M218 310Q232 320 243 304" fill="none" stroke="#B9564C" stroke-width="4" stroke-linecap="round"/>
+<circle cx="199" cy="291" r="12" fill="#EF8B80" opacity=".22"/>
+<path d="M69 403Q37 461 41 553" fill="none" stroke="#B5F3DF" stroke-width="13" opacity=".6"/>
+<g transform="translate(265 355) rotate(-9 42 104)" filter="url(#shade)">
+<rect x="5" y="27" width="84" height="172" rx="22" fill="url(#mint)" opacity=".85" stroke="#248C7C" stroke-width="3"/>
+<rect x="22" y="4" width="49" height="39" rx="6" fill="#1B8978"/><rect x="18" y="0" width="56" height="16" rx="5" fill="#16796B"/>
+<path d="M25 60V169" stroke="#ECFFF9" stroke-opacity=".7" stroke-width="10" stroke-linecap="round"/>
+</g>
+<path d="M276 453Q292 420 310 422Q326 434 326 467L332 501" stroke="url(#peach)" stroke-width="24" stroke-linecap="round" fill="none"/>
+<g fill="#159E85" font-family="cursive" font-weight="700" font-style="italic" font-size="24" text-anchor="middle" transform="rotate(-7 325 282)">
+<text x="325" y="230">Better</text><text x="325" y="258">Health</text><text x="325" y="286">Brighter</text><text x="325" y="314">Days</text></g>
+<path d="M265 347Q309 326 345 348L373 337" stroke="#18AB90" stroke-width="2.5" fill="none"/>
+</svg>
