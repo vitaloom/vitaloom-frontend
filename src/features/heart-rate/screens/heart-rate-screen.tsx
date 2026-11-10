@@ -5,17 +5,9 @@ import { ThemedText } from '@/components/themed-text';
 import { HealthMetricsSidebar } from '@/components/ui/health-metrics-sidebar';
 import { HeartRateFooter } from '@/components/ui/main-tab-bar';
 import { useTheme } from '@/hooks/use-theme';
-import { apiRequest } from '@/lib/api/http-client';
 import { radius, shadows, sizing, spacing } from '@/theme';
-import { dateInHcm, heartRateSummaryPath, isFutureHcmDate, weekDates, weekRangeLabel } from '../utils/heart-rate-date';
-
-type HeartRateSummary = {
-  date: string;
-  timezone: 'Asia/Ho_Chi_Minh';
-  asOf: string;
-  latestRecorded: null | { heartRateBpm: number; occurredAt: string };
-  dailyAverage: { heartRateBpm: number | null; dataStatus: 'CURRENT_DAY_PARTIAL' | 'HISTORY_UNVERIFIED' | 'HISTORY_VERIFIED' };
-};
+import { heartRateApi, type HeartRateSummary } from '../api/heart-rate-api';
+import { dateInHcm, isFutureHcmDate, weekDates, weekRangeLabel } from '../utils/heart-rate-date';
 
 function dateLabel(date: string) {
   return new Intl.DateTimeFormat('vi-VN', { timeZone: 'UTC', weekday: 'short', day: '2-digit' }).format(new Date(`${date}T12:00:00Z`));
@@ -41,7 +33,7 @@ export default function HeartRateScreen() {
 
   useEffect(() => {
     const controller = new AbortController();
-    apiRequest<HeartRateSummary>(heartRateSummaryPath(selectedDate), { method: 'GET', signal: controller.signal }, true)
+    heartRateApi.summary(selectedDate, controller.signal)
       .then((result) => { if (!controller.signal.aborted) { setSummary(result); setCompletedRequest(requestKey); } })
       .catch((reason: unknown) => {
         if (controller.signal.aborted) return;

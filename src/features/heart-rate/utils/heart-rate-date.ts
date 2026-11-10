@@ -23,8 +23,8 @@ export function weekRangeLabel(dates: string[]) {
   if (dates.length < 7) return '';
   const start = new Date(`${dates[0]}T12:00:00Z`);
   const end = new Date(`${dates[6]}T12:00:00Z`);
-  const fmt = new Intl.DateTimeFormat('vi-VN', { timeZone: 'UTC', day: '2-digit', month: '2-digit' });
-  return `${fmt.format(start)}–${fmt.format(end)}/${end.getUTCFullYear()}`;
+  const dayMonth = (value: Date) => `${String(value.getUTCDate()).padStart(2, '0')}/${String(value.getUTCMonth() + 1).padStart(2, '0')}`;
+  return `${dayMonth(start)}–${dayMonth(end)}/${end.getUTCFullYear()}`;
 }
 
 export function isFutureHcmDate(candidate: string, today: string) {
@@ -32,5 +32,26 @@ export function isFutureHcmDate(candidate: string, today: string) {
 }
 
 export function heartRateSummaryPath(date: string) {
-  return `/heart-rate/summary?date=${encodeURIComponent(date)}`;
+  return `/statistics/heart-rate/summary?date=${encodeURIComponent(date)}`;
+}
+
+export function heartRateSeriesPath(mode: 'day' | 'week' | 'custom', values: { date?: string; weekStartDate?: string; startDate?: string; endDate?: string }) {
+  if (mode === 'day') return `/statistics/heart-rate/daily?date=${encodeURIComponent(values.date ?? dateInHcm())}`;
+  if (mode === 'week') return `/statistics/heart-rate/weekly?weekStartDate=${encodeURIComponent(values.weekStartDate ?? dateInHcm())}`;
+  return `/statistics/heart-rate/custom?startDate=${encodeURIComponent(values.startDate ?? '')}&endDate=${encodeURIComponent(values.endDate ?? '')}`;
+}
+
+export function getMonday(date: string) {
+  const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
+  return shiftCalendarDate(date, -((weekday + 6) % 7));
+}
+
+export function validateHeartRateRange(startDate: string, endDate: string, today: string) {
+  const validDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
+  if (!validDate(startDate) || !validDate(endDate)) return 'Enter valid dates in YYYY-MM-DD format.';
+  if (startDate > endDate) return 'Start date must be on or before end date.';
+  if (endDate > today) return 'End date cannot be in the future.';
+  const dayCount = (Date.parse(`${endDate}T00:00:00Z`) - Date.parse(`${startDate}T00:00:00Z`)) / 86400000 + 1;
+  if (dayCount > 30) return 'Choose a range of 30 days or less.';
+  return null;
 }
