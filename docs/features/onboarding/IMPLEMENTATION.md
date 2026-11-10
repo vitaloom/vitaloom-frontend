@@ -18,10 +18,10 @@ The PNGs retain the bytes of the supplied assets. The original design SVGs remai
 ## Composition and navigation
 
 - `src/app/onboarding/index.tsx` exposes `/onboarding` and supplies the completion callback.
-- `OnboardingScreen` owns the current page, press guard, announcements, scroll position, and responsive stage layout. It draws the cream-to-mint gradient behind the artwork and rounded panel. On short viewports or when text expands, the content scrolls vertically.
+- `OnboardingScreen` owns the current page, press guard, announcements, scroll position, and responsive stage layout. It anchors the rounded panel above the bottom safe area and lets it overlap the art. On short viewports or when text expands, the content scrolls vertically.
 - `OnboardingHero` renders the supplied hero above the scenery. The first slide reserves space for the native Healthy Check wordmark and tagline. Subsequent artwork fades in unless system reduced motion is active.
 - `OnboardingLandscape` combines gradient mountains, hills, reusable shrubs, and two wave layers on a 390 × 570 viewBox. The landscape fills the entire stage at every viewport width.
-- `OnboardingPanel` renders the title, copy, pagination, and CTA using theme tokens. The same page index selects both artwork and the active dot. The heading includes the current page number for assistive technology.
+- `OnboardingPanel` reserves enough space for the tallest slide's copy at the current width and text size. The panel, pagination, and CTA stay in place across slides. The heading includes the current page number for assistive technology.
 - `advance-onboarding.ts` allows one advance per transition window and one completion. CTA labels in order are **Get Started**, **Next**, **Next**, **Get Started**. The controls are CTA-driven. Swiping and in-carousel System Back were proposed in the design and are outside this implementation.
 
 The final CTA calls `router.replace('/(auth)/welcome')` through the route callback. The parallel Authentication branch owns that destination. After integration, the app entry router can decide when to open `/onboarding` after checking restored session state. The completion callback is the boundary for recording a completion flag if product approves a persistence policy. First-run and logout-repeat policy remain open.
@@ -32,8 +32,9 @@ The final CTA calls `router.replace('/(auth)/welcome')` through the route callba
 - `node --test tests/*.test.cjs tests/*.test.mjs src/features/onboarding/__tests__/*.test.cjs` passed all 12 tests, including the three onboarding tests for sequential advance, rapid-press suppression, and one-time completion.
 - Expo Metro exported the Android and iOS bundles with all four hero PNGs.
 - Chrome rendered all four slides at 390 × 844, 320 × 568, and 430 × 932. The browser check exercised image transparency and dimensions, full-width scenery, page headings, pagination, reachable CTAs, rapid presses, and the final `/(auth)/welcome` URL. Reduced motion was enabled for the narrow and tall runs. The approved light artwork and white panel are used across system appearances.
+- After pinning the panel, Chrome reported identical panel, title, and CTA positions across all four slides at 375 × 812 and 320 × 568. A 375 × 812 run with enlarged panel text also passed. These viewport checks did not reproduce native iOS safe-area insets.
 - Android and iOS device rendering, native text scaling, VoiceOver, and TalkBack remain unverified. The Authentication Welcome screen requires the parallel branch for end-to-end verification.
 
 ## Visual differences
 
-The supplied heroes restore the photographic Welcome portrait and dimensional illustrations on the other three slides. The newly composed landscapes are approximate interpretations of the approved mockup. The portrait stays fully visible below the brand, and transparent padding within the supplied images affects the size and position of the visible subjects. Text wrapping and stage height vary with the viewport and system text size.
+The supplied heroes restore the photographic Welcome portrait and dimensional illustrations on the other three slides. The newly composed landscapes are approximate interpretations of the approved mockup. On small screens the rounded panel can cover the lower edge of the portrait. Text wrapping and stage height vary with the viewport and system text size.

@@ -7,7 +7,6 @@ import { colors, motion, sizing, spacing, typography } from '@/theme';
 import type { OnboardingSlide } from '../data/onboarding-slides';
 import { OnboardingLandscape } from './onboarding-landscape';
 
-export const stageRatio = 390 / 570;
 const artworkEntrance = FadeIn.duration(motion.duration.transition).reduceMotion(ReduceMotion.System);
 const theme = colors.light;
 
