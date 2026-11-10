@@ -45,7 +45,7 @@ export default function WaterLandingScreen() {
       </View>
       {loading && !summary ? <ThemedText variant="body" themeColor="textSecondary">Loading today’s intake…</ThemedText> : null}
       {error ? <ThemedText variant="body" themeColor="danger">{error}</ThemedText> : null}
-      {summary ? <ProgressCard summary={summary} theme={theme} /> : null}
+      {summary ? <ProgressCard summary={summary} theme={theme} loading={loading || submitting} /> : null}
       <QuickAddCard onAdd={addIntake} onCustom={() => router.push('/water/add')} submitting={submitting} theme={theme} />
       {actionError ? <ThemedText variant="body" themeColor="danger">{actionError}</ThemedText> : null}
       {summary ? <IntakeCard logs={summary.logs} limit={5} title="Today’s Intake" onSeeAll={() => router.push('/water/progress')} theme={theme} /> : null}
