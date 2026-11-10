@@ -30,15 +30,15 @@ export default function WaterLandingScreen() {
     setActionError(null);
     try {
       await createLog({ amountMl, loggedAt, source: 'quick-add' });
-    } catch {
-      setActionError('Could not add water. Please try again.');
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Could not add water. Please try again.');
     }
   }
 
   return <ScrollView contentInsetAdjustmentBehavior="automatic" style={{ flex: 1, backgroundColor: theme.background }} contentContainerStyle={{ paddingTop: Math.max(insets.top + spacing.xs, spacing.lg), paddingBottom: insets.bottom + spacing.xl, paddingHorizontal: spacing.md, alignItems: 'center' }}>
     <View style={{ width: '100%', maxWidth: layout.screenMax, gap: spacing.md }}>
       <View style={{ minHeight: layout.waterHeaderMin, justifyContent: 'center', gap: spacing.sm }}>
-        <Pressable onPress={() => router.push('/water/progress')} accessibilityRole="button" accessibilityLabel="Open water progress calendar" hitSlop={8} style={({ pressed }) => ({ position: 'absolute', right: spacing.sm, top: spacing.sm, width: sizing.controlComfortable, height: sizing.controlComfortable, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}><Icon name="calendar" color={theme.accent} /></Pressable>
+        <Pressable onPress={() => router.push('/water/progress' as never)} accessibilityRole="button" accessibilityLabel="Open water progress calendar" hitSlop={8} style={({ pressed }) => ({ position: 'absolute', right: spacing.sm, top: spacing.sm, width: sizing.controlComfortable, height: sizing.controlComfortable, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}><Icon name="calendar" color={theme.accent} /></Pressable>
         <ThemedText variant="labelStrong" themeColor="accent" style={{ letterSpacing: 3 }}>WATER TRACKING</ThemedText>
         <ThemedText variant="largeTitle">Stay Hydrated</ThemedText>
         <ThemedText variant="body" themeColor="textSecondary" style={{ maxWidth: 280 }}>Good hydration keeps your body and mind in balance.</ThemedText>
@@ -46,9 +46,9 @@ export default function WaterLandingScreen() {
       {loading && !summary ? <ThemedText variant="body" themeColor="textSecondary">Loading today’s intake…</ThemedText> : null}
       {error ? <ThemedText variant="body" themeColor="danger">{error}</ThemedText> : null}
       {summary ? <ProgressCard summary={summary} theme={theme} /> : null}
-      <QuickAddCard onAdd={addIntake} onCustom={() => router.push('/water/add')} submitting={submitting} theme={theme} />
+      <QuickAddCard onAdd={addIntake} onCustom={() => router.push('/water/add' as never)} submitting={submitting} theme={theme} />
       {actionError ? <ThemedText variant="body" themeColor="danger">{actionError}</ThemedText> : null}
-      {summary ? <IntakeCard logs={summary.logs} limit={5} title="Today’s Intake" onSeeAll={() => router.push('/water/progress')} theme={theme} /> : null}
+      {summary ? <IntakeCard logs={summary.logs} limit={5} title="Today’s Intake" onSeeAll={() => router.push('/water/progress' as never)} theme={theme} /> : null}
     </View>
   </ScrollView>;
 }
