@@ -2,6 +2,7 @@ import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
+import { HealthMetricsSidebar } from '@/components/ui/health-metrics-sidebar';
 import { useTheme } from '@/hooks/use-theme';
 import { radius, shadows, spacing } from '@/theme';
 
@@ -10,6 +11,7 @@ export default function SleepScreen() {
   const insets = useSafeAreaInsets();
   return <ScrollView style={{ flex: 1, backgroundColor: theme.background }} contentContainerStyle={{ paddingTop: spacing.lg, paddingBottom: insets.bottom + spacing.lg, paddingHorizontal: spacing.md }}>
     <View style={{ width: '100%', maxWidth: 520, alignSelf: 'center', gap: spacing.lg }}>
+      <HealthMetricsSidebar />
       <View style={{ gap: spacing.xs }}>
         <ThemedText variant="labelStrong" themeColor="sleep">REST & RECOVERY</ThemedText>
         <ThemedText variant="largeTitle">Sleep Tracking</ThemedText>
