@@ -47,8 +47,13 @@ export default function WaterLandingScreen() {
       </View>
       {loading && !summary ? <ThemedText variant="body" themeColor="textSecondary">Loading today’s intake…</ThemedText> : null}
       {error ? <ThemedText variant="body" themeColor="danger">{error}</ThemedText> : null}
+<<<<<<< HEAD
       {summary ? <ProgressCard summary={summary} theme={theme} /> : null}
       <QuickAddCard onAdd={addIntake} onCustom={() => router.push('/water/add' as never)} submitting={submitting} theme={theme} />
+=======
+      {summary ? <ProgressCard summary={summary} theme={theme} loading={loading || submitting} /> : null}
+      <QuickAddCard onAdd={addIntake} onCustom={() => router.push('/water/add')} submitting={submitting} theme={theme} />
+>>>>>>> feat/water-intake-fe-flow
       {actionError ? <ThemedText variant="body" themeColor="danger">{actionError}</ThemedText> : null}
       {summary ? <IntakeCard logs={summary.logs} limit={5} title="Today’s Intake" onSeeAll={() => router.push('/water/progress' as never)} theme={theme} /> : null}
     </View>
