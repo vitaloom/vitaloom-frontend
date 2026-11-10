@@ -27,6 +27,7 @@ export default function AuthWelcomeScreen({ mode }: { mode?: AuthFormMode }) {
         <View style={{ gap: spacing.md }}>
           <AuthPrimaryButton label="Sign In" onPress={() => router.push('/(auth)/sign-in')} />
           <AuthPrimaryButton label="Create Account" outline onPress={() => router.push('/(auth)/register')} />
+          {__DEV__ && <AuthPrimaryButton label="Dev: Restart Onboarding" outline onPress={() => router.replace('/onboarding')} />}
         </View>
       </AuthBottomSheet>}
   </SafeAreaView>;
