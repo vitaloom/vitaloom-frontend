@@ -16,18 +16,31 @@ type Props = {
 export function OnboardingPanel({ page, bottomInset, onAdvance, onLayout }: Props) {
   const slide = onboardingSlides[page];
   const finalPage = page === onboardingSlides.length - 1;
+  const copyOrder = [slide, ...onboardingSlides.filter(({ id }) => id !== slide.id)];
 
   return (
     <View onLayout={onLayout} style={[styles.panel, { paddingBottom: spacing.lg + bottomInset }]}>
-      <View style={styles.copy}>
-        <Text
-          accessibilityRole="header"
-          aria-live="polite"
-          accessibilityLabel={`Onboarding, page ${page + 1} of ${onboardingSlides.length}. ${slide.title}`}
-          style={[styles.title, slide.showsBrand && typography.heading]}>
-          {slide.title}
-        </Text>
-        <Text style={styles.description}>{slide.description}</Text>
+      <View style={styles.copyRow}>
+        {/* Let the tallest copy size the row at the current width and text scale. */}
+        {copyOrder.map((item) => {
+          const active = item.id === slide.id;
+          return (
+            <View
+              key={item.id}
+              aria-hidden={!active}
+              importantForAccessibility={active ? 'auto' : 'no-hide-descendants'}
+              style={[styles.copy, !active && styles.hiddenCopy]}>
+              <Text
+                accessibilityRole={active ? 'header' : undefined}
+                aria-live={active ? 'polite' : undefined}
+                accessibilityLabel={active ? `Onboarding, page ${page + 1} of ${onboardingSlides.length}. ${item.title}` : undefined}
+                style={[styles.title, item.showsBrand && styles.welcomeTitle]}>
+                {item.title}
+              </Text>
+              <Text style={styles.description}>{item.description}</Text>
+            </View>
+          );
+        })}
       </View>
 
       <View style={styles.pagination} aria-hidden>
@@ -68,8 +81,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     gap: spacing.lg,
   },
-  copy: { gap: spacing.sm },
+  copyRow: { flexDirection: 'row', overflow: 'hidden' },
+  copy: { width: '100%', flexShrink: 0, gap: spacing.sm },
+  hiddenCopy: { opacity: 0 },
   title: { ...typography.title, color: theme.text, textAlign: 'center' },
+  welcomeTitle: { fontSize: typography.heading.fontSize },
   description: {
     ...typography.body,
     color: theme.textSecondary,
