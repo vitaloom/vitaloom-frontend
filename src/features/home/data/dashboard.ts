@@ -20,7 +20,7 @@ export const dashboardUser: DashboardUser = {
 
 export const dashboardMetrics: MetricSummary[] = [
   { key: 'steps', title: 'Steps', value: '7,842', secondary: '/ 10,000', current: 7842, goal: 10000, chart: [42, 27, 40, 30, 53, 26, 20, 42, 33, 55, 25, 40], route: '/steps' },
-  { key: 'heart-rate', title: 'Heart Rate', value: '72', unit: 'bpm', secondary: 'Normal', chart: [64, 66, 65, 71, 67, 69, 75, 72, 66, 65, 72, 70, 73, 86, 79, 71, 70, 73], route: '/heart-rate' },
+  { key: 'heart-rate', title: 'Heart Rate', value: '—', unit: 'bpm', secondary: 'Latest recorded', chart: [], route: '/heart-rate' },
   { key: 'water', title: 'Water', value: '1.5 L', secondary: '/ 2.0 L', current: 1.5, goal: 2, chart: [32, 18, 38, 20, 44, 23, 36, 50, 22, 46, 24, 38], route: '/water' },
   { key: 'sleep', title: 'Sleep', value: '7h 30m', secondary: '/ 8 hours', current: 7.5, goal: 8, chart: [42, 22, 38, 45, 30, 35, 49, 53, 19, 42], route: '/sleep' },
 ];

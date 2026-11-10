@@ -1,21 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { HealthMetricsSidebar } from '@/components/ui/health-metrics-sidebar';
 import { HeartRateFooter } from '@/components/ui/main-tab-bar';
 import { useTheme } from '@/hooks/use-theme';
-import { apiRequest } from '@/lib/api/http-client';
 import { radius, shadows, sizing, spacing } from '@/theme';
-import { dateInHcm, heartRateSummaryPath, isFutureHcmDate, weekDates, weekRangeLabel } from '../utils/heart-rate-date';
-
-type HeartRateSummary = {
-  date: string;
-  timezone: 'Asia/Ho_Chi_Minh';
-  asOf: string;
-  latestRecorded: null | { heartRateBpm: number; occurredAt: string };
-  dailyAverage: { heartRateBpm: number | null; dataStatus: 'CURRENT_DAY_PARTIAL' | 'HISTORY_UNVERIFIED' | 'HISTORY_VERIFIED' };
-};
+import { heartRateApi, type HeartRateSummary } from '../api/heart-rate-api';
+import { useHeartRateRefresh } from '../hooks/use-heart-rate-refresh';
+import { dateInHcm, isFutureHcmDate, weekDates, weekRangeLabel } from '../utils/heart-rate-date';
 
 function dateLabel(date: string) {
   return new Intl.DateTimeFormat('vi-VN', { timeZone: 'UTC', weekday: 'short', day: '2-digit' }).format(new Date(`${date}T12:00:00Z`));
@@ -41,7 +34,7 @@ export default function HeartRateScreen() {
 
   useEffect(() => {
     const controller = new AbortController();
-    apiRequest<HeartRateSummary>(heartRateSummaryPath(selectedDate), { method: 'GET', signal: controller.signal }, true)
+    heartRateApi.summary(selectedDate, controller.signal)
       .then((result) => { if (!controller.signal.aborted) { setSummary(result); setCompletedRequest(requestKey); } })
       .catch((reason: unknown) => {
         if (controller.signal.aborted) return;
@@ -52,6 +45,7 @@ export default function HeartRateScreen() {
 
   const dates = useMemo(() => weekDates(today, weekOffset), [today, weekOffset]);
   const retry = useCallback(() => setRetryKey((value) => value + 1), []);
+  useHeartRateRefresh(retry, selectedDate === today ? 15_000 : undefined);
   const statusCopy = summary?.dailyAverage.dataStatus === 'CURRENT_DAY_PARTIAL'
     ? { title: 'Hôm nay · Tạm tính', detail: 'Số liệu trong ngày có thể tiếp tục thay đổi.' }
     : summary?.dailyAverage.dataStatus === 'HISTORY_VERIFIED'
@@ -59,7 +53,7 @@ export default function HeartRateScreen() {
       : { title: 'Dữ liệu chưa xác minh đầy đủ', detail: 'Kết quả có thể chưa bao gồm toàn bộ dữ liệu trong ngày.' };
 
   return <View style={{ flex: 1, backgroundColor: theme.background }}>
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, paddingTop: insets.top + spacing.md, paddingBottom: spacing.lg, paddingHorizontal: spacing.md }}>
+    <ScrollView refreshControl={<RefreshControl refreshing={loading} onRefresh={retry} tintColor={theme.accent} />} style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, paddingTop: insets.top + spacing.md, paddingBottom: spacing.lg, paddingHorizontal: spacing.md }}>
       <View style={{ width: '100%', maxWidth: 520, alignSelf: 'center', gap: spacing.md }}>
         <HealthMetricsSidebar brandedHeader />
         <View style={{ alignItems: 'center', gap: spacing.xs, marginBottom: spacing.xs }}>
@@ -94,11 +88,11 @@ export default function HeartRateScreen() {
             <Pressable accessibilityRole="button" accessibilityLabel="Tuần sau" accessibilityState={{ disabled: weekOffset >= 0 }} disabled={weekOffset >= 0} onPress={() => setWeekOffset((value) => Math.min(0, value + 1))} style={{ width: sizing.controlMin, minHeight: sizing.controlComfortable, alignItems: 'center', justifyContent: 'center', opacity: weekOffset >= 0 ? 0.35 : 1 }}><ThemedText variant="heading" themeColor="accent">›</ThemedText></Pressable>
           </View>
           <ThemedText variant="caption" themeColor="textSecondary">{weekRangeLabel(dates)}</ThemedText>
-          {summary && !loading && !error ? <View style={{ paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderRadius: radius.full, backgroundColor: summary.dailyAverage.dataStatus === 'HISTORY_UNVERIFIED' ? theme.backgroundSelected : theme.accentSoft }}><ThemedText variant="caption" themeColor={summary.dailyAverage.dataStatus === 'HISTORY_UNVERIFIED' ? 'warning' : 'accent'}>{statusCopy.title}</ThemedText></View> : <View style={{ height: 30 }} />}
+          {summary ? <View style={{ paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderRadius: radius.full, backgroundColor: summary.dailyAverage.dataStatus === 'HISTORY_UNVERIFIED' ? theme.backgroundSelected : theme.accentSoft }}><ThemedText variant="caption" themeColor={summary.dailyAverage.dataStatus === 'HISTORY_UNVERIFIED' ? 'warning' : 'accent'}>{statusCopy.title}</ThemedText></View> : <View style={{ height: 30 }} />}
           <View style={{ minHeight: 96, alignItems: 'center', justifyContent: 'center', gap: spacing.xs }}>
-            {loading ? <View style={{ height: 48, width: 150, borderRadius: radius.md, backgroundColor: theme.accentSoft }} accessibilityLabel="Đang tải trung bình theo ngày" /> : error ? <ThemedText variant="body" themeColor="danger" style={{ textAlign: 'center' }}>Không tải được dữ liệu cho ngày đã chọn.</ThemedText> : summary?.dailyAverage.heartRateBpm == null ? <ThemedText variant="body" themeColor="textSecondary" style={{ textAlign: 'center' }}>Chưa có dữ liệu cho ngày này.</ThemedText> : <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center', gap: spacing.sm }}><ThemedText variant="metricLarge">{Number.isInteger(summary.dailyAverage.heartRateBpm) ? summary.dailyAverage.heartRateBpm : summary.dailyAverage.heartRateBpm.toFixed(1)}</ThemedText><ThemedText variant="heading" themeColor="textSecondary">bpm</ThemedText></View>}
+            {loading && !summary ? <View style={{ height: 48, width: 150, borderRadius: radius.md, backgroundColor: theme.accentSoft }} accessibilityLabel="Đang tải trung bình theo ngày" /> : error && !summary ? <ThemedText variant="body" themeColor="danger" style={{ textAlign: 'center' }}>Không tải được dữ liệu cho ngày đã chọn.</ThemedText> : summary?.dailyAverage.heartRateBpm == null ? <ThemedText variant="body" themeColor="textSecondary" style={{ textAlign: 'center' }}>Chưa có dữ liệu cho ngày này.</ThemedText> : <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center', gap: spacing.sm }}><ThemedText variant="metricLarge">{Number.isInteger(summary.dailyAverage.heartRateBpm) ? summary.dailyAverage.heartRateBpm : summary.dailyAverage.heartRateBpm.toFixed(1)}</ThemedText><ThemedText variant="heading" themeColor="textSecondary">bpm</ThemedText></View>}
           </View>
-          {summary && !loading && !error ? <ThemedText variant="subhead" themeColor="textSecondary" style={{ textAlign: 'center' }}>{statusCopy.detail}</ThemedText> : <View style={{ minHeight: 40 }} />}
+          {summary ? <ThemedText variant="subhead" themeColor="textSecondary" style={{ textAlign: 'center' }}>{statusCopy.detail}</ThemedText> : <View style={{ minHeight: 40 }} />}
         </View>
         {error ? <View style={{ alignItems: 'center', gap: spacing.xs }}><ThemedText variant="subhead" themeColor="danger" style={{ textAlign: 'center' }}>{error}</ThemedText><Pressable accessibilityRole="button" onPress={retry} style={{ minHeight: sizing.controlMin, justifyContent: 'center', paddingHorizontal: spacing.sm }}><ThemedText variant="bodyStrong" themeColor="accent">Thử lại</ThemedText></Pressable></View> : null}
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, paddingHorizontal: spacing.sm }}>

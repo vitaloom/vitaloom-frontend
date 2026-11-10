@@ -3,18 +3,22 @@ import { Pressable, Text, View } from 'react-native';
 
 import { CircularProgress } from '@/components/ui/circular-progress';
 import { MiniBarChart } from '@/components/ui/mini-bar-chart';
-import { MiniLineChart } from '@/components/ui/mini-line-chart';
 import { WellnessIcon } from '@/components/ui/wellness-icon';
 import { useTheme } from '@/hooks/use-theme';
 import { radius, shadows } from '@/theme';
 import { type MetricSummary } from '../data/dashboard';
 
-export function MetricCard({ metric, compact }: { metric: MetricSummary; compact: boolean }) {
+export type HeartRateTile = { state: 'loading' | 'error' | 'empty' | 'ready'; bpm?: number; occurredAt?: string };
+
+export function MetricCard({ metric, compact, heartRate, onRetry }: { metric: MetricSummary; compact: boolean; heartRate?: HeartRateTile; onRetry?: () => void }) {
   const theme = useTheme();
   const accent = metric.key === 'steps' ? theme.steps : metric.key === 'heart-rate' ? theme.heartRate : metric.key === 'water' ? theme.water : theme.sleep;
   const soft = metric.key === 'steps' ? theme.stepsSoft : metric.key === 'heart-rate' ? theme.heartRateSoft : metric.key === 'water' ? theme.waterPanel : theme.sleepSoft;
   const chartColor = accent;
-  return <Pressable accessibilityRole="button" accessibilityLabel={`${metric.title}, ${metric.value}${metric.unit ? ` ${metric.unit}` : ''}, ${metric.secondary}. Open ${metric.title} details`} onPress={() => router.push(metric.route as Href)} style={({ pressed }) => ({ width: '48.5%', minHeight: compact ? 143 : 151, padding: compact ? 12 : 14, borderRadius: radius.xl, backgroundColor: theme.backgroundElement, boxShadow: shadows.card, opacity: pressed ? 0.78 : 1, overflow: 'hidden' })}>
+  const heartRateError = metric.key === 'heart-rate' && heartRate?.state === 'error';
+  const value = metric.key === 'heart-rate' ? heartRate?.state === 'ready' ? `${heartRate.bpm}` : heartRate?.state === 'loading' ? '…' : heartRate?.state === 'empty' ? '—' : '!' : metric.value;
+  const secondary = metric.key === 'heart-rate' ? heartRate?.state === 'ready' && heartRate.occurredAt ? `Đo lúc ${new Intl.DateTimeFormat('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', dateStyle: 'short', timeStyle: 'short' }).format(new Date(heartRate.occurredAt))}` : heartRate?.state === 'loading' ? 'Đang tải...' : heartRate?.state === 'error' ? 'Nhấn để thử lại' : heartRate?.state === 'empty' ? 'Chưa có phép đo' : '' : metric.secondary;
+  return <Pressable accessibilityRole="button" accessibilityLabel={heartRateError ? 'Heart Rate data unavailable. Tap to retry.' : `${metric.title}, ${value}${metric.unit ? ` ${metric.unit}` : ''}, ${secondary}. Open ${metric.title} details`} onPress={() => heartRateError ? onRetry?.() : router.push(metric.route as Href)} style={({ pressed }) => ({ width: '48.5%', minHeight: compact ? 143 : 151, padding: compact ? 12 : 14, borderRadius: radius.xl, backgroundColor: theme.backgroundElement, boxShadow: shadows.card, opacity: pressed ? 0.78 : 1, overflow: 'hidden' })}>
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
       <View style={{ width: 31, height: 31, borderRadius: 16, backgroundColor: soft, alignItems: 'center', justifyContent: 'center' }}>
         <WellnessIcon name={metric.key} color={accent} size={19} />
@@ -24,13 +28,11 @@ export function MetricCard({ metric, compact }: { metric: MetricSummary; compact
     </View>
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: compact ? 8 : 10, minHeight: 54 }}>
       <View style={{ flexShrink: 1 }}>
-        <Text numberOfLines={1} adjustsFontSizeToFit style={{ color: theme.text, fontSize: metric.key === 'sleep' ? (compact ? 23 : 25) : compact ? 27 : 30, lineHeight: 34, fontWeight: '700', fontVariant: ['tabular-nums'] }}>{metric.value}{metric.unit ? <Text style={{ fontSize: compact ? 15 : 17, fontWeight: '500' }}> {metric.unit}</Text> : null}</Text>
-        <Text style={{ color: theme.textSecondary, fontSize: compact ? 12 : 13, marginTop: 1 }} numberOfLines={1}>{metric.secondary}</Text>
+        <Text numberOfLines={1} adjustsFontSizeToFit style={{ color: heartRateError ? theme.danger : theme.text, fontSize: metric.key === 'sleep' ? (compact ? 23 : 25) : compact ? 27 : 30, lineHeight: 34, fontWeight: '700', fontVariant: ['tabular-nums'] }}>{value}{metric.key === 'heart-rate' && heartRate?.state === 'ready' ? <Text style={{ fontSize: compact ? 15 : 17, fontWeight: '500' }}> bpm</Text> : metric.key !== 'heart-rate' && metric.unit ? <Text style={{ fontSize: compact ? 15 : 17, fontWeight: '500' }}> {metric.unit}</Text> : null}</Text>
+        <Text style={{ color: theme.textSecondary, fontSize: compact ? 12 : 13, marginTop: 1 }} numberOfLines={1}>{secondary}</Text>
       </View>
       {metric.current !== undefined && metric.goal !== undefined ? <CircularProgress value={metric.current} maxValue={metric.goal} size={compact ? 50 : 54} strokeWidth={6} color={accent} trackColor={soft} /> : null}
     </View>
-    <View style={{ height: compact ? 31 : 34, marginTop: 8 }}>
-      {metric.key === 'heart-rate' ? <MiniLineChart data={metric.chart} color={chartColor} height={compact ? 31 : 34} showPoints /> : <MiniBarChart data={metric.chart} color={chartColor} height={compact ? 31 : 34} trackColor={soft} />}
-    </View>
+    {metric.key === 'heart-rate' ? null : <View style={{ height: compact ? 31 : 34, marginTop: 8 }}><MiniBarChart data={metric.chart} color={chartColor} height={compact ? 31 : 34} trackColor={soft} /></View>}
   </Pressable>;
 }
