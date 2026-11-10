@@ -4,7 +4,7 @@ import type { CreateWaterLogInput, DailyWaterSummary, LocalDate, WaterLog, Weekl
 import { waterRepository } from '../services/water.repository';
 
 type SummaryState<T> = { summary: T | null; loading: boolean; error: string | null };
-type LoadedSummary<T> = { key: string; summary: T | null; error: string | null };
+type LoadedSummary<T> = { date?: LocalDate; key: string; summary: T | null; error: string | null };
 
 function useRepositoryRevision(): number {
   return useSyncExternalStore(waterRepository.subscribe, waterRepository.getRevision, waterRepository.getRevision);
@@ -18,15 +18,15 @@ export function useWaterDaily(date: LocalDate): SummaryState<DailyWaterSummary> 
   useEffect(() => {
     let active = true;
     void waterRepository.getDailySummary(date).then(
-      (summary) => { if (active) setState({ key, summary, error: null }); },
-      (error: unknown) => { if (active) setState({ key, summary: null, error: error instanceof Error ? error.message : 'Không thể tải dữ liệu nước.' }); },
+      (summary) => { if (active) setState({ date, key, summary, error: null }); },
+      (error: unknown) => { if (active) setState((previous) => ({ date, key, summary: previous?.date === date ? previous.summary : null, error: error instanceof Error ? error.message : 'Không thể tải dữ liệu nước.' })); },
     );
     return () => { active = false; };
   }, [date, key]);
 
-  return state?.key === key
-    ? { ...state, loading: false }
-    : { summary: null, loading: true, error: null };
+  if (state?.key === key) return { summary: state.summary, loading: false, error: state.error };
+  if (state?.date === date && state.summary) return { summary: state.summary, loading: true, error: null };
+  return { summary: null, loading: true, error: null };
 }
 
 export function useWaterWeekly(weekStart: LocalDate): SummaryState<WeeklyWaterSummary> {

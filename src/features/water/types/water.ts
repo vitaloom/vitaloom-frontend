@@ -21,7 +21,7 @@ export interface WaterLog {
 
 export interface CreateWaterLogInput {
   amountMl: number;
-  loggedAt: ISODateTime;
+  loggedAt?: ISODateTime;
   source: WaterLogSource;
 }
 

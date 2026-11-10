@@ -1,5 +1,5 @@
-import { MockWaterRepository } from '../mocks/mock-water.repository';
+import { ApiWaterRepository } from './api-water.repository';
 import type { WaterRepository } from '../types/water';
 
-/** Single dependency seam for replacing the in-memory mock with an API adapter. */
-export const waterRepository: WaterRepository = new MockWaterRepository();
+/** Authenticated API-backed repository shared by the Water screens. */
+export const waterRepository: WaterRepository = new ApiWaterRepository();

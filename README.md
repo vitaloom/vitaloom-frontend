@@ -6,7 +6,7 @@ The active mobile application for VitaLoom, built with Expo, React Native and Ty
 
 - Expo SDK 58, React Native 0.88 and Expo Router.
 - The home route currently renders the Water landing UI prototype.
-- The Water screen currently uses local sample data; Backend API integration is not complete.
+- The Water screens use the authenticated Backend Water API for saved logs, daily summaries and weekly progress.
 - The Explore route still contains some Expo starter content and is not a finalized VitaLoom product screen.
 - Shared visual tokens and UI guidance are maintained in `src/theme/` and `docs/ui/`.
 
@@ -67,6 +67,8 @@ Start with [UI Foundation](./docs/ui/README.md), [Design Tokens](./docs/ui/token
 The canonical API behavior is maintained in [vitaloom-backend/docs/api/api-contract.md](https://github.com/vitaloom/vitaloom-backend/blob/main/docs/api/api-contract.md). The auth client uses `EXPO_PUBLIC_API_BASE_URL` as the backend origin; copy `.env.example` to `.env` and set a host reachable from the device. The example uses `http://10.0.2.2:8080` for an Android emulator. A physical device needs the development machine's current LAN address and the actual backend `SERVER_PORT` (for example, `http://192.168.1.7:6969` on one local network). Restart Expo after changing `.env` so the app receives the new URL.
 
 After sign-in or registration, the access token stays in memory and the refresh token is stored with Expo SecureStore. Startup exchanges the stored refresh token and loads `/api/auth/me`; protected requests refresh once and retry once when needed. Sign-out clears local credentials. Lint, typecheck and auth concurrency tests pass; a device/emulator end-to-end walkthrough has not yet been run.
+
+Water requests use the same authenticated client. Configure a backend URL reachable from the device before using Water Landing, Detailed Entry or Progress; these screens do not fall back to local sample data when a request fails. See the [Water API contract](docs/api/water-intake-proposal.md).
 
 ## Scope boundaries
 

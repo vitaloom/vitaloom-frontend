@@ -1,5 +1,7 @@
 # Water Intake FE — Implementation Report
 
+> Historical report for the mock-only FE implementation on 2026-11-05. The Water repository was replaced with the authenticated API adapter on 2026-11-06. See [the current Water API contract](../api/water-intake-proposal.md) and the backend [implementation report](../../../vitaloom-backend/docs/features/water/implementation-report.md) for current behavior and verification.
+
 ## Metadata
 
 - FE repository: `D:\prj\vita-loom\vita-loom-mobile`

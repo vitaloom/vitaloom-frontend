@@ -16,9 +16,9 @@ const PRESETS = [100, 200, 500, 750] as const;
 export default function WaterDetailEntryScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const [initial] = useState(() => new Date());
   const [amountInput, setAmountInput] = useState('');
-  const [loggedAt, setLoggedAt] = useState<Date | null>(initial);
+  const [initialTime] = useState(() => new Date(Math.floor(Date.now() / 60_000) * 60_000));
+  const [loggedAt, setLoggedAt] = useState<Date | null>(initialTime);
   const [amountError, setAmountError] = useState<string | null>(null);
   const [timeError, setTimeError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -36,19 +36,21 @@ export default function WaterDetailEntryScreen() {
     }
     if (!loggedAt || Number.isNaN(loggedAt.getTime())) {
       setTimeError('Choose a valid date and time.');
-    } else if (isFutureInstant(loggedAt, new Date())) {
-      setTimeError('Future times cannot be logged.');
-    } else {
-      setTimeError(null);
+      return;
     }
-    if (!validAmount || !loggedAt || Number.isNaN(loggedAt.getTime()) || isFutureInstant(loggedAt, new Date())) return;
+    if (isFutureInstant(loggedAt, new Date())) {
+      setTimeError('Future times cannot be logged.');
+      return;
+    }
+    setTimeError(null);
+    if (!validAmount) return;
     pendingRef.current = true;
     setSaveError(null);
     try {
       await createLog({ amountMl, loggedAt: loggedAt.toISOString(), source: 'custom' });
       router.back();
-    } catch {
-      setSaveError('Could not save this log. Please try again.');
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Could not save this log. Please try again.');
     } finally {
       pendingRef.current = false;
     }
@@ -76,10 +78,17 @@ export default function WaterDetailEntryScreen() {
             <TextInput accessibilityLabel="Water amount in millilitres" keyboardType="number-pad" value={amountInput} onChangeText={(value) => { setAmountInput(value); setAmountError(null); }} placeholder="Enter 1–2,000 ml" placeholderTextColor={theme.textSecondary} style={{ minHeight: sizing.controlComfortable, borderWidth: 1, borderRadius: radius.md, borderColor: amountError ? theme.danger : theme.border, backgroundColor: theme.background, color: theme.text, paddingHorizontal: spacing.md, fontSize: 17 }} />
             {amountError ? <ThemedText variant="caption" themeColor="danger">{amountError}</ThemedText> : null}
           </View>
-          <WaterDateTimeField initial={initial} onChange={(date) => { setLoggedAt(date); setTimeError(null); }} theme={theme} />
+          <WaterDateTimeField
+            initial={initialTime}
+            onChange={(date) => {
+              setLoggedAt(date);
+              setTimeError(null);
+            }}
+            theme={theme}
+          />
           {timeError ? <ThemedText variant="caption" themeColor="danger">{timeError}</ThemedText> : null}
         </View>
-        <View style={{ padding: spacing.md, borderRadius: radius.lg, backgroundColor: theme.surfaceTint }}><ThemedText variant="subhead" themeColor="textSecondary">This is sample data for this app session. It is not synced to a server.</ThemedText></View>
+        <View style={{ padding: spacing.md, borderRadius: radius.lg, backgroundColor: theme.surfaceTint }}><ThemedText variant="subhead" themeColor="textSecondary">Water logs are saved to your account.</ThemedText></View>
         {saveError ? <ThemedText variant="body" themeColor="danger">{saveError}</ThemedText> : null}
         <Pressable onPress={save} disabled={submitting} accessibilityRole="button" accessibilityLabel="Save water log" accessibilityState={{ disabled: submitting, busy: submitting }} style={({ pressed }) => ({ minHeight: sizing.controlComfortable, borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.accent, opacity: submitting ? 0.5 : pressed ? 0.8 : 1 })}><ThemedText variant="bodyStrong" themeColor="onAccent">{submitting ? 'Saving…' : 'Save water log'}</ThemedText></Pressable>
       </View>

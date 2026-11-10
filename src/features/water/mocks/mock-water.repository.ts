@@ -16,7 +16,11 @@ export class MockWaterRepository implements WaterRepository {
   private readonly listeners = new Set<() => void>();
   private nextId = 1;
 
-  constructor(now: Date = new Date(), seed: WaterLog[] = createWaterSeed(now)) {
+  constructor(
+    now: Date = new Date(),
+    seed: WaterLog[] = createWaterSeed(now),
+    private readonly getNow: () => Date = () => new Date(),
+  ) {
     this.logs = [...seed];
   }
 
@@ -47,13 +51,14 @@ export class MockWaterRepository implements WaterRepository {
   }
 
   async createLog(input: CreateWaterLogInput): Promise<WaterLog> {
-    const error = validateCreateWaterLogInput(input, new Date());
+    const now = this.getNow();
+    const error = validateCreateWaterLogInput(input, now);
     if (error) throw new Error(error);
 
     const log: WaterLog = {
       id: `water-${Date.now()}-${this.nextId++}`,
       amountMl: input.amountMl,
-      loggedAt: new Date(input.loggedAt).toISOString(),
+      loggedAt: input.loggedAt ? new Date(input.loggedAt).toISOString() : now.toISOString(),
       source: input.source,
     };
     this.logs = [...this.logs, log];
