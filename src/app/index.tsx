@@ -7,13 +7,13 @@ import { useAuth } from '@/features/auth/store/auth-context';
 import { spacing } from '@/theme';
 
 export default function IndexRoute() {
-  const { status, retryRestore, signOut } = useAuth();
+  const { status, pendingProfileInvitation, retryRestore, signOut } = useAuth();
   const theme = useTheme();
 
   useEffect(() => {
-    if (status === 'authenticated') router.replace('/(tabs)/home');
-    if (status === 'unauthenticated') router.replace('/(auth)/sign-in');
-  }, [status]);
+    if (status === 'authenticated') router.replace(pendingProfileInvitation ? '/profile-setup-prompt' : '/(tabs)/home');
+    if (status === 'unauthenticated') router.replace('/(auth)/welcome');
+  }, [status, pendingProfileInvitation]);
 
   if (status !== 'temporarilyUnavailable') return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.background }}><ActivityIndicator color={theme.accent} /></View>;
 

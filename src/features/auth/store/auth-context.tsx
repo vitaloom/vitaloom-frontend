@@ -11,6 +11,8 @@ type AuthContextValue = {
   register: (email: string, password: string) => Promise<RegisterResult>;
   signOut: () => Promise<void>;
   retryRestore: () => Promise<void>;
+  pendingProfileInvitation: boolean;
+  dismissProfileInvitation: () => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -18,6 +20,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>('checking');
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [pendingProfileInvitation, setPendingProfileInvitation] = useState(false);
   const refreshTokenRef = useRef<string | null>(null);
   const generationRef = useRef(0);
 
@@ -78,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => setRefreshHandler(null);
   }, [refreshAccess, restore]);
 
-  const acceptTokens = useCallback(async (tokens: AuthTokens, expectedGeneration: number) => {
+  const acceptTokens = useCallback(async (tokens: AuthTokens, expectedGeneration: number, fromRegistration = false) => {
     if (generationRef.current !== expectedGeneration) return;
     const generation = ++generationRef.current;
     refreshTokenRef.current = tokens.refreshToken;
@@ -86,6 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (generation !== generationRef.current) return;
     setAccessToken(tokens.accessToken);
     setUser(tokens.user);
+    setPendingProfileInvitation(fromRegistration);
     setStatus('authenticated');
   }, []);
 
@@ -98,7 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const register = useCallback(async (email: string, password: string) => {
     const generation = generationRef.current;
     const result = await authApi.register({ email: email.trim().toLowerCase(), password });
-    if ('refreshToken' in result) await acceptTokens(result, generation);
+    if ('refreshToken' in result) await acceptTokens(result, generation, true);
     return result;
   }, [acceptTokens]);
 
@@ -107,11 +111,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refreshTokenRef.current = null;
     setAccessToken(null);
     setUser(null);
+    setPendingProfileInvitation(false);
     setStatus('unauthenticated');
     await authStorage.clear();
   }, []);
 
-  const value = useMemo(() => ({ status, user, signIn, register, signOut, retryRestore: restore }), [status, user, signIn, register, signOut, restore]);
+  const dismissProfileInvitation = useCallback(() => setPendingProfileInvitation(false), []);
+  const value = useMemo(() => ({ status, user, signIn, register, signOut, retryRestore: restore, pendingProfileInvitation, dismissProfileInvitation }), [status, user, signIn, register, signOut, restore, pendingProfileInvitation, dismissProfileInvitation]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
