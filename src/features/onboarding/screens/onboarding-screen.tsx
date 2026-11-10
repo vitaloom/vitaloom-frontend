@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors, layout, motion, spacing } from '@/theme';
 import { advanceOnboarding, type OnboardingPosition } from '../advance-onboarding';
-import { illustrationRatio, OnboardingHero } from '../components/onboarding-hero';
+import { stageRatio, OnboardingHero } from '../components/onboarding-hero';
 import { OnboardingPanel } from '../components/onboarding-panel';
 import { onboardingSlides } from '../data/onboarding-slides';
 
@@ -35,7 +35,7 @@ export function OnboardingScreen({ onComplete }: { onComplete: () => void }) {
 
   // Keep the complete illustration visible on short screens and let the panel scroll
   // when its text needs extra room. A taller viewport gives the stage the remaining space.
-  const artworkHeight = width / illustrationRatio;
+  const artworkHeight = width / stageRatio;
   const minimumStageHeight = slide.showsBrand
     ? artworkHeight * 0.9 + insets.top + spacing.xl * Math.max(0, window.fontScale - 1)
     : artworkHeight * 0.78;
@@ -84,7 +84,7 @@ export function OnboardingScreen({ onComplete }: { onComplete: () => void }) {
         showsVerticalScrollIndicator={false}>
         <View style={[styles.flow, { width }]}>
           <LinearGradient colors={heroGradient} style={[styles.gradient, { height: stageHeight + spacing.xl }]} />
-          <OnboardingHero slide={slide} width={width} height={stageHeight} topInset={insets.top} />
+          <OnboardingHero slide={slide} height={stageHeight} topInset={insets.top} />
           <OnboardingPanel
             page={page}
             bottomInset={insets.bottom}
