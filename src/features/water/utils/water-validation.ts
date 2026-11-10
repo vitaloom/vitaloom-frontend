@@ -19,6 +19,7 @@ export function validateCreateWaterLogInput(input: CreateWaterLogInput, now: Dat
   if (amountError) return amountError;
 
   if (input.source !== 'quick-add' && input.source !== 'custom') return 'Nguồn ghi nhận không hợp lệ.';
+  if (input.loggedAt === undefined) return null;
   const isoMatch = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})$/.exec(input.loggedAt);
   const isIsoInstant = isoMatch !== null
     && parseLocalDate(isoMatch[1]) !== null

@@ -35,6 +35,15 @@ test('amount and timestamp validation rejects invalid and future logs', () => {
   assert.ok(validateCreateWaterLogInput({ amountMl: 250, loggedAt: 'bad', source: 'custom' }, now));
 });
 
+test('omitted timestamps use the repository clock, while explicit timestamps remain validated', async () => {
+  const now = new Date('2026-11-05T10:00:00.000Z');
+  const repo = new MockWaterRepository(now, [], () => now);
+  const created = await repo.createLog({ amountMl: 250, source: 'quick-add' });
+  assert.equal(created.loggedAt, now.toISOString());
+  await assert.rejects(repo.createLog({ amountMl: 250, loggedAt: '2026-11-05T10:00:01.000Z', source: 'custom' }));
+  assert.equal((await repo.getDailySummary('2026-11-05')).totalMl, 250);
+});
+
 test('repository derives today and week from one log source; past entry stays in past', async () => {
   const now = new Date();
   const repo = new MockWaterRepository(now);

@@ -60,6 +60,13 @@ test('create sends only the API DTO and does not hide server errors', async () =
   await assert.rejects(failing.createLog({ amountMl: 250, loggedAt: '2026-11-06T02:00:00Z', source: 'custom' }), /server failed/);
 });
 
+test('create leaves the timestamp to the server when the caller selects Now', async () => {
+  const requests = [];
+  const repository = new ApiWaterRepository(response(requests), () => 'UTC');
+  await repository.createLog({ amountMl: 250, source: 'quick-add' });
+  assert.deepEqual(JSON.parse(requests[0].init.body), { amountMl: 250 });
+});
+
 test('missing device timezone fails clearly rather than selecting another data source', async () => {
   const repository = new ApiWaterRepository(async () => { throw new Error('request should not run'); }, () => null);
   await assert.rejects(repository.getDailySummary('2026-11-06'), /timezone/i);

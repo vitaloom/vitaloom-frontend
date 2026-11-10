@@ -16,9 +16,9 @@ Returns `200 OK` with `{date, goalMl, totalMl, percent, logs}`. The fixed MVP go
 
 ## POST `/water/logs`
 
-Send `{ "amountMl": 250, "loggedAt": "2026-11-06T09:15:00+07:00" }`. `amountMl` must be an integer from 1 to 2000; `loggedAt` cannot be in the future. The user ID comes from the backend security context. Success is `201 Created` with `{id,amountMl,loggedAt}`; the returned timestamp is normalized to UTC. The FE omits `source` from the request.
+Send `{ "amountMl": 250 }` to record an intake at server time. To record a chosen time, send `{ "amountMl": 250, "loggedAt": "2026-11-06T09:15:00+07:00" }`. `amountMl` must be an integer from 1 to 2000. An explicit `loggedAt` cannot be later than server time. The user ID comes from the backend security context. Success returns `201 Created` with `{id,amountMl,loggedAt}` and a UTC timestamp. The FE omits `source` from the request.
 
-Quick Add captures the timestamp only when Add Log is pressed. Detailed Entry submits the selected past instant. Both flows guard against double submission, show errors on rejection, and refresh Water summaries only after success. The API adapter never silently falls back to mock data.
+Quick Add omits `loggedAt` and uses server time. Detailed Entry defaults its date and time fields to the device's current minute when the form opens. It sends the displayed time with seconds and milliseconds set to zero, including when the default is kept. Both flows guard against double submission, show errors on rejection, and refresh Water summaries only after success. The API adapter never silently falls back to mock data.
 
 ## Errors and retry
 
