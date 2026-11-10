@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { HealthMetricsSidebar } from '@/components/ui/health-metrics-sidebar';
 import { useAuth } from '@/features/auth/store/auth-context';
+import { useHeartRateRefresh } from '@/features/heart-rate/hooks/use-heart-rate-refresh';
 import { useTheme } from '@/hooks/use-theme';
 import { ApiError } from '@/lib/api/http-client';
 import { radius, shadows, sizing, spacing } from '@/theme';
@@ -35,6 +36,7 @@ export default function StepsScreen() {
   const pending = status === 'authenticated' && settledQueryKey !== queryKey;
   const loading = pending && !displayed && !error;
   const refresh = useCallback(() => setRetry((value) => value + 1), []);
+  useHeartRateRefresh(refresh, selectedDate === today ? 15_000 : undefined);
   const dates = weekDates(weekStart);
   const canAdvanceWeek = shiftCalendarDate(weekStart, 7) <= today;
 
@@ -68,6 +70,7 @@ export default function StepsScreen() {
         <ThemedText variant="largeTitle">Steps</ThemedText>
         <ThemedText variant="body" themeColor="textSecondary">Recorded movement for the selected day.</ThemedText>
       </View>
+      {typeof document !== 'undefined' ? <Pressable accessibilityRole="button" onPress={refresh} style={{ alignSelf: 'flex-end', minHeight: sizing.controlMin, justifyContent: 'center', paddingHorizontal: spacing.sm }}><ThemedText variant="labelStrong" themeColor="steps">Refresh</ThemedText></Pressable> : null}
 
       <View style={{ padding: spacing.md, gap: spacing.md, borderRadius: radius.xl, backgroundColor: theme.backgroundElement, boxShadow: shadows.card }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
