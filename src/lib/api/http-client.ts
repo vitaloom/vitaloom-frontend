@@ -1,6 +1,5 @@
 import { createSingleFlight, retryAfterUnauthorized } from './single-flight';
 
-type ApiErrorBody = { error?: { code?: string; message?: string } };
 export class ApiError extends Error {
   constructor(public readonly status: number, public readonly code: string, message: string) {
     super(message);
@@ -21,11 +20,27 @@ export function setAccessToken(token: string | null) { accessToken = token; }
 export function setRefreshHandler(handler: (() => Promise<string>) | null) { refreshAccessToken = handler; }
 
 async function parseResponse<T>(response: Response): Promise<T> {
-  const body = await response.json().catch(() => ({})) as ApiErrorBody & T;
+  const parsedBody: unknown = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new ApiError(response.status, body.error?.code ?? 'REQUEST_FAILED', body.error?.message ?? 'Request failed.');
+    const body = parsedBody && typeof parsedBody === 'object' && !Array.isArray(parsedBody)
+      ? parsedBody as Record<string, unknown>
+      : {};
+    const nestedError = body.error && typeof body.error === 'object' && !Array.isArray(body.error)
+      ? body.error as Record<string, unknown>
+      : {};
+    const code = typeof body.code === 'string' && body.code.length > 0
+      ? body.code
+      : typeof nestedError.code === 'string' && nestedError.code.length > 0
+        ? nestedError.code
+        : 'REQUEST_FAILED';
+    const message = typeof body.detail === 'string' && body.detail.length > 0
+      ? body.detail
+      : typeof nestedError.message === 'string' && nestedError.message.length > 0
+        ? nestedError.message
+        : 'Request failed.';
+    throw new ApiError(response.status, code, message);
   }
-  return body as T;
+  return parsedBody as T;
 }
 
 async function send<T>(path: string, init: RequestInit, bearer: string | null): Promise<T> {
