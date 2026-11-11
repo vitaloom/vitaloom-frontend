@@ -19,6 +19,8 @@ function AuthenticatedNavigator() {
       <Stack.Screen name="sleep" options={{ headerShown: true, title: 'Sleep Tracking' }} />
       <Stack.Screen name="steps" options={{ headerShown: false }} />
       <Stack.Screen name="heart-rate" options={{ headerShown: false }} />
+      <Stack.Screen name="profile-edit" />
+      <Stack.Screen name="profile-setup" />
       <Stack.Protected guard={pendingProfileInvitation} redirectTo="/(tabs)/home">
         <Stack.Screen name="profile-setup-prompt" options={{ headerShown: false }} />
       </Stack.Protected>

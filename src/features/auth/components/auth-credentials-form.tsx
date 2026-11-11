@@ -33,13 +33,13 @@ export function AuthCredentialsForm({ mode, onChangeMode }: { mode: AuthFormMode
     try {
       if (mode === 'sign-in') {
         await signIn(email, password);
-        router.replace('/(tabs)/home');
+        router.replace('/');
       } else {
         const result = await register(email, password);
         if ('authStatus' in result) {
           setCreatedNeedsLogin(true);
           setApiError('Your account was created. Please sign in to continue.');
-        } else router.replace('/profile-setup-prompt');
+        } else router.replace('/');
       }
     } catch (cause) {
       setApiError(cause instanceof ApiError ? authErrorMessage(mode, cause.status, cause.code) : authErrorMessage(mode, -1, 'UNKNOWN'));
