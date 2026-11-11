@@ -5,11 +5,7 @@ import { AppearanceProvider, useAppearance } from '@/theme/appearance-provider';
 import { colors } from '@/theme/colors';
 import { StatusBar } from 'expo-status-bar';
 import { I18nProvider, useTranslations } from '@/i18n';
-
-const sleepTitleMessages = {
-  en: { sleepTitle: 'Sleep Tracking' },
-  vi: { sleepTitle: 'Theo dõi giấc ngủ' },
-};
+import { sleepMessages } from '@/features/sleep/messages';
 
 export default function RootLayout() {
   return <I18nProvider><AppearanceProvider><AuthProvider><ThemedNavigator /></AuthProvider></AppearanceProvider></I18nProvider>;
@@ -41,7 +37,7 @@ function ThemedNavigator() {
 function AuthenticatedNavigator() {
   const { scheme } = useAppearance();
   const { status, pendingProfileInvitation } = useAuth();
-  const t = useTranslations(sleepTitleMessages);
+  const t = useTranslations(sleepMessages);
   const themeColors = colors[scheme];
   const authenticated = status === 'authenticated';
   const authenticationScreenAvailable = status === 'unauthenticated' || status === 'temporarilyUnavailable';
@@ -57,7 +53,7 @@ function AuthenticatedNavigator() {
     <Stack.Protected guard={authenticated} redirectTo="/">
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="water" options={{ headerShown: false }} />
-      <Stack.Screen name="sleep" options={{ headerShown: true, title: t('sleepTitle') }} />
+      <Stack.Screen name="sleep" options={{ headerShown: false, title: t('title') }} />
       <Stack.Screen name="steps" options={{ headerShown: false }} />
       <Stack.Screen name="heart-rate" options={{ headerShown: false }} />
       <Stack.Screen name="profile-edit" />
