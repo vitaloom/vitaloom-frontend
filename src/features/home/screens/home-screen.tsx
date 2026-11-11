@@ -15,9 +15,12 @@ import { MetricCard, type HeartRateTile, type StepsTile } from '../components/me
 import { Reminder } from '../components/reminder';
 import { WellnessBanner } from '../components/wellness-banner';
 import { dashboardMetrics, dashboardUser } from '../data/dashboard';
+import { useTranslations } from '@/i18n';
+import { homeMessages } from '../messages';
 
 export default function HomeScreen() {
   const theme = useTheme();
+  const t = useTranslations(homeMessages);
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const compact = width < 370;
@@ -57,7 +60,7 @@ export default function HomeScreen() {
   return <ScrollView refreshControl={<RefreshControl refreshing={status === 'authenticated' && !current} onRefresh={retry} tintColor={theme.accent} />} style={{ flex: 1, backgroundColor: theme.background }} contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: spacing.lg, paddingHorizontal: spacing.md, alignItems: 'center' }}>
     <View style={{ width: '100%', maxWidth: 520, gap: 12 }}>
       <DashboardHeader user={dashboardUser} />
-      {typeof document !== 'undefined' ? <Pressable accessibilityRole="button" onPress={retry} style={{ alignSelf: 'flex-end', minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.sm }}><ThemedText variant="labelStrong" style={{ color: theme.accent }}>Refresh</ThemedText></Pressable> : null}
+      {typeof document !== 'undefined' ? <Pressable accessibilityRole="button" accessibilityLabel={t('home.refresh')} onPress={retry} style={{ alignSelf: 'flex-end', minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.sm }}><ThemedText variant="labelStrong" style={{ color: theme.accent }}>{t('home.refresh')}</ThemedText></Pressable> : null}
       <WellnessBanner compact={compact} />
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10 }}>
         {dashboardMetrics.map((metric) => <MetricCard key={metric.key} metric={metric} compact={compact} heartRate={metric.key === 'heart-rate' ? heartRate : undefined} steps={metric.key === 'steps' ? steps : undefined} onRetry={retry} />)}

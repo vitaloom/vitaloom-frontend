@@ -3,8 +3,10 @@ import { Pressable, ScrollView, View } from 'react-native';
 import Svg, { Circle, Line, Path, Text as SvgText } from 'react-native-svg';
 import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
+import { useI18n, useTranslations } from '@/i18n';
 import { spacing } from '@/theme';
 import type { HeartRateBucket, HeartRateSeries } from '@/features/heart-rate/api/heart-rate-api';
+import { statisticsMessages } from '../messages';
 
 const left = 38;
 const right = 12;
@@ -12,14 +14,16 @@ const top = 12;
 const plotHeight = 142;
 const plotBottom = top + plotHeight;
 
-function timeLabel(instant: string, intervalMinutes: number, timezone: string, includeDate: boolean) {
+function timeLabel(instant: string, intervalMinutes: number, timezone: string, includeDate: boolean, locale: string) {
   const date = new Date(instant);
   if (Number.isNaN(date.getTime())) return '';
-  return new Intl.DateTimeFormat('en-GB', { timeZone: timezone, ...(includeDate ? { day: '2-digit', month: '2-digit' } : {}), hour: '2-digit', ...(intervalMinutes >= 60 ? {} : { minute: '2-digit' }), hourCycle: 'h23' }).format(date);
+  return new Intl.DateTimeFormat(locale, { timeZone: timezone, ...(includeDate ? { day: '2-digit', month: 'short' } : {}), hour: '2-digit', ...(intervalMinutes >= 60 ? {} : { minute: '2-digit' }), hourCycle: 'h23' }).format(date);
 }
 
 export function HeartRateChart({ series }: { series: HeartRateSeries }) {
   const theme = useTheme();
+  const { locale } = useI18n();
+  const t = useTranslations(statisticsMessages);
   const [selected, setSelected] = useState<HeartRateBucket | null>(null);
   const values = useMemo(() => series.buckets.flatMap((bucket) => bucket.avgBpm == null ? [] : [bucket.avgBpm]), [series.buckets]);
   const chartWidth = Math.max(520, series.buckets.length * 7);
@@ -42,22 +46,22 @@ export function HeartRateChart({ series }: { series: HeartRateSeries }) {
 
   return <View style={{ gap: spacing.sm }}>
     {values.length ? <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={{ paddingBottom: spacing.xs }}>
-      <Svg width={chartWidth} height={plotBottom + 34} accessibilityLabel="Heart rate average by time bucket">
+      <Svg width={chartWidth} height={plotBottom + 34} accessibilityLabel={t('heartRateByTime')}>
         {[low, (low + high) / 2, high].map((value) => <Line key={value} x1={left} x2={chartWidth - right} y1={y(value)} y2={y(value)} stroke={theme.border} strokeWidth={1} />)}
         {[low, high].map((value) => <SvgText key={value} x={left - 6} y={y(value) + 4} fill={theme.textSecondary} fontSize={10} textAnchor="end">{value}</SvgText>)}
         {segments.map((segment, index) => <Path key={index} d={segment} fill="none" stroke={theme.heartRate} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />)}
-        {series.buckets.map((bucket, index) => bucket.avgBpm == null ? null : <Circle key={bucket.startAt} cx={x(index)} cy={y(bucket.avgBpm)} r={selected?.startAt === bucket.startAt ? 6 : 3.5} fill={selected?.startAt === bucket.startAt ? theme.accent : theme.heartRate} stroke={theme.backgroundElement} strokeWidth={1.5} onPress={() => setSelected(bucket)} accessibilityLabel={`${timeLabel(bucket.startAt, series.intervalMinutes, series.timezone, includeDate)}, average ${bucket.avgBpm} bpm. Inspect bucket`} />)}
+        {series.buckets.map((bucket, index) => bucket.avgBpm == null ? null : <Circle key={bucket.startAt} cx={x(index)} cy={y(bucket.avgBpm)} r={selected?.startAt === bucket.startAt ? 6 : 3.5} fill={selected?.startAt === bucket.startAt ? theme.accent : theme.heartRate} stroke={theme.backgroundElement} strokeWidth={1.5} onPress={() => setSelected(bucket)} accessibilityLabel={t('inspectHeartRateBucket', { time: timeLabel(bucket.startAt, series.intervalMinutes, series.timezone, includeDate, locale), average: (bucket.avgBpm ?? 0).toLocaleString(locale) })} />)}
         {tickIndexes.map((index) => {
           const bucket = series.buckets[index];
-          return bucket ? <SvgText key={index} x={x(index)} y={plotBottom + 20} fill={theme.textSecondary} fontSize={10} textAnchor={index === 0 ? 'start' : index === series.buckets.length - 1 ? 'end' : 'middle'}>{timeLabel(bucket.startAt, series.intervalMinutes, series.timezone, includeDate)}</SvgText> : null;
+          return bucket ? <SvgText key={index} x={x(index)} y={plotBottom + 20} fill={theme.textSecondary} fontSize={10} textAnchor={index === 0 ? 'start' : index === series.buckets.length - 1 ? 'end' : 'middle'}>{timeLabel(bucket.startAt, series.intervalMinutes, series.timezone, includeDate, locale)}</SvgText> : null;
         })}
       </Svg>
-    </ScrollView> : <View style={{ minHeight: 180, justifyContent: 'center', alignItems: 'center' }}><ThemedText variant="body" themeColor="textSecondary" style={{ textAlign: 'center' }}>No heart rate samples in this range.</ThemedText></View>}
+    </ScrollView> : <View style={{ minHeight: 180, justifyContent: 'center', alignItems: 'center' }}><ThemedText variant="body" themeColor="textSecondary" style={{ textAlign: 'center' }}>{t('noHeartRateSamples')}</ThemedText></View>}
     {selected ? <View style={{ padding: spacing.md, gap: spacing.xs, borderRadius: 12, backgroundColor: theme.backgroundSelected }}>
-      <ThemedText variant="labelStrong">{includeDate ? `${timeLabel(selected.startAt, series.intervalMinutes, series.timezone, true)}–${timeLabel(new Date(Date.parse(selected.startAt) + series.intervalMinutes * 60000).toISOString(), series.intervalMinutes, series.timezone, true)}` : `${timeLabel(selected.startAt, series.intervalMinutes, series.timezone, false)}–${timeLabel(new Date(Date.parse(selected.startAt) + series.intervalMinutes * 60000).toISOString(), series.intervalMinutes, series.timezone, false)}`}</ThemedText>
-      <ThemedText variant="body">Average {selected.avgBpm ?? '—'} bpm · Min {selected.minBpm ?? '—'} · Max {selected.maxBpm ?? '—'}</ThemedText>
-      <ThemedText variant="caption" themeColor="textSecondary">{selected.sampleCount} samples</ThemedText>
-      <Pressable accessibilityRole="button" accessibilityLabel="Clear inspected bucket" onPress={() => setSelected(null)} style={{ minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' }}><ThemedText variant="labelStrong" themeColor="accent">Clear</ThemedText></Pressable>
-    </View> : values.length ? <ThemedText variant="caption" themeColor="textSecondary">Select a plotted point to inspect its bucket.</ThemedText> : null}
+      <ThemedText variant="labelStrong">{includeDate ? `${timeLabel(selected.startAt, series.intervalMinutes, series.timezone, true, locale)}–${timeLabel(new Date(Date.parse(selected.startAt) + series.intervalMinutes * 60000).toISOString(), series.intervalMinutes, series.timezone, true, locale)}` : `${timeLabel(selected.startAt, series.intervalMinutes, series.timezone, false, locale)}–${timeLabel(new Date(Date.parse(selected.startAt) + series.intervalMinutes * 60000).toISOString(), series.intervalMinutes, series.timezone, false, locale)}`}</ThemedText>
+      <ThemedText variant="body">{t('heartRateBucketSummary', { average: selected.avgBpm?.toLocaleString(locale) ?? '—', minimum: selected.minBpm?.toLocaleString(locale) ?? '—', maximum: selected.maxBpm?.toLocaleString(locale) ?? '—' })}</ThemedText>
+      <ThemedText variant="caption" themeColor="textSecondary">{t('heartRateSamples', { count: selected.sampleCount.toLocaleString(locale) })}</ThemedText>
+      <Pressable accessibilityRole="button" accessibilityLabel={t('clearInspected')} onPress={() => setSelected(null)} style={{ minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' }}><ThemedText variant="labelStrong" themeColor="accent">{t('clear')}</ThemedText></Pressable>
+    </View> : values.length ? <ThemedText variant="caption" themeColor="textSecondary">{t('selectHeartRatePoint')}</ThemedText> : null}
   </View>;
 }

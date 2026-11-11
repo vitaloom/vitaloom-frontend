@@ -4,9 +4,12 @@ import Svg, { Path } from 'react-native-svg';
 
 import { useTheme } from '@/hooks/use-theme';
 import { radius, shadows, spacing } from '@/theme';
+import { useTranslations } from '@/i18n';
+import { homeMessages } from '../messages';
 
 export function WellnessBanner({ compact }: { compact: boolean }) {
   const theme = useTheme();
+  const t = useTranslations(homeMessages);
   return <LinearGradient colors={[theme.backgroundElement, theme.accentSoft, theme.stepsSoft]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ height: 150, borderRadius: radius.xl, overflow: 'hidden', justifyContent: 'center', boxShadow: shadows.card }}>
     <Svg width="100%" height={86} viewBox="0 0 360 86" preserveAspectRatio="none" style={{ position: 'absolute', bottom: 0 }} accessibilityElementsHidden>
       <Path d="M0 48 C35 28 50 80 100 59 S170 61 215 45 S290 45 360 5 L360 86 L0 86Z" fill={theme.waterTrack} opacity={0.55} />
@@ -18,8 +21,8 @@ export function WellnessBanner({ compact }: { compact: boolean }) {
     </Svg>
     <Image source={require('../../../../assets/images/wellness-stretch.png')} resizeMode="contain" style={{ position: 'absolute', right: -6, bottom: -28, width: compact ? 139 : 163, height: compact ? 178 : 207 }} accessibilityIgnoresInvertColors />
     <View style={{ paddingLeft: spacing.lg, width: compact ? '70%' : '66%', zIndex: 1 }}>
-      <Text style={{ color: theme.text, fontSize: compact ? 19 : 22, lineHeight: compact ? 24 : 27, fontWeight: '700' }}>A healthier you{'\n'}happier tomorrow</Text>
-      <Text style={{ color: theme.textSecondary, fontSize: compact ? 12 : 13, lineHeight: 18, marginTop: 9 }}>Keep going. You’re doing great.</Text>
+      <Text style={{ color: theme.text, fontSize: compact ? 19 : 22, lineHeight: compact ? 24 : 27, fontWeight: '700' }}>{t('home.bannerTitle')}</Text>
+      <Text style={{ color: theme.textSecondary, fontSize: compact ? 12 : 13, lineHeight: 18, marginTop: 9 }}>{t('home.bannerSubtitle')}</Text>
     </View>
   </LinearGradient>;
 }

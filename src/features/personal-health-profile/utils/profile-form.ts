@@ -87,12 +87,14 @@ export function buildPatch(
   return patch;
 }
 
-export function formatProfileValue(field: ProfileField, values: Partial<ProfileValues>): string {
+export function formatProfileValue(field: ProfileField, values: Partial<ProfileValues>, locale = 'en-US', labels?: { notAdded?: string; genders?: Record<string, string>; activityLevels?: Record<string, string> }): string {
   const value = values[field];
-  if (value === undefined) return 'Not added';
-  if (field === 'gender') return genderOptions.find((option) => option.value === value)?.label ?? 'Not added';
-  if (field === 'activityLevel') return activityOptions.find((option) => option.value === value)?.label ?? 'Not added';
-  if (field === 'heightCm') return `${value} cm`;
-  if (field === 'weightKg') return `${value} kg`;
+  const notAdded = labels?.notAdded ?? 'Not added';
+  if (value === undefined) return notAdded;
+  if (field === 'gender') return labels?.genders?.[String(value)] ?? genderOptions.find((option) => option.value === value)?.label ?? notAdded;
+  if (field === 'activityLevel') return labels?.activityLevels?.[String(value)] ?? activityOptions.find((option) => option.value === value)?.label ?? notAdded;
+  if (field === 'heightCm') return `${new Intl.NumberFormat(locale).format(value as number)} cm`;
+  if (field === 'weightKg') return `${new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(value as number)} kg`;
+  if (field === 'birthYear') return new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(value as number);
   return String(value);
 }

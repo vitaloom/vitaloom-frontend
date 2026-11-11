@@ -3,14 +3,18 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle, Path } from 'react-native-svg';
 
 import { ThemedText } from '@/components/themed-text';
+import { useI18n, useTranslations } from '@/i18n';
 import { layout, radius, shadows, sizing, spacing } from '@/theme';
 import { Icon } from './water-icon';
 import type { DailyWaterSummary } from '../types/water';
+import { waterMessages } from '../messages';
 
 type Theme = import('../types/water').Theme;
 
 export function ProgressCard({ summary, theme, label, loading = false }: { summary: DailyWaterSummary; theme: Theme; label?: string; loading?: boolean }) {
   const { fontScale } = useWindowDimensions();
+  const { locale } = useI18n();
+  const t = useTranslations(waterMessages);
   const ringSize = Math.max(layout.progressRing, Math.round(layout.progressRing * Math.min(fontScale, 1.5)));
   const stroke = layout.progressStroke;
   const ringRadius = (ringSize - stroke) / 2;
@@ -25,23 +29,23 @@ export function ProgressCard({ summary, theme, label, loading = false }: { summa
           <Path d="M0 59 C62 24 98 81 163 67 S280 27 360 66 L360 92 L0 92 Z" fill={theme.accentSoft} opacity={0.72} />
         </Svg>
         {label ? <ThemedText variant="labelStrong" style={{ alignSelf: 'flex-start', marginLeft: spacing.lg, marginTop: spacing.md }}>{label}</ThemedText> : null}
-        <View accessible accessibilityRole="progressbar" accessibilityLabel={loading ? 'Updating water intake' : label ?? 'Water intake today'} accessibilityState={{ busy: loading }} accessibilityValue={loading ? undefined : { min: 0, max: summary.goalMl, now: Math.min(summary.totalMl, summary.goalMl), text: `${summary.totalMl} of ${summary.goalMl} millilitres, ${percentText} percent` }} style={{ width: ringSize, height: ringSize, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.backgroundElement, boxShadow: shadows.floating, marginVertical: spacing.md }}>
+        <View accessible accessibilityRole="progressbar" accessibilityLabel={loading ? t('updatingWater') : label ?? t('waterToday')} accessibilityState={{ busy: loading }} accessibilityValue={loading ? undefined : { min: 0, max: summary.goalMl, now: Math.min(summary.totalMl, summary.goalMl), text: t('progressValue', { total: new Intl.NumberFormat(locale).format(summary.totalMl), goal: new Intl.NumberFormat(locale).format(summary.goalMl), percent: new Intl.NumberFormat(locale).format(percentText) }) }} style={{ width: ringSize, height: ringSize, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.backgroundElement, boxShadow: shadows.floating, marginVertical: spacing.md }}>
           <Svg width={ringSize} height={ringSize} viewBox={`0 0 ${ringSize} ${ringSize}`} style={{ position: 'absolute' }}>
             <Circle cx={ringSize / 2} cy={ringSize / 2} r={ringRadius} fill="none" stroke={theme.waterTrack} strokeWidth={stroke} />
             {visibleProgress > 0 ? <Circle cx={ringSize / 2} cy={ringSize / 2} r={ringRadius} fill="none" stroke={theme.accent} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={`${circumference * visibleProgress} ${circumference}`} rotation={-90} origin={`${ringSize / 2}, ${ringSize / 2}`} /> : null}
           </Svg>
           {loading ? <>
             <ActivityIndicator size="large" color={theme.accent} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />
-            <ThemedText variant="subhead" themeColor="textSecondary" style={{ marginTop: spacing.sm }}>Updating…</ThemedText>
+            <ThemedText variant="subhead" themeColor="textSecondary" style={{ marginTop: spacing.sm }}>{t('updating')}</ThemedText>
           </> : <>
             <Icon name="waterOutline" color={theme.water} size={sizing.iconLg} />
-            <ThemedText variant="metricLarge" style={{ marginTop: spacing.xs }}>{summary.totalMl.toLocaleString()} ml</ThemedText>
-            <ThemedText variant="subhead" themeColor="textSecondary">/ {summary.goalMl.toLocaleString()} ml</ThemedText>
+            <ThemedText variant="metricLarge" style={{ marginTop: spacing.xs }}>{new Intl.NumberFormat(locale).format(summary.totalMl)} ml</ThemedText>
+            <ThemedText variant="subhead" themeColor="textSecondary">/ {new Intl.NumberFormat(locale).format(summary.goalMl)} ml</ThemedText>
             <View style={{ width: 88, height: 1, backgroundColor: theme.border, marginVertical: spacing.sm }} />
             <ThemedText variant="heading" themeColor="accent">{percentText}%</ThemedText>
           </>}
         </View>
-        {summary.percent >= 100 ? <ThemedText variant="labelStrong" themeColor="accent" style={{ marginBottom: spacing.md }}>Daily goal reached</ThemedText> : null}
+        {summary.percent >= 100 ? <ThemedText variant="labelStrong" themeColor="accent" style={{ marginBottom: spacing.md }}>{t('goalReached')}</ThemedText> : null}
       </LinearGradient>
       <Image accessibilityElementsHidden importantForAccessibility="no-hide-descendants" source={require('../../../../assets/images/leaves.png')} resizeMode="contain" style={{ position: 'absolute', right: spacing.xl, top: -spacing.xxl, width: 88, height: 88 }} />
       <Image accessibilityElementsHidden importantForAccessibility="no-hide-descendants" source={require('../../../../assets/images/bottle.png')} resizeMode="contain" style={{ position: 'absolute', right: -spacing.md, top: -spacing.xxl, width: 128, height: 128 }} />

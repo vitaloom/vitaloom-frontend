@@ -52,28 +52,28 @@ export type UpdateProfileRequest = {
 export const basicFields = ['displayName', 'birthYear', 'gender'] as const satisfies readonly ProfileField[];
 export const lifestyleFields = ['heightCm', 'weightKg', 'activityLevel'] as const satisfies readonly ProfileField[];
 
-export const fieldLabels: Record<ProfileField, string> = {
+export const fieldLabels = {
   displayName: 'Display name',
   birthYear: 'Birth year',
   gender: 'Gender',
   heightCm: 'Height',
   weightKg: 'Weight',
   activityLevel: 'Activity level',
-};
+} as const satisfies Record<ProfileField, string>;
 
-export const genderOptions: readonly { value: Gender; label: string }[] = [
+export const genderOptions = [
   { value: 'male', label: 'Male' },
   { value: 'female', label: 'Female' },
   { value: 'other', label: 'Other' },
   { value: 'prefer_not_to_say', label: 'Prefer not to say' },
-];
+] as const satisfies readonly { value: Gender; label: string }[];
 
-export const activityOptions: readonly { value: ActivityLevel; label: string; description: string }[] = [
+export const activityOptions = [
   { value: 'sedentary', label: 'Mostly seated', description: 'Around 0–2 active days per week' },
   { value: 'lightly_active', label: 'Lightly active', description: 'Around 3–4 active days per week' },
   { value: 'moderately_active', label: 'Moderately active', description: 'Around 5–6 active days per week' },
   { value: 'very_active', label: 'Very active', description: 'Almost daily or physically demanding work' },
-];
+] as const satisfies readonly { value: ActivityLevel; label: string; description: string }[];
 
 export type ProfileAttemptReceipt =
   | { kind: 'success'; snapshot: ProfileSnapshot }

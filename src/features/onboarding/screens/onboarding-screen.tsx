@@ -17,12 +17,17 @@ import { advanceOnboarding, type OnboardingPosition } from '../advance-onboardin
 import { OnboardingHero } from '../components/onboarding-hero';
 import { OnboardingPanel } from '../components/onboarding-panel';
 import { onboardingSlides } from '../data/onboarding-slides';
+import { useTranslations } from '@/i18n';
+import { onboardingMessages } from '../messages';
+
+const titleKeys = ['page1Title', 'page2Title', 'page3Title', 'page4Title'] as const;
 
 // The approved onboarding artwork has a warmer cream-to-mint wash than the shared calm gradient.
 const panelOverlap = spacing.md;
 
 export function OnboardingScreen({ onComplete }: { onComplete: () => void }) {
   const theme = useTheme();
+  const t = useTranslations(onboardingMessages);
   const insets = useSafeAreaInsets();
   const window = useWindowDimensions();
   const [viewportHeight, setViewportHeight] = useState(window.height);
@@ -31,6 +36,7 @@ export function OnboardingScreen({ onComplete }: { onComplete: () => void }) {
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
   const position = useRef<OnboardingPosition>({ page: 0, lockedUntil: 0, completed: false });
   const slide = onboardingSlides[page];
+  const title = t(titleKeys[page]);
   const width = Math.max(0, Math.min(layout.screenMax, window.width - insets.left - insets.right));
 
   // Anchor the shared panel above the bottom safe area. Keep some room for art
@@ -42,10 +48,10 @@ export function OnboardingScreen({ onComplete }: { onComplete: () => void }) {
   useEffect(() => {
     if (Platform.OS !== 'web') {
       AccessibilityInfo.announceForAccessibility(
-        `Onboarding, page ${page + 1} of ${onboardingSlides.length}. ${slide.title}`,
+        t('pageAnnouncement', { page: page + 1, total: onboardingSlides.length, title }),
       );
     }
-  }, [page, slide.title]);
+  }, [page, title, t]);
 
   function handleAdvance() {
     const current = position.current;

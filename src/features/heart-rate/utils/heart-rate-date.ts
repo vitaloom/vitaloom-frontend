@@ -46,12 +46,14 @@ export function getMonday(date: string) {
   return shiftCalendarDate(date, -((weekday + 6) % 7));
 }
 
-export function validateHeartRateRange(startDate: string, endDate: string, today: string) {
+export type HeartRateRangeError = 'invalidDates' | 'orderDates' | 'futureEnd' | 'maxRange';
+
+export function validateHeartRateRange(startDate: string, endDate: string, today: string): HeartRateRangeError | null {
   const validDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
-  if (!validDate(startDate) || !validDate(endDate)) return 'Enter valid dates in YYYY-MM-DD format.';
-  if (startDate > endDate) return 'Start date must be on or before end date.';
-  if (endDate > today) return 'End date cannot be in the future.';
+  if (!validDate(startDate) || !validDate(endDate)) return 'invalidDates';
+  if (startDate > endDate) return 'orderDates';
+  if (endDate > today) return 'futureEnd';
   const dayCount = (Date.parse(`${endDate}T00:00:00Z`) - Date.parse(`${startDate}T00:00:00Z`)) / 86400000 + 1;
-  if (dayCount > 30) return 'Choose a range of 30 days or less.';
+  if (dayCount > 30) return 'maxRange';
   return null;
 }

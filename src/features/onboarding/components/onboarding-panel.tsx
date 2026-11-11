@@ -4,6 +4,11 @@ import Svg, { Path } from 'react-native-svg';
 import { useTheme } from '@/hooks/use-theme';
 import { radius, sizing, spacing, typography } from '@/theme';
 import { onboardingSlides } from '../data/onboarding-slides';
+import { useTranslations } from '@/i18n';
+import { onboardingMessages } from '../messages';
+
+const titleKeys = ['page1Title', 'page2Title', 'page3Title', 'page4Title'] as const;
+const descriptionKeys = ['page1Description', 'page2Description', 'page3Description', 'page4Description'] as const;
 
 type Props = {
   page: number;
@@ -14,8 +19,12 @@ type Props = {
 
 export function OnboardingPanel({ page, bottomInset, onAdvance, onLayout }: Props) {
   const theme = useTheme();
+  const t = useTranslations(onboardingMessages);
   const slide = onboardingSlides[page];
+  const title = t(titleKeys[page]);
+  const description = t(descriptionKeys[page]);
   const finalPage = page === onboardingSlides.length - 1;
+  const action = finalPage ? t('getStarted') : t('next');
   const copyOrder = [slide, ...onboardingSlides.filter(({ id }) => id !== slide.id)];
 
   return (
@@ -33,11 +42,11 @@ export function OnboardingPanel({ page, bottomInset, onAdvance, onLayout }: Prop
               <Text
                 accessibilityRole={active ? 'header' : undefined}
                 aria-live={active ? 'polite' : undefined}
-                accessibilityLabel={active ? `Onboarding, page ${page + 1} of ${onboardingSlides.length}. ${item.title}` : undefined}
+                accessibilityLabel={active ? t('pageAnnouncement', { page: page + 1, total: onboardingSlides.length, title }) : undefined}
               style={[styles.title, { color: theme.text }, item.showsBrand && styles.welcomeTitle]}>
-                {item.title}
+                {active ? title : t(titleKeys[onboardingSlides.indexOf(item)])}
               </Text>
-              <Text style={[styles.description, { color: theme.textSecondary }]}>{item.description}</Text>
+              <Text style={[styles.description, { color: theme.textSecondary }]}>{active ? description : t(descriptionKeys[onboardingSlides.indexOf(item)])}</Text>
             </View>
           );
         })}
@@ -51,11 +60,11 @@ export function OnboardingPanel({ page, bottomInset, onAdvance, onLayout }: Prop
 
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={slide.action}
-        accessibilityHint={finalPage ? 'Opens the authentication welcome screen' : 'Continues to the next onboarding page'}
+        accessibilityLabel={action}
+        accessibilityHint={finalPage ? t('finishHint') : t('nextHint')}
         onPress={onAdvance}
         style={({ pressed }) => [styles.action, { backgroundColor: theme.accent }, pressed && { backgroundColor: theme.focus }]}>
-        <Text style={[styles.actionText, { color: theme.onAccent }]}>{slide.action}</Text>
+        <Text style={[styles.actionText, { color: theme.onAccent }]}>{action}</Text>
         <Svg width={sizing.iconMd} height={sizing.iconMd} viewBox="0 0 24 24" aria-hidden>
           <Path
             d="M4 12h15m-6-6 6 6-6 6"
