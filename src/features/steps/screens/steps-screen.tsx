@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { SvgXml } from 'react-native-svg';
+import Svg, { Rect, SvgXml } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { HealthMetricsSidebar } from '@/components/ui/health-metrics-sidebar';
@@ -85,16 +85,10 @@ export default function StepsScreen() {
   const populated = displayed?.buckets.filter((bucket) => bucket.steps != null && bucket.eventCount > 0) ?? [];
   const peak = populated.reduce<(typeof populated)[number] | null>((best, bucket) => !best || bucket.steps! > best.steps! ? bucket : best, null);
   const peakDetail = peak ? period === 'day'
-    ? `${new Intl.DateTimeFormat(locale, { timeZone: displayed!.timezone, hour: '2-digit', hourCycle: 'h23' }).format(new Date(peak.startAt))}–${new Intl.DateTimeFormat(locale, { timeZone: displayed!.timezone, hour: '2-digit', hourCycle: 'h23' }).format(new Date(peak.endAt))}`
+    ? `${new Intl.DateTimeFormat(locale, { timeZone: displayed!.timezone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(peak.startAt))}–${new Intl.DateTimeFormat(locale, { timeZone: displayed!.timezone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(peak.endAt))}`
     : new Intl.DateTimeFormat(locale, { timeZone: displayed!.timezone, weekday: 'long', day: 'numeric', month: 'short' }).format(new Date(peak.startAt))
     : '—';
   const stepPeakValue = peak ? t('stepValue', { count: peak.steps!.toLocaleString(locale) }) : '—';
-  const recordedSlotText = period === 'day'
-    ? t('hoursWithRecords', { count: populated.length.toLocaleString(locale) })
-    : t('daysWithRecords', { count: populated.length.toLocaleString(locale) });
-  const totalSlotText = period === 'day'
-    ? t('totalSlots', { count: displayed?.buckets.length.toLocaleString(locale) ?? '24' })
-    : t('totalDays', { count: displayed?.buckets.length.toLocaleString(locale) ?? '7' });
   const refreshing = pending;
 
   return <View style={{ flex: 1, backgroundColor: theme.background }}>
@@ -145,16 +139,17 @@ export default function StepsScreen() {
               : displayed ? <>
                 <StepsDetailChart key={dataKey} series={displayed} period={period} />
                 {error ? <ThemedText variant="caption" themeColor="danger" accessibilityRole="alert">{t(error)}</ThemedText> : null}
-                <View style={{ flexDirection: 'row', gap: spacing.xs }}>
-                  <View style={{ flex: 1, minHeight: 98, padding: spacing.sm, gap: spacing.xs, borderRadius: radius.md, backgroundColor: theme.stepsSoft }}>
+                <View style={{ width: '100%', minHeight: 108, padding: spacing.md, gap: spacing.sm, borderRadius: radius.md, backgroundColor: theme.stepsSoft, flexDirection: 'row', alignItems: 'center' }}>
+                  <View style={{ flex: 1, minWidth: 0, gap: spacing.xs }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}><SvgXml xml={stepsArt.crown.replace(/currentColor/g, theme.steps)} width={20} height={20} accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" /><ThemedText variant="caption" themeColor="textSecondary">{period === 'day' ? t('peakHour') : t('peakDay')}</ThemedText></View>
-                    <ThemedText variant="labelStrong">{stepPeakValue}</ThemedText>
-                    <ThemedText variant="caption" themeColor="textSecondary">{peakDetail}</ThemedText>
+                    {peak ? <><ThemedText variant="metricLarge" style={{ fontVariant: ['tabular-nums'] }}>{stepPeakValue}</ThemedText><ThemedText variant="caption" themeColor="textSecondary">{peakDetail}</ThemedText></> : <ThemedText variant="body" themeColor="textSecondary">{t('noStepsRange')}</ThemedText>}
                   </View>
-                  <View style={{ flex: 1, minHeight: 98, padding: spacing.sm, gap: spacing.xs, borderRadius: radius.md, backgroundColor: theme.stepsSoft }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}><SvgXml xml={stepsArt.records.replace(/currentColor/g, theme.steps)} width={20} height={20} accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" /><ThemedText variant="caption" themeColor="textSecondary">{t('records')}</ThemedText></View>
-                    <ThemedText variant="labelStrong" style={{ flexShrink: 1 }}>{recordedSlotText}</ThemedText>
-                    <ThemedText variant="caption" themeColor="textSecondary">{totalSlotText}</ThemedText>
+                  <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ width: 60, height: 56, alignItems: 'center', justifyContent: 'center' }}>
+                    <Svg width={60} height={56} viewBox="0 0 60 56">
+                      <Rect x={7} y={30} width={10} height={20} rx={5} fill={theme.stepsTrack} />
+                      <Rect x={25} y={18} width={10} height={32} rx={5} fill={theme.steps} opacity={0.76} />
+                      <Rect x={43} y={6} width={10} height={44} rx={5} fill={theme.accent} opacity={0.88} />
+                    </Svg>
                   </View>
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}><SvgXml xml={stepsArt.info.replace(/currentColor/g, theme.steps)} width={18} height={18} accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" /><ThemedText variant="caption" themeColor="textSecondary" style={{ flex: 1 }}>{t('note')}</ThemedText></View>
