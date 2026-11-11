@@ -140,6 +140,7 @@ The screen imports `ThemedText` from shared UI, `useTheme` from shared hooks, an
 - Use lowercase kebab-case for filenames and lowercase names for feature folders.
 - Put screens and their private UI inside the owning feature. Extract named, nontrivial UI components into separate files under that feature's `components/` directory; screens compose them.
 - Keep feature API calls, validation, state, and types next to the feature that owns them.
+- Keep translations next to the feature that owns the copy. Use the shared `@/i18n` API as described in the [localization guide](localization.md).
 - Import screen components directly from their source file; a screen can use a named or default export.
 - Add only the directories and files required by implemented code; do not create empty scaffolding.
 - Keep shared components presentation-only. Promote a component to `src/components/ui/` when more than one feature needs it and its API can remain independent of feature concepts.

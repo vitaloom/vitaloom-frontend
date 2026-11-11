@@ -43,6 +43,7 @@ Docs: https://docs.expo.dev/eas/index.md
 ## Architecture
 
 - Follow the feature boundaries, dependency direction, route-to-screen pattern, and shared module conventions in [docs/architecture/feature-based.md](docs/architecture/feature-based.md).
+- For new or changed user-facing copy, follow the [localization guide](docs/architecture/localization.md) and provide English and Vietnamese translations.
 
 ## VitaLoom project baseline
 
