@@ -34,7 +34,7 @@ function makeSeries(startAt, endAt, intervalMinutes, bucketCount, samples) {
   };
 }
 
-test('Daily aggregation produces 24 hourly groups and weights source averages by sample count', () => {
+test('Daily aggregation preserves 96 quarter-hour groups and weights range averages by sample count', () => {
   const series = makeSeries('2026-11-05T17:00:00.000Z', '2026-11-06T17:00:00.000Z', 15, 96, {
     0: { min: 55, avg: 60, max: 70, count: 2 },
     1: { min: 75, avg: 80, max: 90, count: 1 },
@@ -42,14 +42,15 @@ test('Daily aggregation produces 24 hourly groups and weights source averages by
     12: { min: 65, avg: 70, max: 75, count: 1 },
   });
   const result = aggregateHeartRateSeries(series, 'day');
-  assert.equal(result.buckets.length, 24);
-  assert.equal(result.buckets[0].sampleCount, 3);
+  assert.equal(result.buckets.length, 96);
+  assert.equal(result.buckets[0].sampleCount, 2);
   assert.equal(result.buckets[0].minBpm, 55);
-  assert.equal(result.buckets[0].avgBpm, (60 * 2 + 80) / 3);
-  assert.equal(result.buckets[0].maxBpm, 90);
+  assert.equal(result.buckets[0].avgBpm, 60);
+  assert.equal(result.buckets[0].maxBpm, 70);
   assert.equal(result.buckets[2].avgBpm, null);
+  assert.equal(result.buckets[4].avgBpm, 100);
   assert.equal(result.sampleCount, 5);
-  assert.equal(result.nonemptyBucketCount, 3);
+  assert.equal(result.nonemptyBucketCount, 4);
   assert.equal(result.avgBpm, (60 * 2 + 80 + 100 + 70) / 5);
 });
 
@@ -83,8 +84,9 @@ test('connected average segments break at every empty bucket', () => {
     12: { min: 65, avg: 70, max: 75, count: 1 },
   });
   const buckets = aggregateHeartRateSeries(series, 'day').buckets;
-  assert.deepEqual(connectedHeartRateSegments(buckets).map((segment) => segment.map((bucket) => bucket.date)), [
-    ['2026-11-06', '2026-11-06'],
-    ['2026-11-06'],
+  assert.deepEqual(connectedHeartRateSegments(buckets).map((segment) => segment.map((bucket) => bucket.avgBpm)), [
+    [60],
+    [100],
+    [70],
   ]);
 });

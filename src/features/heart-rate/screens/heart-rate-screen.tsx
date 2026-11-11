@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, TextInput, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { SvgXml } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { useAuth } from '@/features/auth/store/auth-context';
 import { HealthMetricsSidebar } from '@/components/ui/health-metrics-sidebar';
 import { HeartRateFooter } from '@/components/ui/main-tab-bar';
 import { useTheme } from '@/hooks/use-theme';
+import { useAppearance } from '@/theme/appearance-provider';
 import { useI18n, useTranslations } from '@/i18n';
 import { radius, shadows, sizing, spacing } from '@/theme';
 import { heartRateApi, type HeartRateSeries, type HeartRateSummary } from '../api/heart-rate-api';
@@ -14,6 +17,7 @@ import { useHeartRateRefresh } from '../hooks/use-heart-rate-refresh';
 import { aggregateHeartRateSeries, type HeartRateAnalyticsPeriod } from '../utils/heart-rate-analytics';
 import { dateInHcm, getMonday, isFutureHcmDate, shiftCalendarDate, validateHeartRateRange, weekDates } from '../utils/heart-rate-date';
 import { heartRateMessages } from '../messages';
+import { heartRateArt } from '../assets/heart-rate-art';
 
 type RequestFailure = { key: string } | null;
 const periods: { id: HeartRateAnalyticsPeriod; label: 'day' | 'week' | 'custom' }[] = [
@@ -30,6 +34,7 @@ function displayDate(date: string, locale: string, options: Intl.DateTimeFormatO
 
 export default function HeartRateScreen() {
   const theme = useTheme();
+  const { scheme } = useAppearance();
   const { locale } = useI18n();
   const t = useTranslations(heartRateMessages);
   const insets = useSafeAreaInsets();
@@ -132,10 +137,12 @@ export default function HeartRateScreen() {
   const maxValue = analytics?.maxBpm;
   const canAdvanceDayWeek = !isFutureHcmDate(shiftCalendarDate(dayDate, 7), today);
   const canAdvanceWeek = weekStart < currentWeekStart;
-  const periodKey = seriesRequestKey;
+  const periodKey = seriesDataKey;
   const refreshing = summaryLoading || seriesLoading;
 
   return <View style={{ flex: 1, backgroundColor: theme.background }}>
+    <LinearGradient colors={scheme === 'dark' ? ['#211F29', '#1A242B'] : ['#FFF9FA', '#FFF3F6']} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} pointerEvents="none" />
+    <SvgXml xml={scheme === 'dark' ? heartRateArt.ambientDark : heartRateArt.ambientLight} width="100%" height="100%" pointerEvents="none" accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} />
     <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshAll} tintColor={theme.heartRate} />} style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, paddingTop: insets.top + spacing.md, paddingBottom: spacing.lg, paddingHorizontal: spacing.md }}>
       <View style={{ width: '100%', maxWidth: 620, alignSelf: 'center', gap: spacing.md }}>
         <HealthMetricsSidebar brandedHeader />
@@ -145,21 +152,22 @@ export default function HeartRateScreen() {
           <ThemedText variant="body" themeColor="textSecondary">{t('description')}</ThemedText>
         </View>
 
-        <View style={{ minHeight: 190, padding: spacing.lg, gap: spacing.xs, borderRadius: radius.xl, backgroundColor: theme.heartRateSoft, borderWidth: 1, borderColor: theme.border, boxShadow: shadows.card }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm }}>
-            <ThemedText variant="heading" themeColor="heartRate">♥</ThemedText>
-            <ThemedText variant="heading">{t('latestTitle')}</ThemedText>
+        <View style={{ minHeight: 172, padding: spacing.lg, gap: spacing.xs, borderRadius: radius.xl, backgroundColor: theme.heartRateSoft, borderWidth: 1, borderColor: theme.border, boxShadow: shadows.card, overflow: 'hidden', justifyContent: 'center' }}>
+          <LinearGradient colors={scheme === 'dark' ? ['#392C38', '#302B38'] : ['#FFF4F6', '#FFE5EB']} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} pointerEvents="none" />
+          <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '78%' }}><SvgXml xml={heartRateArt.heartScenery} width="100%" height="100%" /></View>
+          <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ position: 'absolute', right: -5, top: 2, bottom: -8, width: '44%', opacity: scheme === 'dark' ? 0.94 : 1 }}><SvgXml xml={heartRateArt.heartHero} width="100%" height="100%" /></View>
+          <View style={{ maxWidth: '60%', alignItems: 'flex-start', gap: spacing.xs }}>
+            <ThemedText variant="labelStrong" themeColor="heartRate">{t('latestTitle')}</ThemedText>
+            {summaryLoading && !latestSummary ? <View accessibilityRole="progressbar" accessibilityLabel={t('loadingLatest')} style={{ height: 50, width: 150, borderRadius: radius.md, backgroundColor: theme.backgroundElement }} /> : latestSummary?.latestRecorded ? <>
+              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs, flexWrap: 'wrap' }}><ThemedText variant="display">{latestSummary.latestRecorded.heartRateBpm.toLocaleString(locale)}</ThemedText><ThemedText variant="caption" themeColor="textSecondary">{t('bpm')}</ThemedText></View>
+              <ThemedText variant="caption" themeColor="textSecondary">{t('measuredAt', { time: localTimestamp(latestSummary.latestRecorded.occurredAt, locale) ?? t('invalidTime') })}</ThemedText>
+            </> : summaryError && !latestSummary ? <View style={{ alignItems: 'flex-start', gap: spacing.xs }}><ThemedText variant="body" themeColor="danger" accessibilityRole="alert">{t('loadFailed')}</ThemedText><Pressable accessibilityRole="button" onPress={retrySummary} style={{ minHeight: sizing.controlMin, justifyContent: 'center' }}><ThemedText variant="labelStrong" themeColor="accent">{t('retry')}</ThemedText></Pressable></View> : <ThemedText variant="body" themeColor="textSecondary">{t('noLatest')}</ThemedText>}
+            {summaryError && latestSummary ? <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}><ThemedText variant="caption" themeColor="danger" accessibilityRole="alert">{t('loadFailed')}</ThemedText><Pressable accessibilityRole="button" onPress={retrySummary}><ThemedText variant="caption" themeColor="accent">{t('retry')}</ThemedText></Pressable></View> : null}
           </View>
-          {summaryLoading && !latestSummary ? <View accessibilityRole="progressbar" accessibilityLabel={t('loadingLatest')} style={{ height: 50, width: 150, alignSelf: 'center', borderRadius: radius.md, backgroundColor: theme.backgroundElement }} /> : latestSummary?.latestRecorded ? <>
-            <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center', gap: spacing.sm }}><ThemedText variant="display">{latestSummary.latestRecorded.heartRateBpm.toLocaleString(locale)}</ThemedText><ThemedText variant="heading" themeColor="textSecondary">{t('bpm')}</ThemedText></View>
-            <ThemedText variant="bodyStrong" style={{ textAlign: 'center' }}>{t('measuredAt', { time: localTimestamp(latestSummary.latestRecorded.occurredAt, locale) ?? t('invalidTime') })}</ThemedText>
-            <ThemedText variant="caption" themeColor="textSecondary" style={{ textAlign: 'center' }}>{t('latestAccepted')}</ThemedText>
-          </> : summaryError && !latestSummary ? <View style={{ alignItems: 'center', gap: spacing.xs }}><ThemedText variant="body" themeColor="danger" accessibilityRole="alert">{t('loadFailed')}</ThemedText><Pressable accessibilityRole="button" onPress={retrySummary} style={{ minHeight: sizing.controlMin, justifyContent: 'center', paddingHorizontal: spacing.md }}><ThemedText variant="labelStrong" themeColor="accent">{t('retry')}</ThemedText></Pressable></View> : <ThemedText variant="body" themeColor="textSecondary" style={{ textAlign: 'center' }}>{t('noLatest')}</ThemedText>}
-          {summaryError && latestSummary?.latestRecorded ? <View style={{ alignItems: 'center', gap: spacing.xs }}><ThemedText variant="caption" themeColor="danger" accessibilityRole="alert">{t('loadFailed')}</ThemedText><Pressable accessibilityRole="button" onPress={retrySummary} style={{ minHeight: sizing.controlMin, justifyContent: 'center', paddingHorizontal: spacing.md }}><ThemedText variant="labelStrong" themeColor="accent">{t('retry')}</ThemedText></Pressable></View> : null}
         </View>
 
         <View style={{ padding: spacing.md, gap: spacing.md, borderRadius: radius.xl, backgroundColor: theme.backgroundElement, boxShadow: shadows.card }}>
-          <ThemedText variant="heading" style={{ textAlign: 'left' }}>{t('analysisTitle')}</ThemedText>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}><SvgXml xml={scheme === 'dark' ? heartRateArt.analyticsDark : heartRateArt.analyticsLight} width={30} height={30} accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" /><ThemedText variant="heading" style={{ textAlign: 'left', flex: 1 }}>{t('analysisTitle')}</ThemedText></View>
           <View style={{ flexDirection: 'row', gap: spacing.xs }}>
             {periods.map(({ id, label }) => <Pressable key={id} accessibilityRole="button" accessibilityState={{ selected: period === id }} onPress={() => setPeriod(id)} style={{ minHeight: sizing.controlComfortable, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: radius.full, backgroundColor: period === id ? theme.heartRate : theme.backgroundSelected }}><ThemedText variant="labelStrong" themeColor={period === id ? 'onHeartRate' : 'textSecondary'}>{t(label)}</ThemedText></Pressable>)}
           </View>
@@ -205,8 +213,8 @@ export default function HeartRateScreen() {
               <HeartRateRangeChart key={periodKey} buckets={analytics.buckets} period={period} />
               {seriesError ? <View style={{ gap: spacing.xs }}><ThemedText variant="caption" themeColor="danger" accessibilityRole="alert">{t('seriesLoadFailed')}</ThemedText><Pressable accessibilityRole="button" onPress={retrySeries} style={{ minHeight: sizing.controlMin, justifyContent: 'center', alignSelf: 'flex-start', paddingHorizontal: spacing.xs }}><ThemedText variant="labelStrong" themeColor="accent">{t('retry')}</ThemedText></Pressable></View> : null}
               <View style={{ flexDirection: 'row', gap: spacing.xs }}>
-                {[{ label: 'minimum', value: minValue }, { label: 'average', value: meanValue }, { label: 'maximum', value: maxValue }].map((item) => <View key={item.label} style={{ flex: 1, minHeight: 84, alignItems: 'center', justifyContent: 'center', gap: spacing.xs, padding: spacing.sm, borderRadius: radius.md, backgroundColor: theme.heartRateSoft }}>
-                  <ThemedText variant="caption" themeColor="textSecondary" style={{ textAlign: 'center' }}>{t(item.label as 'minimum' | 'average' | 'maximum')}</ThemedText>
+                {[{ label: 'minimum', value: minValue, icon: scheme === 'dark' ? heartRateArt.minDark : heartRateArt.minLight }, { label: 'average', value: meanValue, icon: scheme === 'dark' ? heartRateArt.avgDark : heartRateArt.avgLight }, { label: 'maximum', value: maxValue, icon: scheme === 'dark' ? heartRateArt.maxDark : heartRateArt.maxLight }].map((item) => <View key={item.label} style={{ flex: 1, minHeight: 92, alignItems: 'center', justifyContent: 'center', gap: spacing.xs, padding: spacing.xs, borderRadius: radius.md, backgroundColor: theme.heartRateSoft }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs }}><SvgXml xml={item.icon} width={30} height={30} accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" /><ThemedText variant="caption" themeColor="textSecondary" style={{ textAlign: 'center', flexShrink: 1 }}>{t(item.label as 'minimum' | 'average' | 'maximum')}</ThemedText></View>
                   <ThemedText variant="labelStrong" themeColor={item.value == null ? 'textSecondary' : 'text'}>{item.value == null ? '—' : item.value.toLocaleString(locale, { maximumFractionDigits: 1 })}</ThemedText>
                   <ThemedText variant="caption" themeColor="textSecondary">{t('bpm')}</ThemedText>
                 </View>)}
