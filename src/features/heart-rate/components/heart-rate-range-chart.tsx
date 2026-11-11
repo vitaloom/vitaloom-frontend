@@ -59,7 +59,7 @@ export function HeartRateRangeChart({ buckets, period }: { buckets: HeartRateAna
   const segments = connectedHeartRateSegments(buckets);
   const bucketIndexes = new Map(buckets.map((bucket, index) => [bucket.startAt, index]));
   const ticks = Array.from({ length: 5 }, (_, index) => high - (high - low) * index / 4);
-  const tickIndexes = period === 'day' ? [0, 24, 48, 72, 95] : Array.from(new Set([0, Math.round((buckets.length - 1) / 3), Math.round((buckets.length - 1) * 2 / 3), Math.max(0, buckets.length - 1)]));
+  const tickIndexes = period === 'day' ? [0, 6, 12, 18, 23] : Array.from(new Set([0, Math.round((buckets.length - 1) / 3), Math.round((buckets.length - 1) * 2 / 3), Math.max(0, buckets.length - 1)]));
   const tooltipWidth = Math.min(220, Math.max(180, chartWidth - axisLeft - axisRight - 8));
   const tooltipLeft = selected ? Math.max(axisLeft + 2, Math.min(chartWidth - axisRight - tooltipWidth - 2, x(selectedIndex) - tooltipWidth / 2)) : 0;
   const tooltipTop = selected ? Math.max(axisTop, Math.min(plotBottom - 98, y(selected.avgBpm!) - 106)) : 0;
@@ -85,7 +85,7 @@ export function HeartRateRangeChart({ buckets, period }: { buckets: HeartRateAna
       {tickIndexes.map((index) => {
         const bucket = buckets[index];
         if (!bucket) return null;
-        const label = period === 'day' && index === 95 ? '24' : formatGroupLabel(bucket, period, locale);
+        const label = period === 'day' && index === 23 ? '24' : formatGroupLabel(bucket, period, locale);
         return <SvgText key={index} x={x(index)} y={plotBottom + 22} fill={theme.textSecondary} fontSize={10} textAnchor={index === 0 ? 'start' : index === buckets.length - 1 ? 'end' : 'middle'}>{label}</SvgText>;
       })}
     </Svg>

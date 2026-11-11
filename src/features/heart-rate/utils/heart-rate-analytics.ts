@@ -42,12 +42,15 @@ function aggregateGroup(buckets: HeartRateBucket[], date: string, endAt: string)
 }
 
 function aggregateDailySeries(series: HeartRateSeries): HeartRateAnalyticsBucket[] {
+  const buckets: HeartRateAnalyticsBucket[] = [];
   const sourceBucketMs = series.intervalMinutes * 60_000;
-  return series.buckets.map((bucket) => ({
-    ...bucket,
-    endAt: new Date(Date.parse(bucket.startAt) + sourceBucketMs).toISOString(),
-    date: localDate(bucket.startAt),
-  }));
+  for (let index = 0; index < series.buckets.length; index += 4) {
+    const group = series.buckets.slice(index, index + 4);
+    if (!group.length) continue;
+    const endAt = new Date(Date.parse(group[0].startAt) + sourceBucketMs * group.length).toISOString();
+    buckets.push(aggregateGroup(group, localDate(group[0].startAt), endAt));
+  }
+  return buckets;
 }
 
 function aggregateByLocalDay(series: HeartRateSeries): HeartRateAnalyticsBucket[] {
