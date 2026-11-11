@@ -12,9 +12,35 @@ Status: **provisional visual values**, implementation ready. The source of truth
 
 ## Architecture and assumptions
 
-`src/theme/index.ts` is the only theme import entry point. `palette` holds primitive color values; `colors.light` and `colors.dark` hold semantic roles. The app's existing `useTheme()` selects the active scheme. Spacing, sizing, typography, radius, effects, and motion are typed `as const` objects. No new styling framework or component library is installed. The Expo starter routes and their aliases remain for compilation and can be removed with those routes when feature work begins.
+`src/theme/index.ts` is the entry point for design tokens. The primitive colors live in `palette`, and `colors.light` and `colors.dark` define semantic color roles. Spacing, sizing, typography, radius, effects, and motion are typed `as const` objects. No new styling framework or component library is installed. The Expo starter routes and their aliases remain for compilation and can be removed with those routes when feature work begins.
 
-The screenshot references are iPhone concepts. Exact palette, font family, radii, shadow blur, gradients, and animation durations are **provisional** until tested on physical iOS and Android devices. The starter's web CSS font variables are retained for web only. No custom font files are bundled; native system fonts are used. The theme provides a dark scheme because system appearance is already supported, although the references primarily show light mode.
+The screenshot references are iPhone concepts and primarily show light mode. Exact palette, font family, radii, shadow blur, gradients, and animation durations are **provisional** until tested on physical iOS and Android devices. The starter's web CSS font variables are retained for web only. Native screens use system fonts.
+
+## Dark and light screens
+
+The root appearance provider resolves **Profile → Appearance**. **System** follows the device, and **Light** and **Dark** apply the selected mode throughout the app. Use `useTheme()` in screens and components to get the resolved semantic colors. Direct calls to `useColorScheme()` can miss the in-app selection.
+
+```tsx
+import { View } from 'react-native';
+import { ThemedText } from '@/components/themed-text';
+import { useTheme } from '@/hooks/use-theme';
+import { radius, spacing } from '@/theme';
+
+export function SummaryScreen({ title, description }: { title: string; description: string }) {
+  const theme = useTheme();
+
+  return (
+    <View style={{ flex: 1, backgroundColor: theme.background, padding: spacing.md }}>
+      <View style={{ backgroundColor: theme.backgroundElement, borderRadius: radius.lg, padding: spacing.md }}>
+        <ThemedText variant="heading">{title}</ThemedText>
+        <ThemedText themeColor="textSecondary">{description}</ThemedText>
+      </View>
+    </View>
+  );
+}
+```
+
+Use the [semantic color roles](tokens.md#color) for surfaces, text, and interactive states. Check contrast and legibility in both modes, including when the app preference differs from the device setting. See [Components and visual QA](components-and-qa.md) for the full checklist.
 
 ## Standards used
 
