@@ -58,7 +58,7 @@ export function ProfileHero({ title, subtitle, eyebrow, step, compact = false }:
         </ThemedText>
         <ThemedText variant="subhead" themeColor="textSecondary">{subtitle}</ThemedText>
         {step ? (
-          <View accessibilityLabel={`Step ${step} of 2`} style={{ flexDirection: 'row', gap: spacing.xs, marginTop: spacing.xs }}>
+          <View accessibilityLabel={eyebrow} style={{ flexDirection: 'row', gap: spacing.xs, marginTop: spacing.xs }}>
             {[1, 2].map((number) => (
               <View key={number} style={{ width: 26, height: 4, borderRadius: radius.full, backgroundColor: number <= step ? theme.accent : theme.border }} />
             ))}
