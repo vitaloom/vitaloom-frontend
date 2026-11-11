@@ -1,0 +1,12 @@
+# Statistics implementation plan
+
+The existing Expo Router Statistics tab shows Heart Rate or Steps individually, with custom ranges. The approved overview replaces that control with a shared Day/Week selection. The root appearance provider, safe-area insets, shared Health Metrics sidebar and tab bar already provide the app shell. Keep the route thin and push existing detail screens so back preserves the mounted overview and scroll position.
+
+| Task | Files and approach | Acceptance |
+| --- | --- | --- |
+| STAT-1 | Add the Statistics period and metric contracts, read adapters, and a per-metric query hook. Reuse the existing calendar utilities, authenticated Heart Rate and Steps clients, and Water API repository. | Independent state and retry, shared Ho Chi Minh date boundaries, no future observations or mock data. Check normalization and period bounds with Node tests. |
+| STAT-2 | Build the banner, period selector, metric card, and compact SVG trends in the existing Statistics feature. Compose Heart Rate, Steps, Water, then Sleep. Use shared typography and theme tokens plus feature-specific visual roles. | Week opens first, dates advance through the current week, both themes share the same structure, and Day Sleep displays a recorded reaction or neutral fallback. |
+| STAT-3 | Copy the four approved illustrations and both pairs of decorative bars and glows from design/assets/statistic. Reuse Sleep feeling art. Layer the bars and waves independently in the banner and reserve runtime charts for measured values. | Original asset bytes preserved, with no screenshot backgrounds or frozen measurement graphs. |
+| STAT-4 | Validate TypeScript, lint, Node tests, route links and asset imports. Attempt Expo render verification, then publish the API contract, integration handoff, and implementation report. | All requested files are present and any verification limits are recorded. |
+
+Heart Rate can use the accepted daily mean and series already returned by the API. Week mean is the sample-weighted mean of observed buckets. Steps already returns period totals and chart buckets. Water supports daily logs and weekly totals. Compute its documented average over recorded days and keep future or unrecorded dates blank. Existing Sleep shapes cover the presentation but its mobile repository is mock-backed and backend reads lack per-user isolation. Prepare the typed source boundary and render a neutral unavailable state until an authenticated source exists.

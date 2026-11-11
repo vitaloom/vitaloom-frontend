@@ -52,7 +52,7 @@ export function ProfileOverview({ snapshot, saved, onEdit, onBack, onSignOut }: 
         <ProfileCard cardId="body" title={t('Body & lifestyle')} fields={lifestyleFields} snapshot={snapshot} locale={locale} t={t} />
         <AppearanceSettings />
 
-        <View style={{ marginTop: 'auto', gap: spacing.sm }}>
+        <View style={{ marginTop: 12, gap: spacing.sm }}>
           <ProfileButton label="Edit profile" onPress={onEdit} />
           <ThemedText variant="caption" themeColor="textSecondary" style={{ textAlign: 'center', marginBottom: spacing.sm }}>
             {t('Self-reported details · You control what you share')}
