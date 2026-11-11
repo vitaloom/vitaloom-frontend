@@ -8,17 +8,20 @@ import { useAuth } from '../store/auth-context';
 import Svg, { Path } from 'react-native-svg';
 
 const benefits = [
-  'Personalise your daily goals',
-  'Make your wellness tracking more useful',
+  'Share only the details you choose',
+  'See your profile details in one place',
   'Update your information anytime',
 ];
 
 export default function ProfileSetupPromptScreen() {
   const theme = useTheme();
-  const { dismissProfileInvitation } = useAuth();
-  function finish(destination: '/(tabs)/profile' | '/(tabs)/home') {
-    router.replace(destination);
-    dismissProfileInvitation();
+  const { resolveProfileInvitation } = useAuth();
+  function startSetup() {
+    router.push('/profile-setup');
+  }
+  async function skipSetup() {
+    await resolveProfileInvitation('skipped');
+    router.replace('/(tabs)/home');
   }
 
   return (
@@ -71,7 +74,7 @@ export default function ProfileSetupPromptScreen() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Set up my profile"
-              onPress={() => finish('/(tabs)/profile')}
+              onPress={startSetup}
               style={({ pressed }) => ({ minHeight: sizing.controlComfortable + spacing.sm, borderRadius: radius.full, paddingHorizontal: spacing.lg, backgroundColor: theme.accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, opacity: pressed ? 0.82 : 1, boxShadow: shadows.card })}
             >
               <ThemedText variant="labelStrong" themeColor="onAccent">Set up my profile</ThemedText>
@@ -79,7 +82,7 @@ export default function ProfileSetupPromptScreen() {
             </Pressable>
             <Pressable
               accessibilityRole="button"
-              onPress={() => finish('/(tabs)/home')}
+              onPress={() => void skipSetup()}
               style={({ pressed }) => ({ minHeight: sizing.controlComfortable + spacing.sm, borderRadius: radius.full, paddingHorizontal: spacing.lg, borderColor: theme.accent, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.72 : 1 })}
             >
               <ThemedText variant="labelStrong" themeColor="accent">Maybe later</ThemedText>
