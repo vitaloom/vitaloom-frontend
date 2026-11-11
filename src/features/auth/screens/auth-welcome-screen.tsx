@@ -1,10 +1,10 @@
 import { useCallback, useState } from 'react';
 import { BackHandler, Keyboard, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
-import { colors, gradients, spacing } from '@/theme';
+import { useTheme } from '@/hooks/use-theme';
+import { spacing } from '@/theme';
 import { AuthBottomSheet } from '../components/auth-bottom-sheet';
 import { AuthCredentialsForm } from '../components/auth-credentials-form';
 import { AuthHero } from '../components/auth-hero';
@@ -13,6 +13,7 @@ import type { AuthFormMode } from '../lib/auth-form';
 
 export default function AuthWelcomeScreen({ mode: initialMode }: { mode?: AuthFormMode }) {
   const [mode, setMode] = useState(initialMode);
+  const theme = useTheme();
 
   const closeForm = useCallback(() => {
     Keyboard.dismiss();
@@ -38,9 +39,8 @@ export default function AuthWelcomeScreen({ mode: initialMode }: { mode?: AuthFo
   }, [closeForm, mode]));
 
   return (
-    <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.light.background }}>
-      <StatusBar style="dark" />
-      <View style={styles.scene}>
+    <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: theme.background }}>
+      <View style={[styles.scene, { backgroundColor: theme.background }]}>
         <AuthHero />
         {/* Keep the welcome panel's space so opening a form does not resize the hero. */}
         <AuthBottomSheet hidden={!!mode} title="Welcome to Healthy Check">
@@ -69,6 +69,6 @@ export default function AuthWelcomeScreen({ mode: initialMode }: { mode?: AuthFo
 }
 
 const styles = StyleSheet.create({
-  scene: { flex: 1, overflow: 'hidden', backgroundColor: gradients.calm[1] },
+  scene: { flex: 1, overflow: 'hidden' },
   formLayer: { justifyContent: 'flex-end' },
 });

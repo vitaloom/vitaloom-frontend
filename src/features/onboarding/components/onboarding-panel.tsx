@@ -1,10 +1,9 @@
 import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
-import { colors, radius, sizing, spacing, typography } from '@/theme';
+import { useTheme } from '@/hooks/use-theme';
+import { radius, sizing, spacing, typography } from '@/theme';
 import { onboardingSlides } from '../data/onboarding-slides';
-
-const theme = colors.light;
 
 type Props = {
   page: number;
@@ -14,12 +13,13 @@ type Props = {
 };
 
 export function OnboardingPanel({ page, bottomInset, onAdvance, onLayout }: Props) {
+  const theme = useTheme();
   const slide = onboardingSlides[page];
   const finalPage = page === onboardingSlides.length - 1;
   const copyOrder = [slide, ...onboardingSlides.filter(({ id }) => id !== slide.id)];
 
   return (
-    <View onLayout={onLayout} style={[styles.panel, { paddingBottom: spacing.lg + bottomInset }]}>
+    <View onLayout={onLayout} style={[styles.panel, { backgroundColor: theme.backgroundElement, paddingBottom: spacing.lg + bottomInset }]}>
       <View style={styles.copyRow}>
         {/* Let the tallest copy size the row at the current width and text scale. */}
         {copyOrder.map((item) => {
@@ -34,10 +34,10 @@ export function OnboardingPanel({ page, bottomInset, onAdvance, onLayout }: Prop
                 accessibilityRole={active ? 'header' : undefined}
                 aria-live={active ? 'polite' : undefined}
                 accessibilityLabel={active ? `Onboarding, page ${page + 1} of ${onboardingSlides.length}. ${item.title}` : undefined}
-                style={[styles.title, item.showsBrand && styles.welcomeTitle]}>
+              style={[styles.title, { color: theme.text }, item.showsBrand && styles.welcomeTitle]}>
                 {item.title}
               </Text>
-              <Text style={styles.description}>{item.description}</Text>
+              <Text style={[styles.description, { color: theme.textSecondary }]}>{item.description}</Text>
             </View>
           );
         })}
@@ -45,7 +45,7 @@ export function OnboardingPanel({ page, bottomInset, onAdvance, onLayout }: Prop
 
       <View style={styles.pagination} aria-hidden>
         {onboardingSlides.map(({ id }, index) => (
-          <View key={id} style={[styles.dot, index === page && styles.activeDot]} />
+          <View key={id} style={[styles.dot, { backgroundColor: theme.border }, index === page && { backgroundColor: theme.accent }]} />
         ))}
       </View>
 
@@ -54,8 +54,8 @@ export function OnboardingPanel({ page, bottomInset, onAdvance, onLayout }: Prop
         accessibilityLabel={slide.action}
         accessibilityHint={finalPage ? 'Opens the authentication welcome screen' : 'Continues to the next onboarding page'}
         onPress={onAdvance}
-        style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}>
-        <Text style={styles.actionText}>{slide.action}</Text>
+        style={({ pressed }) => [styles.action, { backgroundColor: theme.accent }, pressed && { backgroundColor: theme.focus }]}>
+        <Text style={[styles.actionText, { color: theme.onAccent }]}>{slide.action}</Text>
         <Svg width={sizing.iconMd} height={sizing.iconMd} viewBox="0 0 24 24" aria-hidden>
           <Path
             d="M4 12h15m-6-6 6 6-6 6"
@@ -73,7 +73,6 @@ export function OnboardingPanel({ page, bottomInset, onAdvance, onLayout }: Prop
 
 const styles = StyleSheet.create({
   panel: {
-    backgroundColor: theme.backgroundElement,
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,
     borderCurve: 'continuous',
@@ -84,11 +83,10 @@ const styles = StyleSheet.create({
   copyRow: { flexDirection: 'row', overflow: 'hidden' },
   copy: { width: '100%', flexShrink: 0, gap: spacing.sm },
   hiddenCopy: { opacity: 0 },
-  title: { ...typography.title, color: theme.text, textAlign: 'center' },
+  title: { ...typography.title, textAlign: 'center' },
   welcomeTitle: { fontSize: typography.heading.fontSize },
   description: {
     ...typography.body,
-    color: theme.textSecondary,
     textAlign: 'center',
     alignSelf: 'center',
     // Match the reference copy measure and reserve space for three lines at the default size.
@@ -96,19 +94,16 @@ const styles = StyleSheet.create({
     minHeight: typography.body.lineHeight * 3,
   },
   pagination: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm + spacing.half },
-  dot: { width: spacing.sm + spacing.half, height: spacing.sm + spacing.half, borderRadius: radius.full, backgroundColor: theme.border },
-  activeDot: { backgroundColor: theme.accent },
+  dot: { width: spacing.sm + spacing.half, height: spacing.sm + spacing.half, borderRadius: radius.full },
   action: {
     minHeight: sizing.controlComfortable + spacing.sm,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
-    backgroundColor: theme.accent,
     borderRadius: radius.full,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     gap: spacing.sm,
   },
-  actionPressed: { backgroundColor: theme.text },
-  actionText: { ...typography.bodyStrong, color: theme.onAccent, textAlign: 'center', flexShrink: 1 },
+  actionText: { ...typography.bodyStrong, textAlign: 'center', flexShrink: 1 },
 });

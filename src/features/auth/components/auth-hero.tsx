@@ -1,10 +1,9 @@
 import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
-import { colors, gradients, layout, radius, sizing, spacing } from '@/theme';
+import { colors, layout, radius, sizing, spacing } from '@/theme';
 import Svg, { Path } from 'react-native-svg';
 
 const hero = require('../../../../assets/onboarding/welcome-hero.png');
@@ -21,7 +20,6 @@ export function AuthHero() {
 
   return (
     <View style={styles.stage}>
-      <LinearGradient colors={gradients.calm} style={StyleSheet.absoluteFill} />
       <View style={styles.brand}>
         <Svg
                       width={sizing.controlComfortable}
@@ -61,7 +59,7 @@ export function AuthHero() {
 }
 
 const styles = StyleSheet.create({
-  stage: { flex: 1, overflow: 'hidden', alignItems: 'center', backgroundColor: scene.background },
+  stage: { flex: 1, overflow: 'hidden', alignItems: 'center', backgroundColor: scene.illustrationSurface },
   brand: { alignItems: 'center', gap: spacing.xs, paddingTop: spacing.sm, paddingHorizontal: spacing.md },
   mark: { height: sizing.iconMd, flexDirection: 'row', alignItems: 'center' },
   leaf: { width: sizing.iconSm, height: sizing.iconMd },

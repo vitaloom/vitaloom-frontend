@@ -4,7 +4,7 @@ import { Pressable, useWindowDimensions, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useAppearance } from '@/theme/appearance-provider';
 import { radius, sizing, spacing } from '@/theme';
 
 const heroImage = require('../assets/profile-hero-photorealistic.png');
@@ -17,7 +17,8 @@ export function ProfileHero({ title, subtitle, eyebrow, step, compact = false }:
   compact?: boolean;
 }) {
   const theme = useTheme();
-  const dark = useColorScheme() === 'dark';
+  const { scheme } = useAppearance();
+  const dark = scheme === 'dark';
   const { fontScale } = useWindowDimensions();
   const separateArtwork = fontScale > 1.35;
   return (

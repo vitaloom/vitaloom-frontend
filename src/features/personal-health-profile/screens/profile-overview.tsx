@@ -7,6 +7,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { radius, shadows, sizing, spacing } from '@/theme';
 
 import { ProfileButton, ProfileHero } from '../components/profile-primitives';
+import { AppearanceSettings } from '../components/appearance-settings';
 import { basicFields, fieldLabels, lifestyleFields, type ProfileField, type ProfileSnapshot } from '../types/profile';
 import { formatProfileValue } from '../utils/profile-form';
 
@@ -42,6 +43,7 @@ export function ProfileOverview({ snapshot, saved, onEdit, onBack, onSignOut }: 
         />
         <ProfileCard title="About you" fields={basicFields} snapshot={snapshot} />
         <ProfileCard title="Body & lifestyle" fields={lifestyleFields} snapshot={snapshot} />
+        <AppearanceSettings />
 
         <View style={{ marginTop: 'auto', gap: spacing.sm }}>
           <ProfileButton label="Edit profile" onPress={onEdit} />

@@ -1,5 +1,4 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import {
   AccessibilityInfo,
@@ -12,18 +11,18 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { colors, layout, motion, spacing } from '@/theme';
+import { useTheme } from '@/hooks/use-theme';
+import { layout, motion, spacing } from '@/theme';
 import { advanceOnboarding, type OnboardingPosition } from '../advance-onboarding';
 import { OnboardingHero } from '../components/onboarding-hero';
 import { OnboardingPanel } from '../components/onboarding-panel';
 import { onboardingSlides } from '../data/onboarding-slides';
 
 // The approved onboarding artwork has a warmer cream-to-mint wash than the shared calm gradient.
-const heroGradient = ['#FFFCF9', '#E6F9F3'] as const;
-const theme = colors.light;
 const panelOverlap = spacing.md;
 
 export function OnboardingScreen({ onComplete }: { onComplete: () => void }) {
+  const theme = useTheme();
   const insets = useSafeAreaInsets();
   const window = useWindowDimensions();
   const [viewportHeight, setViewportHeight] = useState(window.height);
@@ -70,9 +69,8 @@ export function OnboardingScreen({ onComplete }: { onComplete: () => void }) {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.screen, { paddingLeft: insets.left, paddingRight: insets.right }]}
+      style={[styles.screen, { backgroundColor: theme.background, paddingLeft: insets.left, paddingRight: insets.right }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <StatusBar style="dark" />
       <ScrollView
         ref={scroll}
         onLayout={({ nativeEvent }) => setViewportHeight(nativeEvent.layout.height)}
@@ -80,7 +78,7 @@ export function OnboardingScreen({ onComplete }: { onComplete: () => void }) {
         contentInsetAdjustmentBehavior="never"
         showsVerticalScrollIndicator={false}>
         <View style={[styles.flow, { width }]}>
-          <LinearGradient colors={heroGradient} style={[styles.gradient, { height: stageHeight + spacing.xl }]} />
+          <LinearGradient colors={[theme.backgroundElement, theme.background]} style={[styles.gradient, { height: stageHeight + spacing.xl }]} />
           <OnboardingHero slide={slide} height={stageHeight} topInset={insets.top} />
           <View style={styles.panelOverlay}>
             <OnboardingPanel
@@ -97,7 +95,7 @@ export function OnboardingScreen({ onComplete }: { onComplete: () => void }) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: theme.backgroundElement },
+  screen: { flex: 1 },
   scrollContent: { flexGrow: 1, alignItems: 'center' },
   flow: { flexGrow: 1 },
   gradient: { position: 'absolute', top: 0, left: 0, right: 0 },

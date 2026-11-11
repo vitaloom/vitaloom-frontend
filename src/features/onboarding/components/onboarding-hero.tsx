@@ -3,13 +3,12 @@ import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn, ReduceMotion } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
 
-import { colors, motion, sizing, spacing, typography } from '@/theme';
+import { useTheme } from '@/hooks/use-theme';
+import { motion, sizing, spacing, typography } from '@/theme';
 import type { OnboardingSlide } from '../data/onboarding-slides';
 import { OnboardingLandscape } from './onboarding-landscape';
 
 const artworkEntrance = FadeIn.duration(motion.duration.transition).reduceMotion(ReduceMotion.System);
-const theme = colors.light;
-
 type Props = {
   slide: OnboardingSlide;
   height: number;
@@ -17,6 +16,7 @@ type Props = {
 };
 
 export function OnboardingHero({ slide, height, topInset }: Props) {
+  const theme = useTheme();
   return (
     <View style={{ height }}>
       <Animated.View
@@ -32,7 +32,7 @@ export function OnboardingHero({ slide, height, topInset }: Props) {
         </View>
 
         {slide.showsBrand && (
-          <View style={[styles.brand, { marginTop: topInset + spacing.sm }]}>
+          <View style={[styles.brand, { marginTop: topInset + spacing.sm, backgroundColor: theme.illustrationSurface }]}>
             <Svg
               width={sizing.controlComfortable}
               height={sizing.iconLg}
@@ -50,8 +50,8 @@ export function OnboardingHero({ slide, height, topInset }: Props) {
                 strokeLinecap="round"
               />
             </Svg>
-            <Text style={styles.wordmark}>Healthy Check</Text>
-            <Text style={styles.tagline}>{'Small habits\nfor a healthier, happier you'}</Text>
+            <Text style={[styles.wordmark, { color: theme.text }]}>Healthy Check</Text>
+            <Text style={[styles.tagline, { color: theme.text }]}>{'Small habits\nfor a healthier, happier you'}</Text>
           </View>
         )}
 
@@ -77,7 +77,7 @@ const styles = StyleSheet.create({
   heroSlot: { flex: 1 },
   welcomeHero: { marginTop: spacing.sm },
   hero: { flex: 1, width: '100%' },
-  brand: { alignItems: 'center', gap: spacing.xs, paddingHorizontal: spacing.lg },
-  wordmark: { ...typography.largeTitle, color: theme.text, textAlign: 'center' },
-  tagline: { ...typography.subhead, color: theme.text, textAlign: 'center' },
+  brand: { alignItems: 'center', gap: spacing.xs, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, alignSelf: 'center', borderRadius: 20 },
+  wordmark: { ...typography.largeTitle, textAlign: 'center' },
+  tagline: { ...typography.subhead, textAlign: 'center' },
 });

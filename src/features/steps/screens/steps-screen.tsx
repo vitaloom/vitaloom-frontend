@@ -87,8 +87,8 @@ export default function StepsScreen() {
             const day = new Date(`${date}T12:00:00Z`);
             const weekday = new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', weekday: 'short' }).format(day);
             return <Pressable key={date} accessibilityRole="button" accessibilityLabel={displayDate(date)} accessibilityState={{ selected, disabled: future }} disabled={future} onPress={() => setSelectedDate(date)} style={{ flex: 1, minHeight: 58, alignItems: 'center', justifyContent: 'center', gap: spacing.xs, borderRadius: radius.md, backgroundColor: selected ? theme.steps : theme.backgroundSelected, opacity: future ? 0.45 : 1 }}>
-              <ThemedText variant="caption" themeColor={selected ? 'onAccent' : 'textSecondary'}>{weekday}</ThemedText>
-              <ThemedText variant="labelStrong" themeColor={selected ? 'onAccent' : 'text'}>{date.slice(-2)}</ThemedText>
+              <ThemedText variant="caption" themeColor={selected ? 'onSteps' : 'textSecondary'}>{weekday}</ThemedText>
+              <ThemedText variant="labelStrong" themeColor={selected ? 'onSteps' : 'text'}>{date.slice(-2)}</ThemedText>
             </Pressable>;
           })}
         </View>

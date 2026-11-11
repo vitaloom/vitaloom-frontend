@@ -24,6 +24,8 @@ Primitive groups are `palette.teal`, `aqua`, `mint`, `violet`, `coral`, and `neu
 | `water`, `sleep`, `activity` | aqua, violet, mint | lighter counterparts | Chart series with text labels |
 | `overlay` | translucent teal-black | translucent black | Modal scrim |
 | `waterTrack`, `waterPanel`, `waterPanelEdge` | pale teal, pale aqua, aqua | deep teal variants | Water progress track and hero surface |
+| `illustrationSurface` | pale aqua-neutral | pale aqua-neutral | Light canvas behind illustrations that contain fixed dark lettering |
+| `onSteps`, `onHeartRate` | deep teal | deep teal | Text on the light mint and coral activity selections |
 
 Choose a semantic foreground/background pair together. Validate final rendered combinations, including translucent layers, to WCAG 2.2 AA: **4.5:1** for normal text, **3:1** for large text and meaningful non-text controls. Pale aqua and mint are surfaces or decoration, not small-text foreground colors. A disabled state may use lower contrast, but an enabled action must remain identifiable. Avoid encoding selection, errors, or chart values by color alone.
 

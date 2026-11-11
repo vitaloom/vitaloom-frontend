@@ -24,8 +24,8 @@ export function MainTabBar({ state, navigateToTab }: BottomTabBarProps) {
       if (!tab) return null;
       const focused = state.index === index;
       return <Pressable key={route.key} accessibilityRole="tab" accessibilityLabel={`${tab.label} tab`} accessibilityState={{ selected: focused }} onPress={() => navigateToTab(route.key)} style={({ pressed }) => ({ flex: 1, minHeight: 57, borderRadius: radius.xl, backgroundColor: focused ? theme.accentSoft : 'transparent', alignItems: 'center', justifyContent: 'center', gap: 3, opacity: pressed ? 0.7 : 1 })}>
-        <WellnessIcon name={tab.icon} color={focused ? theme.accent : theme.textSecondary} size={23} />
-        <Text style={{ color: focused ? theme.accent : theme.textSecondary, fontSize: 12, fontWeight: focused ? '700' : '500' }}>{tab.label}</Text>
+        <WellnessIcon name={tab.icon} color={focused ? theme.text : theme.textSecondary} size={23} />
+        <Text style={{ color: focused ? theme.text : theme.textSecondary, fontSize: 12, fontWeight: focused ? '700' : '500' }}>{tab.label}</Text>
       </Pressable>;
     })}
   </View>;

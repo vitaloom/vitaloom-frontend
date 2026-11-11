@@ -7,6 +7,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { radius, sizing, spacing } from '@/theme';
 
 import { ProfileButton } from '../components/profile-primitives';
+import { AppearanceSettings } from '../components/appearance-settings';
 
 export function ProfileLoadScreen({ kind, onRetry, onBack, withTabs = false, onSignOut }: {
   kind: 'loading' | 'network-error' | 'unauthorized';
@@ -53,6 +54,7 @@ export function ProfileLoadScreen({ kind, onRetry, onBack, withTabs = false, onS
           {!loading ? <View style={{ width: '100%', marginTop: spacing.sm }}><ProfileButton label={unauthorized ? 'Check session' : 'Try again'} onPress={onRetry} /></View> : null}
           {onSignOut ? <ProfileButton label="Sign out" onPress={onSignOut} secondary /> : null}
         </View>
+        {withTabs ? <AppearanceSettings /> : null}
       </ScrollView>
     </SafeAreaView>
   );
