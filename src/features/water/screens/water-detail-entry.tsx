@@ -5,16 +5,20 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
+import { useI18n, useTranslations } from '@/i18n';
 import { layout, radius, sizing, spacing } from '@/theme';
 import { WaterDateTimeField } from '../components/water-date-time-field';
 import { useCreateWaterLog } from '../hooks/use-water';
 import { isFutureInstant } from '../utils/water-date';
 import { validateWaterAmount } from '../utils/water-validation';
+import { waterMessages } from '../messages';
 
 const PRESETS = [100, 200, 500, 750] as const;
 
 export default function WaterDetailEntryScreen() {
   const theme = useTheme();
+  const { locale } = useI18n();
+  const t = useTranslations(waterMessages);
   const insets = useSafeAreaInsets();
   const [amountInput, setAmountInput] = useState('');
   const [initialTime] = useState(() => new Date(Math.floor(Date.now() / 60_000) * 60_000));
@@ -30,16 +34,16 @@ export default function WaterDetailEntryScreen() {
     const amountMl = Number(amountInput);
     const validAmount = amountInput.trim() !== '' && validateWaterAmount(amountMl) === null && /^\d+$/.test(amountInput.trim());
     if (!validAmount) {
-      setAmountError(amountInput.trim() ? 'Amount must be a whole number from 1 to 2,000 ml.' : 'Please enter an amount.');
+      setAmountError(amountInput.trim() ? t('amountInvalid') : t('amountRequired'));
     } else {
       setAmountError(null);
     }
     if (!loggedAt || Number.isNaN(loggedAt.getTime())) {
-      setTimeError('Choose a valid date and time.');
+      setTimeError(t('timeInvalid'));
       return;
     }
     if (isFutureInstant(loggedAt, new Date())) {
-      setTimeError('Future times cannot be logged.');
+      setTimeError(t('futureLog'));
       return;
     }
     setTimeError(null);
@@ -49,8 +53,8 @@ export default function WaterDetailEntryScreen() {
     try {
       await createLog({ amountMl, loggedAt: loggedAt.toISOString(), source: 'custom' });
       router.back();
-    } catch (error) {
-      setSaveError(error instanceof Error ? error.message : 'Could not save this log. Please try again.');
+    } catch {
+      setSaveError(t('saveError'));
     } finally {
       pendingRef.current = false;
     }
@@ -59,23 +63,23 @@ export default function WaterDetailEntryScreen() {
   return <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: theme.background }}>
     <ScrollView keyboardShouldPersistTaps="handled" contentInsetAdjustmentBehavior="automatic" contentContainerStyle={{ paddingTop: Math.max(insets.top + spacing.sm, spacing.lg), paddingBottom: insets.bottom + spacing.xl, paddingHorizontal: spacing.md, alignItems: 'center' }}>
       <View style={{ width: '100%', maxWidth: layout.screenMax, gap: spacing.lg }}>
-        <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Back to water tracking" style={({ pressed }) => ({ minHeight: sizing.controlComfortable, justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}><ThemedText variant="bodyStrong" themeColor="accent">‹ Back</ThemedText></Pressable>
+        <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel={t('backLabel')} style={({ pressed }) => ({ minHeight: sizing.controlComfortable, justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}><ThemedText variant="bodyStrong" themeColor="accent">{t('back')}</ThemedText></Pressable>
         <View style={{ gap: spacing.sm }}>
-          <ThemedText variant="largeTitle">Add water details</ThemedText>
-          <ThemedText variant="body" themeColor="textSecondary">Record an amount and the time you drank it.</ThemedText>
+          <ThemedText variant="largeTitle">{t('detailTitle')}</ThemedText>
+          <ThemedText variant="body" themeColor="textSecondary">{t('detailIntro')}</ThemedText>
         </View>
         <View style={{ padding: spacing.md, borderRadius: radius.xl, backgroundColor: theme.backgroundElement, gap: spacing.md }}>
-          <ThemedText variant="heading">Choose an amount</ThemedText>
+          <ThemedText variant="heading">{t('chooseAmountTitle')}</ThemedText>
           <View style={{ flexDirection: 'row', gap: spacing.sm }}>{PRESETS.map((preset) => {
             const selected = amountInput === String(preset);
-            return <Pressable key={preset} onPress={() => { setAmountInput(String(preset)); setAmountError(null); }} accessibilityRole="button" accessibilityLabel={`${preset} millilitres`} accessibilityState={{ selected }} style={({ pressed }) => ({ flex: 1, minHeight: 72, borderRadius: radius.lg, borderWidth: 1, borderColor: selected ? theme.accent : theme.border, backgroundColor: selected ? theme.accentSoft : theme.background, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 1 })}><ThemedText variant="heading" themeColor={selected ? 'accent' : 'text'}>{preset}</ThemedText><ThemedText variant="caption" themeColor="textSecondary">ml</ThemedText></Pressable>;
+            return <Pressable key={preset} onPress={() => { setAmountInput(String(preset)); setAmountError(null); }} accessibilityRole="button" accessibilityLabel={t('millilitres', { amount: new Intl.NumberFormat(locale).format(preset) })} accessibilityState={{ selected }} style={({ pressed }) => ({ flex: 1, minHeight: 72, borderRadius: radius.lg, borderWidth: 1, borderColor: selected ? theme.accent : theme.border, backgroundColor: selected ? theme.accentSoft : theme.background, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 1 })}><ThemedText variant="heading" themeColor={selected ? 'accent' : 'text'}>{preset}</ThemedText><ThemedText variant="caption" themeColor="textSecondary">ml</ThemedText></Pressable>;
           })}</View>
         </View>
-        <View style={{ alignItems: 'center' }}><ThemedText variant="subhead" themeColor="textSecondary">Or enter manually</ThemedText></View>
+        <View style={{ alignItems: 'center' }}><ThemedText variant="subhead" themeColor="textSecondary">{t('manualAmount')}</ThemedText></View>
         <View style={{ padding: spacing.md, borderRadius: radius.xl, backgroundColor: theme.backgroundElement, gap: spacing.lg }}>
           <View style={{ gap: spacing.sm }}>
-            <ThemedText variant="labelStrong">Amount (ml)</ThemedText>
-            <TextInput accessibilityLabel="Water amount in millilitres" keyboardType="number-pad" value={amountInput} onChangeText={(value) => { setAmountInput(value); setAmountError(null); }} placeholder="Enter 1–2,000 ml" placeholderTextColor={theme.textSecondary} style={{ minHeight: sizing.controlComfortable, borderWidth: 1, borderRadius: radius.md, borderColor: amountError ? theme.danger : theme.border, backgroundColor: theme.background, color: theme.text, paddingHorizontal: spacing.md, fontSize: 17 }} />
+            <ThemedText variant="labelStrong">{t('amountLabel')}</ThemedText>
+            <TextInput accessibilityLabel={t('amountAccessibility')} keyboardType="number-pad" value={amountInput} onChangeText={(value) => { setAmountInput(value); setAmountError(null); }} placeholder={t('amountPlaceholder')} placeholderTextColor={theme.textSecondary} style={{ minHeight: sizing.controlComfortable, borderWidth: 1, borderRadius: radius.md, borderColor: amountError ? theme.danger : theme.border, backgroundColor: theme.background, color: theme.text, paddingHorizontal: spacing.md, fontSize: 17 }} />
             {amountError ? <ThemedText variant="caption" themeColor="danger">{amountError}</ThemedText> : null}
           </View>
           <WaterDateTimeField
@@ -88,9 +92,9 @@ export default function WaterDetailEntryScreen() {
           />
           {timeError ? <ThemedText variant="caption" themeColor="danger">{timeError}</ThemedText> : null}
         </View>
-        <View style={{ padding: spacing.md, borderRadius: radius.lg, backgroundColor: theme.surfaceTint }}><ThemedText variant="subhead" themeColor="textSecondary">Water logs are saved to your account.</ThemedText></View>
+        <View style={{ padding: spacing.md, borderRadius: radius.lg, backgroundColor: theme.surfaceTint }}><ThemedText variant="subhead" themeColor="textSecondary">{t('accountNote')}</ThemedText></View>
         {saveError ? <ThemedText variant="body" themeColor="danger">{saveError}</ThemedText> : null}
-        <Pressable onPress={save} disabled={submitting} accessibilityRole="button" accessibilityLabel="Save water log" accessibilityState={{ disabled: submitting, busy: submitting }} style={({ pressed }) => ({ minHeight: sizing.controlComfortable, borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.accent, opacity: submitting ? 0.5 : pressed ? 0.8 : 1 })}><ThemedText variant="bodyStrong" themeColor="onAccent">{submitting ? 'Saving…' : 'Save water log'}</ThemedText></Pressable>
+        <Pressable onPress={save} disabled={submitting} accessibilityRole="button" accessibilityLabel={t('saveLabel')} accessibilityState={{ disabled: submitting, busy: submitting }} style={({ pressed }) => ({ minHeight: sizing.controlComfortable, borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.accent, opacity: submitting ? 0.5 : pressed ? 0.8 : 1 })}><ThemedText variant="bodyStrong" themeColor="onAccent">{submitting ? t('saving') : t('saveLabel')}</ThemedText></Pressable>
       </View>
     </ScrollView>
   </KeyboardAvoidingView>;

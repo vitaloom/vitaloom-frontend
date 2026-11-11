@@ -3,8 +3,8 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from '
 import type { CreateWaterLogInput, DailyWaterSummary, LocalDate, WaterLog, WeeklyWaterSummary } from '../types/water';
 import { waterRepository } from '../services/water.repository';
 
-type SummaryState<T> = { summary: T | null; loading: boolean; error: string | null };
-type LoadedSummary<T> = { date?: LocalDate; key: string; summary: T | null; error: string | null };
+type SummaryState<T> = { summary: T | null; loading: boolean; error: boolean | null };
+type LoadedSummary<T> = { date?: LocalDate; key: string; summary: T | null; error: boolean | null };
 
 function useRepositoryRevision(): number {
   return useSyncExternalStore(waterRepository.subscribe, waterRepository.getRevision, waterRepository.getRevision);
@@ -19,7 +19,7 @@ export function useWaterDaily(date: LocalDate): SummaryState<DailyWaterSummary> 
     let active = true;
     void waterRepository.getDailySummary(date).then(
       (summary) => { if (active) setState({ date, key, summary, error: null }); },
-      (error: unknown) => { if (active) setState((previous) => ({ date, key, summary: previous?.date === date ? previous.summary : null, error: error instanceof Error ? error.message : 'Không thể tải dữ liệu nước.' })); },
+      () => { if (active) setState((previous) => ({ date, key, summary: previous?.date === date ? previous.summary : null, error: true })); },
     );
     return () => { active = false; };
   }, [date, key]);
@@ -38,7 +38,7 @@ export function useWaterWeekly(weekStart: LocalDate): SummaryState<WeeklyWaterSu
     let active = true;
     void waterRepository.getWeeklySummary(weekStart).then(
       (summary) => { if (active) setState({ key, summary, error: null }); },
-      (error: unknown) => { if (active) setState({ key, summary: null, error: error instanceof Error ? error.message : 'Không thể tải tiến độ tuần.' }); },
+      () => { if (active) setState({ key, summary: null, error: true }); },
     );
     return () => { active = false; };
   }, [weekStart, key]);
