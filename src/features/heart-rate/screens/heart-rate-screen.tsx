@@ -6,7 +6,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { useAuth } from '@/features/auth/store/auth-context';
 import { HealthMetricsSidebar } from '@/components/ui/health-metrics-sidebar';
-import { HeartRateFooter } from '@/components/ui/main-tab-bar';
 import { useTheme } from '@/hooks/use-theme';
 import { useAppearance } from '@/theme/appearance-provider';
 import { useI18n, useTranslations } from '@/i18n';
@@ -215,6 +214,5 @@ export default function HeartRateScreen() {
         <ThemedText variant="caption" themeColor="textSecondary" style={{ textAlign: 'center', paddingHorizontal: spacing.sm }}>{t('medicalNote')}</ThemedText>
       </View>
     </ScrollView>
-    <HeartRateFooter />
   </View>;
 }

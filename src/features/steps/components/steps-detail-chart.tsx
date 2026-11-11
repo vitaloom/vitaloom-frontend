@@ -94,8 +94,5 @@ export function StepsDetailChart({ series, period }: { series: StepsSeries; peri
         <ThemedText variant="caption" themeColor="textSecondary">{t('acceptedRecords', { count: selected.eventCount.toLocaleString(locale) })}</ThemedText>
       </View> : null}
     </View>}
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs }}>
-      <ThemedText variant="caption" themeColor="textSecondary">{t('emptyBuckets')}</ThemedText>
-    </View>
   </View>;
 }
