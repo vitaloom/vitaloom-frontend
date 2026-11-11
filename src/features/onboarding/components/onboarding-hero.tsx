@@ -7,6 +7,8 @@ import { useTheme } from '@/hooks/use-theme';
 import { motion, sizing, spacing, typography } from '@/theme';
 import type { OnboardingSlide } from '../data/onboarding-slides';
 import { OnboardingLandscape } from './onboarding-landscape';
+import { useTranslations } from '@/i18n';
+import { onboardingMessages } from '../messages';
 
 const artworkEntrance = FadeIn.duration(motion.duration.transition).reduceMotion(ReduceMotion.System);
 type Props = {
@@ -17,6 +19,7 @@ type Props = {
 
 export function OnboardingHero({ slide, height, topInset }: Props) {
   const theme = useTheme();
+  const t = useTranslations(onboardingMessages);
   return (
     <View style={{ height }}>
       <Animated.View
@@ -51,7 +54,7 @@ export function OnboardingHero({ slide, height, topInset }: Props) {
               />
             </Svg>
             <Text style={[styles.wordmark, { color: theme.text }]}>Healthy Check</Text>
-            <Text style={[styles.tagline, { color: theme.text }]}>{'Small habits\nfor a healthier, happier you'}</Text>
+            <Text style={[styles.tagline, { color: theme.text }]}>{t('tagline')}</Text>
           </View>
         )}
 

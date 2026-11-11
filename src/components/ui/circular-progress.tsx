@@ -2,6 +2,8 @@ import Svg, { Circle } from 'react-native-svg';
 import { Text, View } from 'react-native';
 
 import { typography } from '@/theme';
+import { useTranslations } from '@/i18n';
+import { sharedUiMessages } from './messages';
 
 export type CircularProgressProps = {
   value: number;
@@ -11,6 +13,7 @@ export type CircularProgressProps = {
   color?: string;
   trackColor?: string;
   showPercentage?: boolean;
+  label?: string;
 };
 
 export function CircularProgress({
@@ -21,7 +24,9 @@ export function CircularProgress({
   color = '#159C98',
   trackColor = '#CEF1EE',
   showPercentage = true,
+  label,
 }: CircularProgressProps) {
+  const t = useTranslations(sharedUiMessages);
   const safeMax = Number.isFinite(maxValue) && maxValue > 0 ? maxValue : 0;
   const safeValue = Number.isFinite(value) && value > 0 ? value : 0;
   const progress = safeMax === 0 ? 0 : Math.min(safeValue / safeMax, 1);
@@ -33,7 +38,7 @@ export function CircularProgress({
     <View
       accessible
       accessibilityRole="progressbar"
-      accessibilityLabel="Progress"
+      accessibilityLabel={label ? t('progress.namedLabel', { label }) : t('progress.label')}
       accessibilityValue={{ min: 0, max: 100, now: percentage, text: `${percentage}%` }}
       style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}
     >

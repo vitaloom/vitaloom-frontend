@@ -6,15 +6,14 @@ import { useTheme } from '@/hooks/use-theme';
 import { radius, shadows, sizing, spacing } from '@/theme';
 import { useAuth } from '../store/auth-context';
 import Svg, { Path } from 'react-native-svg';
+import { useTranslations } from '@/i18n';
+import { authMessages } from '../messages';
 
-const benefits = [
-  'Share only the details you choose',
-  'See your profile details in one place',
-  'Update your information anytime',
-];
+const benefitKeys = ['benefitPrivacy', 'benefitProfile', 'benefitUpdate'] as const;
 
 export default function ProfileSetupPromptScreen() {
   const theme = useTheme();
+  const t = useTranslations(authMessages);
   const { resolveProfileInvitation } = useAuth();
   function startSetup() {
     router.push('/profile-setup');
@@ -55,17 +54,17 @@ export default function ProfileSetupPromptScreen() {
           <ProfileIllustration />
 
           <View style={{ width: '100%', alignItems: 'center', gap: spacing.md }}>
-            <ThemedText variant="largeTitle" style={{ textAlign: 'center', maxWidth: 360 }}>A healthier you starts here</ThemedText>
-            <ThemedText themeColor="textSecondary" style={{ textAlign: 'center' }}>Make Healthy Check feel like yours.</ThemedText>
+            <ThemedText variant="largeTitle" style={{ textAlign: 'center', maxWidth: 360 }}>{t('healthierYou')}</ThemedText>
+            <ThemedText themeColor="textSecondary" style={{ textAlign: 'center' }}>{t('makeItYours')}</ThemedText>
           </View>
 
-          <View accessibilityLabel="Profile setup benefits" style={{ width: '100%', gap: spacing.md }}>
-            {benefits.map((benefit) => (
-              <View key={benefit} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+          <View accessibilityLabel={t('profileBenefits')} style={{ width: '100%', gap: spacing.md }}>
+            {benefitKeys.map((key) => (
+              <View key={key} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
                 <View accessible={false} style={{ width: 32, height: 32, borderRadius: radius.full, backgroundColor: theme.accentSoft, alignItems: 'center', justifyContent: 'center' }}>
                   <ThemedText themeColor="accent" variant="labelStrong">✓</ThemedText>
                 </View>
-                <ThemedText style={{ flex: 1 }}>{benefit}</ThemedText>
+                <ThemedText style={{ flex: 1 }}>{t(key)}</ThemedText>
               </View>
             ))}
           </View>
@@ -73,11 +72,11 @@ export default function ProfileSetupPromptScreen() {
           <View style={{ width: '100%', gap: spacing.sm }}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Set up my profile"
+              accessibilityLabel={t('setupProfile')}
               onPress={startSetup}
               style={({ pressed }) => ({ minHeight: sizing.controlComfortable + spacing.sm, borderRadius: radius.full, paddingHorizontal: spacing.lg, backgroundColor: theme.accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, opacity: pressed ? 0.82 : 1, boxShadow: shadows.card })}
             >
-              <ThemedText variant="labelStrong" themeColor="onAccent">Set up my profile</ThemedText>
+              <ThemedText variant="labelStrong" themeColor="onAccent">{t('setupProfile')}</ThemedText>
               <ThemedText variant="labelStrong" themeColor="onAccent" accessible={false}>→</ThemedText>
             </Pressable>
             <Pressable
@@ -85,7 +84,7 @@ export default function ProfileSetupPromptScreen() {
               onPress={() => void skipSetup()}
               style={({ pressed }) => ({ minHeight: sizing.controlComfortable + spacing.sm, borderRadius: radius.full, paddingHorizontal: spacing.lg, borderColor: theme.accent, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.72 : 1 })}
             >
-              <ThemedText variant="labelStrong" themeColor="accent">Maybe later</ThemedText>
+              <ThemedText variant="labelStrong" themeColor="accent">{t('maybeLater')}</ThemedText>
             </Pressable>
           </View>
         </View>
