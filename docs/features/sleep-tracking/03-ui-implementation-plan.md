@@ -24,3 +24,15 @@
 ## Review focus
 
 Check exact-minute round trips and DST ambiguity, retries of unknown outcomes, simultaneous range writes, deleted/stale record conflicts, missing or unverified data versus zero, change invalidation, consent and weekly eligibility, and small-device form access.
+## 2026-11-11 incremental audit and implementation
+
+| Reference | Existing behavior | Incremental work |
+| --- | --- | --- |
+| 7 · Journal | Confirmed day groups, source-evidence scope, pagination, detail and record routes | Add illustrated header, compact record summaries, and an exact statistical-day filter using the existing repository query. |
+| 8 · Detail | ID-based read, editable record, revision-aware delete confirmation | Add a summary and labeled stored fields, with timestamps and reference zone confined to timed records. Coordinate edit and delete recovery on the same record. |
+| 9 · Edit | Shared form, exact prefill, validation and reconciliation | Group controls in illustrated mint/white layout. Confirm leaving a dirty draft, preserve confirmed navigation, and recover stale/deleted records. |
+| 10 · Goal | Confirmed target, proposed 8-hour default draft, validation and historical removal | Add current goal artwork, bounded hour/minute selectors, visible input rules and reference action hierarchy. |
+| 11 · Insights no data | Successful list read can return `no-data` | Add illustrated state and existing record/home actions. Keep loading, errors and unverified evidence separate. |
+| 12 · Insights insufficient | Catalog candidates carry policy-specific eligibility | Show category requirements from the read result, with a recording action. Keep eligible insights and repair the sparse fixture for the default week. |
+
+The nested Sleep stack, create/edit route wrapper, feature repository, and existing semantic theme roles support the incremental work. New art is mapped once in the existing feature asset module.

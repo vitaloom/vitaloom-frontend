@@ -7,7 +7,7 @@ import { aiFixture, dailySummary, featuredInsight, insightList, type AnalyticsSt
 import { civilInZone, dayInZone, resolveCivil, shiftDay, startOfWeek } from '../utils/sleep-date';
 import { validateGoal, validateSession } from '../utils/sleep-validation';
 
-export type SleepScenario = 'populated' | 'empty' | 'no-goal' | 'insufficient' | 'unverified' | 'stale' | 'ai-unavailable';
+export type SleepScenario = 'populated' | 'empty' | 'no-goal' | 'insufficient' | 'unverified' | 'stale' | 'ai-unavailable' | 'network-error';
 export type SleepMockFault = 'reject' | 'unknown-after' | 'unknown-before' | 'conflict' | 'stale' | 'deleted';
 type SleepReadFault = 'read-error';
 
@@ -38,7 +38,7 @@ export class MockSleepRepository implements SleepRepository {
       timeZone: options.timeZone ?? 'Asia/Ho_Chi_Minh',
     };
     this.sessions = this.scenario === 'empty' ? [] : makeFixture(this.context.today, this.context.timeZone);
-    if (this.scenario === 'insufficient') this.sessions = this.sessions.slice(0, 1);
+    if (this.scenario === 'insufficient') this.sessions = this.sessions.filter((session) => session.id === 'fixture-duration');
     this.goals = this.scenario === 'no-goal' || this.scenario === 'empty' ? [] : [{ effectiveDay: shiftDay(this.context.today, -45), minutes: 480 }];
     this.revision = this.sessions.length;
     this.confirmedCounter = this.sessions.length;
@@ -293,7 +293,11 @@ export class MockSleepRepository implements SleepRepository {
     return { kind: 'ready', data: copyValue(data) };
   }
   private takeFault(): SleepMockFault | null { const fault = this.nextFault; this.nextFault = null; return fault; }
-  private takeReadFault(): SleepReadFault | null { const fault = this.readFault; this.readFault = null; return fault; }
+  private takeReadFault(): SleepReadFault | null {
+    const fault = this.readFault;
+    this.readFault = null;
+    return this.scenario === 'network-error' ? 'read-error' : fault;
+  }
   private saveReceipt(attemptId: string, signature: string, result: WriteResult, resolve: () => WriteResult): void {
     this.receipts.set(attemptId, { signature, result: copyResult(result), resolve });
   }

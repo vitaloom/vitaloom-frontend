@@ -1,6 +1,10 @@
 import { useState } from 'react';
+import { Image, StyleSheet, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ThemedText } from '@/components/themed-text';
+import { useTheme } from '@/hooks/use-theme';
+import { spacing } from '@/theme';
+import { sleepArt } from '../assets/sleep-art';
 import { SleepConfirmation } from '../components/sleep-confirmation';
 import { SleepButton, SleepCard, SleepNotice, SleepPage, SleepWriteNotice } from '../components/sleep-ui';
 import { useSleepMutation, useSleepRead, useSleepRepository } from '../hooks/use-sleep';
@@ -11,37 +15,101 @@ export default function SleepRecordDetailScreen() {
   const repository = useSleepRepository();
   const { state, reload } = useSleepRead(() => repository.getSession(id), `sleep-session:${id}`);
   const [confirmationRevision, setConfirmationRevision] = useState<number | null>(null);
-  const remove = useSleepMutation(() => router.dismissTo('/sleep/journal'), `delete-session:${id}`);
+  const remove = useSleepMutation(() => router.dismissTo('/sleep/journal'), `sleep-session:${id}`);
   const session = state.kind === 'ready' ? state.data : null;
-  const unknown = remove.result?.kind === 'unknown';
-  const conflict = remove.result?.kind === 'conflict';
-
-  return <SleepPage title="Sleep Record" subtitle={session ? sleepDay(session.day) : undefined} fallback="/sleep/journal">
+  const editPending = remove.pendingKind === 'update-session';
+  const deletePending = remove.pendingKind === 'delete-session';
+  const unknown = remove.result?.kind === 'unknown' && !editPending;
+  const conflict = remove.result?.kind === 'conflict' && !editPending;
+  return <SleepPage title="Sleep Record"
+    fallback="/sleep/journal" wellness wellnessHero>
     {state.kind === 'loading' ? <SleepNotice title="Loading record" loading /> : null}
     {state.kind === 'error' ? <SleepNotice title="Could not load record" message={state.message} actionLabel="Try again" onAction={reload} error /> : null}
-    {state.kind === 'ready' && !session ? <SleepNotice title="This record is no longer available" actionLabel="Open Journal"
-      onAction={() => router.dismissTo('/sleep/journal')} /> : null}
-    <SleepWriteNotice result={remove.result} reconcile={remove.reconcile} reload={() => { remove.clear(); reload(); }} />
+    {state.kind === 'ready' && !session ? <SleepNotice title="This record is no longer available" message="It may have been removed from another device."
+      actionLabel="Open Journal" onAction={() => router.dismissTo('/sleep/journal')} /> : null}
+    {editPending ? <SleepNotice title="Edit result not yet confirmed"
+      message="Open the editor to check the pending change before starting another update."
+      actionLabel="Check edit result" onAction={() => router.push({ pathname: '/sleep/record', params: { id } })} /> : null}
+    {remove.result?.kind === 'unknown' && !editPending ? <SleepWriteNotice result={remove.result} reconcile={remove.reconcile} /> : null}
+    {conflict ? <SleepNotice title={remove.result?.kind === 'conflict' && remove.result.reason === 'deleted'
+      ? 'This record was deleted' : 'This record changed'}
+      message={remove.result?.kind === 'conflict' ? remove.result.message : undefined} error
+      actionLabel={remove.result?.kind === 'conflict' && remove.result.reason !== 'deleted' ? 'Reload confirmed record' : 'Open Journal'}
+      onAction={() => {
+        if (remove.result?.kind === 'conflict' && remove.result.reason !== 'deleted') {
+          remove.clear();
+          reload();
+        } else router.dismissTo('/sleep/journal');
+      }} /> : null}
+    {remove.result && remove.result.kind !== 'unknown' && remove.result.kind !== 'conflict' && !editPending
+      ? <SleepWriteNotice result={remove.result} reconcile={remove.reconcile} /> : null}
     {session ? <>
       <SleepCard tone="mint">
-        <ThemedText variant="heading">{session.sleepType === 'main' ? 'Main Sleep' : 'Nap'} · {sleepDuration(session.minutes)}</ThemedText>
-        {session.method === 'range'
-          ? <ThemedText variant="body">{session.start.day} {session.start.hour}:{session.start.minute} – {session.end.day} {session.end.hour}:{session.end.minute} ({session.timeZone})</ThemedText>
-          : <ThemedText variant="body">Estimated duration · {sleepDay(session.day)}</ThemedText>}
-        <ThemedText variant="label" themeColor="textSecondary">
-          Feeling · {session.feeling ? session.feeling[0].toUpperCase() + session.feeling.slice(1) : 'Not provided'}
-        </ThemedText>
+        <View style={styles.summary}>
+          <Image source={session.sleepType === 'main' ? sleepArt.bed : sleepArt.pillow}
+            resizeMode="contain" accessible={false} style={styles.art} />
+          <View style={styles.summaryText}>
+            <ThemedText variant="labelStrong" themeColor="textSecondary">{session.sleepType === 'main' ? 'Main Sleep' : 'Nap'}</ThemedText>
+            <ThemedText variant="metricLarge" themeColor="accent">{sleepDuration(session.minutes)}</ThemedText>
+            <ThemedText variant="label" themeColor="textSecondary">{session.method === 'range' ? 'Start & End' : 'Duration only'}</ThemedText>
+          </View>
+        </View>
+        {session.method === 'range' ? <>
+          <DetailRow label="Sleep start" value={`${session.start.day} · ${session.start.hour}:${session.start.minute}`} />
+          <DetailRow label="Wake time" value={`${session.end.day} · ${session.end.hour}:${session.end.minute}`} />
+          <DetailRow label="Reference timezone" value={session.timeZone} />
+        </> : null}
+        <DetailRow label="Statistical day" value={sleepDay(session.day)} />
+        {session.feeling ? <DetailRow label="Feeling" value={capitalize(session.feeling)} /> : null}
+        <DetailRow label="Record status" value="Confirmed" status />
       </SleepCard>
-      <SleepButton label="Edit Record" onPress={() => router.push({ pathname: '/sleep/record', params: { id: session.id } })}
-        variant="secondary" disabled={remove.busy || unknown || conflict} />
-      <SleepButton label="Delete Record" onPress={() => setConfirmationRevision(session.revision)} variant="danger"
-        disabled={unknown || conflict} busy={remove.busy} />
+      <ThemedText variant="caption" themeColor="textSecondary" style={styles.methodNote}>
+        {session.method === 'range'
+          ? 'Dates and times use the timezone saved with this record.'
+          : 'Only the recorded duration and statistical day are available.'}
+      </ThemedText>
+      <View style={styles.actions}>
+        <View style={styles.action}>
+          <SleepButton label="Delete Record" onPress={() => setConfirmationRevision(session.revision)} variant="danger"
+            disabled={remove.busy || unknown || conflict || editPending || deletePending} busy={deletePending && remove.busy} />
+        </View>
+        <View style={styles.action}>
+          <SleepButton label="Edit Record" onPress={() => router.push({ pathname: '/sleep/record', params: { id: session.id } })}
+            disabled={remove.busy || unknown || conflict || editPending || deletePending} />
+        </View>
+      </View>
     </> : null}
     {confirmationRevision !== null ? <SleepConfirmation title="Delete this sleep record?"
-      message="The record will be removed after confirmation." cancelLabel="Keep Record" confirmLabel="Confirm Delete"
+      message="This confirmed record will be removed from your journal after you approve the deletion."
+      cancelLabel="Keep Record" confirmLabel="Confirm Delete"
       onCancel={() => setConfirmationRevision(null)} onConfirm={() => {
+        const revision = confirmationRevision;
         setConfirmationRevision(null);
-        remove.run({ kind: 'delete-session', id, revision: confirmationRevision });
+        remove.run({ kind: 'delete-session', id, revision });
       }} /> : null}
   </SleepPage>;
 }
+
+function DetailRow({ label, value, status }: { label: string; value: string; status?: boolean }) {
+  const theme = useTheme();
+  return <View style={[styles.detailRow, { borderTopColor: theme.border }]}>
+    <ThemedText variant="label" themeColor="textSecondary">{label}</ThemedText>
+    <ThemedText variant="labelStrong" themeColor={status ? 'accent' : 'text'} style={styles.detailValue}>{value}</ThemedText>
+  </View>;
+}
+
+function capitalize(value: string) {
+  return value[0].toUpperCase() + value.slice(1);
+}
+
+const styles = StyleSheet.create({
+  summary: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingBottom: spacing.xs },
+  art: { width: 84, height: 84 },
+  summaryText: { flex: 1, gap: spacing.xs },
+  detailRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: spacing.xs,
+    paddingTop: spacing.sm, borderTopWidth: StyleSheet.hairlineWidth },
+  detailValue: { flexShrink: 1, textAlign: 'right' },
+  methodNote: { paddingHorizontal: spacing.xs },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  action: { flex: 1, minWidth: 145 },
+});

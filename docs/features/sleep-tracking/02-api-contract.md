@@ -43,3 +43,12 @@ All rows use the shared authentication, validation/error, conflict/version and r
 - Insights carry catalog code (legacy aliases map to A01–A04), category, period, eligibility/status, coverage, sample, measures, source IDs, limitations and evidence version. Backend owns analytics computation, verification, privacy, and publication. Mock calculations are isolated from screens.
 - AI may receive only minimal approved evidence after explicit consent. Backend owns claims validation, policy/version binding, evidence links and provider failure. Privacy review covers disclosure text, withdrawal, retention and deletion. No AI provider is configured in the frontend.
 - Open wire decisions include DST offset representation, canonical error envelope, pagination and period limits, reporting zone, revision granularity, consistency across reads, and mutation receipts and replay retention.
+
+## 2026-11-11 incremental coverage
+
+The existing frontend boundary covers these operations. HTTP paths, DTOs and protocol remain **PROPOSED — NOT BACKEND VERIFIED**.
+
+- Journal uses the existing `getJournal` bounds with equal inclusive `from` and `to` for a single statistical day. A cursor belongs to its query and snapshot. Evidence links still use `sourceIds` and the evidence version.
+- Detail uses `getSession(id)` and distinguishes a verified missing record from a failed read. Edits and deletes send the selected ID and expected revision. The UI reconciles uncertain outcomes with the original attempt ID and separates pending edit and delete actions.
+- Goal uses the confirmed `getGoal` value and revision. The draft contains integer hours and quarter-hour minutes. Confirmed removal retains history before its effective day.
+- Insights uses the verified list state and the existing per-item eligibility. The mock puts an unmet requirement in an insufficient item's `summary`. Confirm the backend representation before implementing an HTTP adapter. A read error, stale list or unverified history has separate UI.

@@ -47,7 +47,7 @@ export function useSleepRead<T>(read: () => Promise<ReadResult<T>>, key: string,
 }
 
 type Confirmation = Extract<WriteResult, { kind: 'confirmed' }>;
-type PendingWrite = { attemptId: string; busy: boolean };
+type PendingWrite = { attemptId: string; kind: Mutation['kind']; busy: boolean };
 type WriteStore = { pending: Map<string, PendingWrite>; listeners: Set<() => void> };
 const writesByRepository = new WeakMap<SleepRepository, WriteStore>();
 let attemptSequence = 0;
@@ -84,8 +84,8 @@ export function useSleepMutation(onConfirmed: (result: Confirmation) => void, sc
   }, [store]);
   const pending = useSyncExternalStore(subscribe, () => store.pending.get(scope) ?? null, () => null);
 
-  async function execute(attemptId: string, send: () => Promise<WriteResult>) {
-    publish(store, scope, { attemptId, busy: true });
+  async function execute(attemptId: string, kind: Mutation['kind'], send: () => Promise<WriteResult>) {
+    publish(store, scope, { attemptId, kind, busy: true });
     setResult(null);
     let outcome: WriteResult;
     try {
@@ -93,7 +93,7 @@ export function useSleepMutation(onConfirmed: (result: Confirmation) => void, sc
     } catch {
       outcome = { kind: 'unknown', attemptId };
     }
-    publish(store, scope, outcome.kind === 'unknown' ? { attemptId, busy: false } : null);
+    publish(store, scope, outcome.kind === 'unknown' ? { attemptId, kind, busy: false } : null);
     if (!mounted.current) return;
     setResult(outcome);
     if (outcome.kind === 'confirmed') confirmed.current(outcome);
@@ -102,14 +102,15 @@ export function useSleepMutation(onConfirmed: (result: Confirmation) => void, sc
   return {
     result: pending && !pending.busy ? { kind: 'unknown' as const, attemptId: pending.attemptId } : result,
     busy: Boolean(pending?.busy),
+    pendingKind: pending?.kind,
     run(mutation: Mutation) {
       if (store.pending.has(scope)) return;
       const attemptId = `sleep-${Date.now()}-${++attemptSequence}`;
-      void execute(attemptId, () => repository.mutate(attemptId, mutation));
+      void execute(attemptId, mutation.kind, () => repository.mutate(attemptId, mutation));
     },
     reconcile() {
       const attempt = store.pending.get(scope);
-      if (attempt && !attempt.busy) void execute(attempt.attemptId, () => repository.reconcile(attempt.attemptId));
+      if (attempt && !attempt.busy) void execute(attempt.attemptId, attempt.kind, () => repository.reconcile(attempt.attemptId));
     },
     clear() { setResult(null); },
   };

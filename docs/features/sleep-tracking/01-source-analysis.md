@@ -43,3 +43,10 @@ The Personal Health Profile docs provide the requested numbered document convent
 ## Open integration decisions
 
 Backend review is needed for a session resource, authenticated account isolation, revision model, DST wire format, outcome receipts and replay retention, verification status, Goal effective-day semantics, evidence version coherence, AI disclosure and consent lifecycle, and HIR route integration. UX review is needed for Journal/Goal states, reference timezone placement, exact-minute entry, draft retention when switching methods and AI disclosure placement. Device QA must confirm safe areas, screen readers, keyboard overlap and visual fidelity.
+
+## 2026-11-11 supplemental sources
+
+- Design commit [fba900f](https://github.com/vitaloom/vitaloom-design/commit/fba900f84fccdc203f11feaa514b7e4e3a0e4aef) added `7_sleep_journal.png`, `8_sleep_record_detail.png`, `9_sleep_record_detail_edit.png`, `10_sleep_goal_setup.png`, `11_sleep_insight_empty.png` and `12_sleep_not_enough_data_insight.png`. Reviewed all six 853×1844 originals for layout.
+- Design commit [7dd2fa9](https://github.com/vitaloom/vitaloom-design/commit/7dd2fa987116642477310f4631e1b084e4c7005f) added `bed.png` and `star-pillow-cloud.png` in `assets/sleep-tracking/`. [Design PR #9](https://github.com/vitaloom/vitaloom-design/pull/9) was inspected via local `main` merge `cdd80a7` and its behavior, state, mapping, handoff and manifest updates.
+- All six are `STRUCTURE_ONLY_COLOR_OVERRIDE_REQUIRED`. FE uses existing Soft Wellness mint surfaces, teal actions, neutral text and borders, and semantic errors. Purple appears in the independent bed and other small illustration details.
+- UC-004–009 and the catalog take precedence over example values. The stored statistical day is the wake date in the saved zone for ranges. Duration-only sessions have no clock times. Existing timed edits keep the stored zone. 8 hours is an inactive suggestion until confirmed. Insufficient insight data depends on the selected category and the actual catalog rules.

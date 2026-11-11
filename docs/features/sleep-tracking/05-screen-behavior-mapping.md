@@ -31,3 +31,22 @@ Reads preserve loading/error separately from verified empty and allow retry. Inv
 ## Scenario fixtures
 
 Intended mock scenarios include mixed-method history, verified empty journal, multiple sessions per day, duration-only records, absent Goal, invalid draft, overlap, stale/deleted revision, rejection, unknown outcomes both applied and unapplied, insufficient evidence, unavailable AI, consent off, stale insight and unverified history. These are in-memory scenarios and do not establish offline storage or server validation.
+
+## 2026-11-11 supplemental screens and states
+
+| ID and route | Actions, validation and recovery |
+| --- | --- |
+| SLT-SCR-006 · `/sleep/journal` | Group confirmed sessions by stored statistical day. Calendar opens an exact-day filter. Invalid dates keep the current query. All dates clears the filter. Verified empty history, an empty selected date, loading, unverified reads and failures have separate feedback. Source-evidence mode keeps its version check. Add Sleep opens `/sleep/record`. |
+| SLT-SCR-007 · `/sleep/journal/[id]` | Use confirmed record fields. Only ranges show start, wake and reference timezone. Delete prompts for confirmation and sends the captured revision. Stale results require reload and deliberate reconfirmation. A deleted result returns to Journal. An uncertain delete can be checked on Detail. |
+| SLT-SCR-008 · `/sleep/record?id=<id>` | Prefill the shared form, validate the active method, keep the saved range zone, and resolve ambiguous offsets explicitly. Validation and overlap keep the draft. Cancel and back prompt before discarding a dirty draft. Stale/deleted results use confirmed reload or Journal recovery. An uncertain edit can be checked in the editor, and confirmed save dismisses to refreshed Detail. |
+| SLT-SCR-009 · `/sleep/goal` | Show the confirmed goal or inactive suggestion. Select 1–24 hours and 00/15/30/45 minutes. Only 00 is valid at 24 hours. Invalid drafts leave confirmed state intact. Removal prompts, preserves earlier history and refreshes on confirmation. |
+| SLT-SCR-003 · `/sleep/insights` | A verified empty selected period displays NO_DATA with Record Sleep and Sleep Home actions. Verified history with insufficient eligible evidence for the selected category displays INSUFFICIENT_DATA with actual policy summaries and Continue Tracking. Both recording actions use `/sleep/record`. Ready cards, loading, failure, stale and unverified states retain distinct behavior. |
+
+A pending update or delete blocks a second mutation for that record. Its originating screen owns reconciliation and the confirmed destination. Confirmed mutations refresh subscribed reads and the views that regain focus.
+
+## 2026-11-11 date and time picker follow-up
+
+- Record and Edit open a month calendar for Start date, Wake date, and the duration-only End date. Time-range calendars use the active reference timezone to limit future dates. Duration-only uses the reporting day.
+- Start time and Wake time open hour (00–23) and minute (00–59) wheels. Sleep duration opens hours (0–24) and minutes (00–59). The selected pair is applied together, and Cancel keeps the previous value. Changing a clock or day clears the previous DST offset so the existing ambiguity check can ask again.
+- Goal uses scrolling wheels for hours (1–24) and minutes (00, 15, 30, 45). The existing validator rejects nonzero minutes at 24 hours and preserves the confirmed goal on failure.
+- Journal opens the calendar for its exact statistical-day filter. All dates clears the filter. The selected date in Insights and Weekly Report resolves to its Monday-based week. The week arrows remain available.

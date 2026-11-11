@@ -35,3 +35,28 @@ The local Expo server and temporary test Auth stub started. The in-app browser t
 Start the app from the mobile checkout with `npm run web` or `npm run android` and use a test account. Open Sleep from the shared Health Metrics Sidebar. Create a 1-minute estimated nap and a non-overlapping range, inspect the refreshed Home, and open Journal to edit and delete the test session. Cancel a deletion once and verify the entry remains. Set, update and remove a goal. Open a prior week and a current week to compare coverage, then exercise consent and the demo preview on an eligible completed week. Check source-record links from an insight and reload after editing a linked record.
 
 In a development build set `EXPO_PUBLIC_SLEEP_SCENARIO` to `empty`, `no-goal`, `insufficient`, `unverified`, `stale` or `ai-unavailable` and restart the app to exercise alternate reads. For targeted operation tests use `MockSleepRepository.setNextFault` with `reject`, `stale`, `deleted`, `unknown-before` or `unknown-after`, and `failNextRead` for a read error. No external AI service is part of these checks.
+
+## 2026-11-11 incremental verification
+
+| Check | Observed result |
+| --- | --- |
+| `npx.cmd tsc --noEmit` | Passed. |
+| `npx.cmd expo lint` | Passed. |
+| `node --test tests/*.test.cjs tests/*.test.mjs` | 69 passed, 0 failed. Node emitted existing Auth module-type warnings. |
+| Expo SDK 58 browser smoke with local synthetic sign-in | Passed for the exercised flows at 360×800 and 320×800. |
+
+- Journal rejected an invalid date, showed verified empty for a valid day, reset to all dates, and opened both Record Sleep and Detail. Its final Add Sleep footer stayed in view at 320 px.
+- Detail displayed exact duration without clocks on the nap. A timed session showed the prior-night start and saved wake day and timezone. The editor retained the stored zone as read-only. An invalid minute entry kept the draft, both keep/discard actions worked, and confirmed edit returned to the updated detail. Delete cancel kept the record and confirmed delete returned to Journal without it.
+- Goal updated from 8h to 8h 15m, kept the confirmed goal when removal was canceled, and showed an inactive goal after confirmed removal. The 24:15 draft was rejected without overwriting the active goal, and 24:00 saved.
+- Insights switched among Patterns, Feelings and Discoveries with different unmet requirements. Verified empty and insufficient views used the existing recording route. Back to Sleep Home and Weekly Report rendered. Ready Insights cards were present and the ready detail route was opened.
+- Reviewed all six layouts on dark-mode Expo Web with the green/teal palette and original transparent illustrations. Reviewed the final Journal footer and both compact Insights layouts at narrow widths. Light-mode runtime and physical iOS/Android visual acceptance remain **NOT VERIFIED**. Existing Home SVG warnings appeared in Expo Web LogBox before the Sleep flows and were dismissed for the smoke test.
+- Automated cases include the exact wake-day query, verified empty vs network error, sparse current query, category policy requirements, ready precedence, invalid goal and uncertain edit publication. Stale revision, deleted record and uncertain-write recovery were exercised at the mock boundary. The browser run used confirmed fixture writes.
+- Final web export passed with `npx.cmd expo export --platform web --output-dir .sleep-increment-export-final-check`. Two sandboxed export attempts bundled successfully and encountered Windows EPERM while writing the output tree. The local rerun with filesystem approval completed.
+
+## 2026-11-11 picker follow-up verification
+
+- `npx.cmd tsc --noEmit` and `npx.cmd expo lint` passed. `node --test tests/*.test.cjs tests/*.test.mjs` passed all 70 tests, including Monday-first calendar alignment, leap day and year boundaries.
+- At 360 px in Expo Web, tested month navigation and calendar Cancel, disabled future dates, and separate Start, Wake and duration-only date selection. Scrolled both Start time wheels to 03:20 and applied the pair. Canceling a scrolled Wake time kept 07:00.
+- Saved a 20-minute duration with a calendar-selected day, filtered Journal to that day, and reset with All dates. Reopened the record with 20 minutes prefilled, selected a different day and scrolled to 40 minutes. Confirmed Detail showed the selected day and exact duration.
+- Goal wheels snapped to a 24h 45m draft, which was rejected while the active goal stayed at 8h. Scrolling hours back produced a valid 4h 45m goal and saved it. Insights and Weekly Report selected the correct Monday-based week from the month grid at 320 px.
+- Verified browser wheel scrolling and snapping using the local mock. Native-device gestures on iOS and Android remain unverified. Existing Expo Web warnings from shared views were present during the smoke test.

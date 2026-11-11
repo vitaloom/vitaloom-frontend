@@ -12,3 +12,9 @@ This folder documents the frontend-only Sleep tracking implementation.
 8. [Backend integration handoff](08-backend-integration-handoff.md)
 
 Open the authenticated Sleep entry at /sleep. See the test report before attempting simulator or web smoke tests. Repository data in this phase is in-memory mock data. It does not synchronize across app restarts or devices.
+
+## 2026-11-11 supplement
+
+Journal, Detail, Edit and Goal use the existing Sleep stack. Insights now includes verified empty and category-specific insufficient-data states. Two standalone PNGs are mapped to native views with Soft Wellness mint, teal and neutral surfaces.
+
+See the [source update](01-source-analysis.md), [screen behavior](05-screen-behavior-mapping.md), [verification](06-test-report.md), [file inventory](07-implementation-report.md) and [backend handoff](08-backend-integration-handoff.md).

@@ -8,14 +8,14 @@ import { startOfWeek } from '../utils/sleep-date';
 
 export default function WeeklySleepReportScreen() {
   const repository = useSleepRepository();
-  const currentWeek = startOfWeek(repository.getContext().today);
-  const [week, setWeek] = useState(currentWeek);
+  const { today } = repository.getContext();
+  const [week, setWeek] = useState(() => startOfWeek(today));
   const [timeZone, setTimeZone] = useState('');
   const query = { week, timeZone: timeZone || undefined };
   const { state, reload } = useSleepRead(() => repository.getWeekly(query), `weekly:${week}:${timeZone}`);
 
   return <SleepPage title="Weekly Sleep Report" hero demo>
-    <SleepWeekPicker week={week} currentWeek={currentWeek} onChange={(next) => { setTimeZone(''); setWeek(next); }} />
+    <SleepWeekPicker week={week} today={today} onChange={(next) => { setTimeZone(''); setWeek(next); }} />
     {state.kind === 'loading' ? <SleepNotice title="Loading weekly sleep" loading /> : null}
     {state.kind === 'error' ? <SleepNotice title="Could not load weekly sleep" message={state.message}
       error actionLabel="Retry" onAction={reload} /> : null}

@@ -2,7 +2,7 @@ import { MockSleepRepository, type SleepScenario } from '../mocks/mock-sleep-rep
 import type { SleepRepository } from './sleep-repository';
 
 const repositories = new Map<string, SleepRepository>();
-const scenarios: SleepScenario[] = ['populated', 'empty', 'no-goal', 'insufficient', 'unverified', 'stale', 'ai-unavailable'];
+const scenarios: SleepScenario[] = ['populated', 'empty', 'no-goal', 'insufficient', 'unverified', 'stale', 'ai-unavailable', 'network-error'];
 
 export function getSleepRepository(accountKey: string): SleepRepository {
   const key = accountKey.trim();

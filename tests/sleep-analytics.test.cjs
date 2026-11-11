@@ -15,6 +15,7 @@ const {
   dailySummary, weeklySummary, insightList, featuredInsight, aiFixture,
 } = require('../src/features/sleep/mocks/sleep-analytics.ts');
 const { civilInZone } = require('../src/features/sleep/utils/sleep-date.ts');
+const { insightFallback } = require('../src/features/sleep/utils/sleep-insights.ts');
 
 const week = '2026-11-02';
 const zone = 'Asia/Ho_Chi_Minh';
@@ -126,4 +127,37 @@ test('stale and unverified evidence suppress claims; optional AI is consent, evi
   assert.equal(get({ ...state, verified: false }, 'B02').summary, '');
   const insight = get(state, 'B02');
   assert.equal(aiFixture(state, { kind: 'explanation', insight: insight.key }, true, false).status, 'fixture');
+});
+
+const insightCandidate = (code, category, status, eligible, summary = '') => ({
+  key: { week, code }, category, title: `Insight ${code}`, status, eligible,
+  period: { from: week, to: week, complete: true }, summary, sample: '', coverage: '',
+  evidence: [], sourceIds: [], limitations: [],
+});
+
+test('insight fallback is shown only for verified no-data or category-specific unmet evidence', () => {
+  assert.deepEqual(insightFallback({ items: [], timeZones: [], status: 'no-data' }, 'all'), { kind: 'no-data' });
+
+  const list = {
+    status: 'ready', timeZones: [], items: [
+      insightCandidate('A01', 'patterns', 'insufficient', false, 'Requires a complete week.'),
+      insightCandidate('B01', 'feelings', 'insufficient', false, 'Requires assessed sessions.'),
+      insightCandidate('C01', 'discoveries', 'insufficient', false, 'Requires goal and feeling evidence.'),
+    ],
+  };
+  assert.deepEqual(insightFallback(list, 'patterns'), {
+    kind: 'insufficient', requirements: [{ title: 'Insight A01', detail: 'Requires a complete week.' }],
+  });
+  assert.equal(insightFallback(list, 'feelings').requirements[0].title, 'Insight B01');
+  assert.equal(insightFallback(list, 'discoveries').requirements[0].title, 'Insight C01');
+});
+
+test('ready insights take precedence and unverified, stale or unspecified evidence stay unavailable', () => {
+  const eligible = insightCandidate('A01', 'patterns', 'ready', true, 'Ready insight.');
+  const insufficient = insightCandidate('A02', 'patterns', 'insufficient', false, 'Complete a longer record.');
+  assert.deepEqual(insightFallback({ status: 'ready', timeZones: [], items: [eligible, insufficient] }, 'patterns'), { kind: 'none' });
+  assert.deepEqual(insightFallback({ status: 'unverified', timeZones: [], items: [insufficient] }, 'patterns'), { kind: 'unavailable' });
+  assert.deepEqual(insightFallback({ status: 'stale', timeZones: [], items: [insufficient] }, 'patterns'), { kind: 'unavailable' });
+  assert.deepEqual(insightFallback({ status: 'ready', timeZones: [], items: [] }, 'patterns'), { kind: 'unavailable' });
+  assert.deepEqual(insightFallback({ status: 'ready', timeZones: [], items: [insightCandidate('A02', 'patterns', 'insufficient', false)] }, 'patterns'), { kind: 'unavailable' });
 });

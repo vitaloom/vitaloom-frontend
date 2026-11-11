@@ -1,19 +1,18 @@
 import { useState } from 'react';
-import { StyleSheet, TextInput } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
-import { useTheme } from '@/hooks/use-theme';
-import { radius, sizing, spacing } from '@/theme';
+import { spacing } from '@/theme';
 import { SleepConfirmation } from '../components/sleep-confirmation';
-import { SleepButton, SleepCard, SleepNotice, SleepPage, SleepSegments, SleepWriteNotice } from '../components/sleep-ui';
+import { SleepGoalPicker } from '../components/sleep-goal-picker';
+import { SleepButton, SleepCard, SleepNotice, SleepPage, SleepWriteNotice } from '../components/sleep-ui';
+import { sleepArt } from '../assets/sleep-art';
 import { useSleepMutation, useSleepRead, useSleepRepository } from '../hooks/use-sleep';
 import { sleepDay, sleepDuration } from '../utils/sleep-format';
 import { validateGoal } from '../utils/sleep-validation';
 
-const minuteOptions = ['00', '15', '30', '45'].map((value) => ({ value, label: value }));
 type GoalDraft = { hours: string; minutes: string; revision: number };
 
 export default function SleepGoalScreen() {
-  const theme = useTheme();
   const repository = useSleepRepository();
   const { today } = repository.getContext();
   const { state, reload } = useSleepRead(() => repository.getGoal(today), `sleep-goal:${today}`, true);
@@ -41,28 +40,31 @@ export default function SleepGoalScreen() {
     reload();
   }
 
-  return <SleepPage title="Sleep Goal" subtitle="Choose a daily target">
+  return <SleepPage title="Sleep Goal" subtitle="Choose a daily target" wellness wellnessHero>
     {state.kind === 'loading' ? <SleepNotice title="Loading your goal" loading /> : null}
     {state.kind === 'error' ? <SleepNotice title="Could not load goal" message={state.message} actionLabel="Try again" onAction={reload} error /> : null}
     {current && !current.verified ? <SleepNotice title="Goal history is unverified" actionLabel="Reload" onAction={reload} /> : null}
     <SleepWriteNotice result={save.result} reconcile={save.reconcile} reload={reloadGoal} />
     {current?.verified ? <>
       <SleepCard tone="mint">
-        <ThemedText variant="label" themeColor="textSecondary">Current confirmed goal</ThemedText>
-        <ThemedText variant="display">{current.minutes === null ? 'No active goal' : sleepDuration(current.minutes)}</ThemedText>
-        <ThemedText variant="subhead" themeColor="textSecondary">
-          {current.minutes === null ? 'Suggested goal · 8 hours per day'
-            : current.effectiveDay ? `Effective since ${sleepDay(current.effectiveDay)}` : 'Daily target'}
-        </ThemedText>
+        <View style={styles.summary}>
+          <Image accessible={false} source={sleepArt.bed} resizeMode="contain" style={styles.bed} />
+          <View style={styles.summaryText}>
+            <ThemedText variant="label" themeColor="textSecondary">Current confirmed goal</ThemedText>
+            <ThemedText variant="heading">{current.minutes === null ? 'No active goal' : sleepDuration(current.minutes)}</ThemedText>
+            <ThemedText variant="caption" themeColor="textSecondary">
+              {current.minutes === null ? 'Suggested 8 hours per day. Save to activate it.'
+                : current.effectiveDay ? `Effective since ${sleepDay(current.effectiveDay)}` : 'Daily target'}
+            </ThemedText>
+          </View>
+        </View>
       </SleepCard>
       <SleepCard>
         <ThemedText variant="heading">{current.minutes === null ? 'Set a Sleep Goal' : 'Update Goal'}</ThemedText>
-        <ThemedText variant="label">Hours · 1–24</ThemedText>
-        <TextInput accessibilityLabel="Goal hours" keyboardType="number-pad" returnKeyType="done" maxLength={2}
-          value={fields.hours} onChangeText={(hours) => setDraft({ ...fields, hours })}
-          style={[styles.input, { borderColor: theme.border, color: theme.text, backgroundColor: theme.backgroundElement }]} />
-        <ThemedText variant="label">Minutes</ThemedText>
-        <SleepSegments options={minuteOptions} value={fields.minutes} onChange={(value) => setDraft({ ...fields, minutes: value })} />
+        <SleepGoalPicker hours={fields.hours} minutes={fields.minutes}
+          onHoursChange={(hours) => setDraft({ ...fields, hours })}
+          onMinutesChange={(minutes) => setDraft({ ...fields, minutes })} />
+        <ThemedText variant="caption" themeColor="textSecondary">Hours range from 1 to 24. Minutes use 00, 15, 30 or 45. At 24 hours, minutes must be 00.</ThemedText>
         {submitted && check.kind === 'validation' ? <ThemedText accessibilityRole="alert" variant="label" themeColor="danger">{check.message}</ThemedText> : null}
         <SleepButton label="Save Goal" disabled={Boolean(stale || unknown)} busy={save.busy} onPress={() => {
           setSubmitted(true);
@@ -84,5 +86,7 @@ export default function SleepGoalScreen() {
 }
 
 const styles = StyleSheet.create({
-  input: { minHeight: sizing.controlComfortable, borderRadius: radius.md, borderWidth: 1, paddingHorizontal: spacing.sm, fontSize: 17 },
+  summary: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  bed: { width: 88, height: 72 },
+  summaryText: { flex: 1, minWidth: 0, gap: spacing.xs },
 });

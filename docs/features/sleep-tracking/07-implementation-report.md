@@ -50,3 +50,19 @@ The authenticated root Stack still registers Sleep. The unchanged Home wrapper m
 | Read-only quality review | Luna review worker | Reviewed routes, mutation confirmation, evidence and form layout. Integration addressed form scrolling and status feedback. |
 
 The standalone suite passed 62 tests. Typecheck and lint passed. Expo exported Android, iOS and web bundles. See [test results and untested paths](06-test-report.md).
+
+## 2026-11-11 incremental implementation
+
+**IMPLEMENTED** Journal day filter, illustrated native Journal/Detail/Edit/Goal layouts, dirty edit confirmation, Goal selectors and both Insights fallbacks. Existing route wrappers, protected Sleep stack, sidebar, create/edit form, validators, confirmation dialog and repository interface are **REUSED**. Screen gradients use existing semantic mint/teal roles. Purple is confined to illustration details.
+
+| Area | Changed files |
+| --- | --- |
+| Assets | `src/features/sleep/assets/bed.png`, `star-pillow-cloud.png`, `sleep-art.ts` |
+| Shared Sleep UI | `src/features/sleep/components/sleep-ui.tsx`, `sleep-goal-picker.tsx`, `sleep-insights-fallback.tsx` |
+| Screens | `src/features/sleep/screens/sleep-journal-screen.tsx`, `sleep-record-detail-screen.tsx`, `record-sleep-screen.tsx`, `sleep-goal-screen.tsx`, `sleep-insights-screen.tsx` |
+| State and mock | `src/features/sleep/hooks/use-sleep.ts`, `utils/sleep-insights.ts`, `api/get-sleep-repository.ts`, `mocks/mock-sleep-repository.ts` |
+| Tests | `tests/sleep-domain.test.cjs`, `tests/sleep-analytics.test.cjs` |
+
+**MOCK ONLY** Session, goal, insight and receipt state lives in the account-scoped in-memory repository. Development scenarios include `empty`, `insufficient`, `no-goal` and `network-error` via `EXPO_PUBLIC_SLEEP_SCENARIO`. The insufficient fixture has a session in the default Insights week. Pending attempt state is in memory.
+
+**PROPOSED** HTTP mapping and the backend evidence and receipt contract remain open. See the [backend handoff](08-backend-integration-handoff.md) and [test report](06-test-report.md).

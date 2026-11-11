@@ -17,3 +17,14 @@ These are the approved copy targets for app-owned artwork. A centralized Metro m
 The six selected references are documentation-only sources under D:/prj/vita-loom/design/sleep-tracking. Do not copy them into app assets. Journal, Goal, consent and loading/error/empty states have no approved screenshots, so those visual states are proposed extensions.
 
 The source asset README and manifest provide dimensions and alpha status. All seven app copies matched their corresponding source SHA-256 hashes. Device screenshot review remains open.
+
+## 2026-11-11 standalone artwork
+
+Both imports match the design source SHA-256 and are 1254×1254 ARGB PNGs with transparent corners. `sleep-art.ts` maps them once. React Native Image uses `contain` and decorative images are excluded from accessibility text.
+
+| Design source under `D:/prj/vita-loom/design` | Mobile destination | Consumers |
+| --- | --- | --- |
+| `assets/sleep-tracking/star-pillow-cloud.png` | `src/features/sleep/assets/star-pillow-cloud.png` | Combined hero in Journal, Detail, Edit, Goal and both Insights fallbacks |
+| `assets/sleep-tracking/bed.png` | `src/features/sleep/assets/bed.png` | Main Sleep summaries in Journal/Detail, edit type control and current goal summary |
+
+The PNGs are from `7dd2fa9`. The six full screen images are structural references.

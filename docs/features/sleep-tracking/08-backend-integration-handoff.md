@@ -48,3 +48,10 @@ Proposed operation contracts and screen consumers are in 02-api-contract.md. Aut
 - [ ] Approve consent, provider use, response validation, version binding and stale-copy invalidation.
 - [ ] Integrate weekly metric content in HIR-UC-002 with HIR retaining workflow ownership.
 - [ ] Run authenticated contract tests before replacing mock assertions.
+
+## 2026-11-11 Journal, Detail, Goal and Insights handoff
+
+- **UI COMPLETE / MOCK ONLY** Journal, detail, update/delete, goal and category-specific Insights fallbacks consume the existing `SleepRepository` boundary. Replace the mock selection in `src/features/sleep/api/get-sleep-repository.ts` when a verified HTTP contract is available.
+- **PROPOSED** Journal needs account-scoped reads, exact statistical-day bounds, consistent cursors and evidence-source selection. Return stored wake day and reference zone on ranges. Return a verified absence for deleted IDs. Estimated durations carry date and exact minutes.
+- **PROPOSED** Validate on the server and include expected revision for edit, delete and goal. Provide explicit overlap, stale and deleted outcomes. Keep writes and evidence invalidation consistent. An uncertain result needs an account-scoped lookup using the same attempt ID. The client coordinates pending edits/deletes per record and preserves drafts for correctable validation failures.
+- **PROPOSED** Return confirmed active goal, revision, effective day and historical goals. Return evidence verification, category eligibility and unmet requirements per candidate for Insights. Confirm protocol and field names before replacing the in-memory adapter.

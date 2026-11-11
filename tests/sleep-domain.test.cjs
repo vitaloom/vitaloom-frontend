@@ -270,3 +270,85 @@ test('goal changes are effective forward and preserve historical values', async 
   assert.equal((await repository.getGoal('2026-11-10')).data.minutes, 480);
   assert.equal((await repository.getGoal('2026-11-11')).data.minutes, null);
 });
+
+test('the sparse fixture has verified records without eligible insights in the default week', async () => {
+  const { MockSleepRepository } = require('../src/features/sleep/mocks/mock-sleep-repository.ts');
+  const repository = new MockSleepRepository('sparse', { today: '2026-11-11', scenario: 'insufficient' });
+  const result = await repository.getInsights({ week: '2026-11-02' });
+  assert.equal(result.kind, 'ready');
+  assert.equal(result.data.status, 'ready');
+  assert.deepEqual(new Set(result.data.items.filter(({ status }) => status === 'insufficient').map(({ category }) => category)),
+    new Set(['patterns', 'feelings', 'discoveries']));
+  assert.equal(result.data.items.some(({ eligible }) => eligible), false);
+});
+
+test('a simulated network failure is distinct from a verified empty Insights read', async () => {
+  const { MockSleepRepository } = require('../src/features/sleep/mocks/mock-sleep-repository.ts');
+  const repository = new MockSleepRepository('offline', { today: '2026-11-11', scenario: 'network-error' });
+  assert.equal((await repository.getInsights({ week: '2026-11-02' })).kind, 'error');
+  assert.equal((await repository.getJournal()).kind, 'error');
+  const empty = new MockSleepRepository('empty', { today: '2026-11-11', scenario: 'empty' });
+  assert.equal((await empty.getInsights({ week: '2026-11-02' })).data.status, 'no-data');
+});
+
+test('an exact journal date follows the stored wake day across midnight', async () => {
+  const { MockSleepRepository } = require('../src/features/sleep/mocks/mock-sleep-repository.ts');
+  const repository = new MockSleepRepository('wake-day', { today: '2026-11-11', scenario: 'empty' });
+  const draft = {
+    method: 'range', sleepType: 'main', feeling: null, timeZone: 'Asia/Ho_Chi_Minh',
+    start: { day: '2026-11-09', hour: '23', minute: '50' },
+    end: { day: '2026-11-10', hour: '07', minute: '04' },
+  };
+  const saved = await repository.mutate('overnight', { kind: 'create-session', draft });
+  assert.equal(saved.kind, 'confirmed');
+  assert.deepEqual((await repository.getJournal({ from: draft.start.day, to: draft.start.day })).data.sessions, []);
+  const journal = await repository.getJournal({ from: draft.end.day, to: draft.end.day });
+  assert.equal(journal.data.verified, true);
+  assert.deepEqual(journal.data.sessions.map(({ id, day, minutes }) => ({ id, day, minutes })),
+    [{ id: saved.recordId, day: draft.end.day, minutes: 434 }]);
+});
+
+test('an invalid 24-hour goal draft leaves a missing goal inactive', async () => {
+  const { MockSleepRepository } = require('../src/features/sleep/mocks/mock-sleep-repository.ts');
+  const repository = new MockSleepRepository('invalid-goal', { today: '2026-11-11', scenario: 'no-goal' });
+  const { data: goal } = await repository.getGoal();
+  assert.equal(goal.minutes, null);
+  const invalid = await repository.mutate('invalid-goal', { kind: 'set-goal', revision: goal.revision, hours: '24', minutes: '15' });
+  assert.equal(invalid.kind, 'validation');
+  assert.deepEqual((await repository.getGoal()).data, goal);
+});
+
+test('an uncertain edit keeps the confirmed duration until the same attempt is checked', async () => {
+  const { MockSleepRepository } = require('../src/features/sleep/mocks/mock-sleep-repository.ts');
+  const repository = new MockSleepRepository('uncertain-edit', { today: '2026-11-11', scenario: 'empty' });
+  const draft = { method: 'duration', sleepType: 'nap', feeling: null, endDay: '2026-11-10', hours: '1', minutes: '23' };
+  const created = await repository.mutate('create-nap', { kind: 'create-session', draft });
+  const original = (await repository.getSession(created.recordId)).data;
+  let refreshes = 0;
+  repository.subscribe(() => refreshes++);
+  repository.setNextFault('unknown-after');
+  const update = {
+    kind: 'update-session', id: original.id, revision: original.revision,
+    draft: { ...draft, minutes: '24', feeling: 'normal' },
+  };
+  assert.deepEqual(await repository.mutate('uncertain-update', update), { kind: 'unknown', attemptId: 'uncertain-update' });
+  assert.deepEqual((await repository.getSession(original.id)).data, original);
+  assert.equal(refreshes, 0);
+  assert.equal((await repository.reconcile('uncertain-update')).kind, 'confirmed');
+  const updated = (await repository.getSession(original.id)).data;
+  assert.equal(updated.revision, original.revision + 1);
+  assert.equal(updated.minutes, 84);
+  assert.equal(updated.feeling, 'normal');
+  assert.equal(refreshes, 1);
+});
+
+test('picker calendar preserves civil leap dates and pads the month from Monday', () => {
+  const { calendarMonthDays } = require('../src/features/sleep/utils/sleep-calendar.ts');
+  const days = calendarMonthDays('2024-02-15');
+  assert.deepEqual(days.slice(0, 4), [null, null, null, '2024-02-01']);
+  assert.deepEqual(days.filter(Boolean).slice(-2), ['2024-02-28', '2024-02-29']);
+  assert.equal(days.length % 7, 0);
+  assert.equal(calendarMonthDays('2026-02-01').filter(Boolean).length, 28);
+  assert.equal(calendarMonthDays('0001-01-01').find(Boolean), '0001-01-01');
+  assert.equal(calendarMonthDays('9999-12-01').filter(Boolean).at(-1), '9999-12-31');
+});
