@@ -27,7 +27,7 @@ export default function HomeScreen() {
   const { status, user } = useAuth();
   const [request, setRequest] = useState(0);
   const [settled, setSettled] = useState<{ key: string; summary?: HeartRateSummary; failed?: true } | null>(null);
-  const [stepsSettled, setStepsSettled] = useState<{ key: string; totalSteps: number | null; buckets: (number | null)[] } | { key: string; failed: true } | null>(null);
+  const [stepsSettled, setStepsSettled] = useState<{ key: string; totalSteps: number | null; goal?: number; progressPercent?: number | null; buckets: (number | null)[] } | { key: string; failed: true } | null>(null);
   const sessionKey = `${status}:${user?.id ?? ''}`;
   const retry = useCallback(() => setRequest((value) => value + 1), []);
   useHeartRateRefresh(retry);
@@ -47,7 +47,7 @@ export default function HomeScreen() {
     const controller = new AbortController();
     let active = true;
     stepsApi.series('day', { date: dateInHcm() }, controller.signal)
-      .then((result) => { if (active) setStepsSettled({ key: sessionKey, totalSteps: result.totalSteps, buckets: result.buckets.map((bucket) => bucket.steps) }); })
+      .then((result) => { if (active) setStepsSettled({ key: sessionKey, totalSteps: result.totalSteps, goal: result.goal?.targetSteps, progressPercent: result.progressPercent, buckets: result.buckets.map((bucket) => bucket.steps) }); })
       .catch(() => { if (active && !controller.signal.aborted) setStepsSettled({ key: sessionKey, failed: true }); });
     return () => { active = false; controller.abort(); };
   }, [status, user?.id, request, sessionKey]);
@@ -56,7 +56,7 @@ export default function HomeScreen() {
   const latest = current?.summary?.latestRecorded;
   const heartRate: HeartRateTile = current?.failed ? { state: 'error' } : !current ? { state: 'loading' } : latest ? { state: 'ready', bpm: latest.heartRateBpm, occurredAt: latest.occurredAt } : { state: 'empty' };
   const currentSteps = stepsSettled?.key === sessionKey ? stepsSettled : null;
-  const steps: StepsTile = status !== 'authenticated' ? { state: 'empty' } : currentSteps && 'failed' in currentSteps ? { state: 'error' } : currentSteps ? currentSteps.totalSteps == null ? { state: 'empty' } : { state: 'ready', totalSteps: currentSteps.totalSteps, buckets: currentSteps.buckets } : { state: 'loading' };
+  const steps: StepsTile = status !== 'authenticated' ? { state: 'empty' } : currentSteps && 'failed' in currentSteps ? { state: 'error' } : currentSteps ? { state: 'ready', totalSteps: currentSteps.totalSteps, goal: currentSteps.goal, progressPercent: currentSteps.progressPercent, buckets: currentSteps.buckets } : { state: 'loading' };
   return <ScrollView refreshControl={<RefreshControl refreshing={status === 'authenticated' && !current} onRefresh={retry} tintColor={theme.accent} />} style={{ flex: 1, backgroundColor: theme.background }} contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: spacing.lg, paddingHorizontal: spacing.md, alignItems: 'center' }}>
     <View style={{ width: '100%', maxWidth: 520, gap: 12 }}>
       <DashboardHeader user={dashboardUser} />

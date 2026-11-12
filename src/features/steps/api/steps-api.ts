@@ -8,6 +8,11 @@ export type StepsBucket = {
   eventCount: number;
 };
 
+export type StepsGoal = {
+  targetSteps: number;
+  effectiveDate: string;
+};
+
 export type StepsSeries = {
   startAt: string;
   endAt: string;
@@ -15,6 +20,8 @@ export type StepsSeries = {
   bucketSizeMinutes: number;
   totalSteps: number | null;
   buckets: StepsBucket[];
+  goal?: StepsGoal | null;
+  progressPercent?: number | null;
 };
 
 export const stepsApi = {
@@ -23,4 +30,8 @@ export const stepsApi = {
     values: { date?: string; weekStartDate?: string; startDate?: string; endDate?: string },
     signal?: AbortSignal,
   ) => apiRequest<StepsSeries>(stepsSeriesPath(mode, values), { method: 'GET', signal }, true),
+  setGoal: (targetSteps: number, signal?: AbortSignal) => apiRequest<StepsGoal>('/steps/goal', {
+    method: 'PUT', body: JSON.stringify({ targetSteps }), signal,
+  }, true),
+  removeGoal: (signal?: AbortSignal) => apiRequest<void>('/steps/goal', { method: 'DELETE', signal }, true),
 };

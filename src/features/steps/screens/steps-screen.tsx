@@ -12,8 +12,9 @@ import { useAppearance } from '@/theme/appearance-provider';
 import { useI18n, useTranslations } from '@/i18n';
 import { ApiError } from '@/lib/api/http-client';
 import { radius, shadows, sizing, spacing } from '@/theme';
-import { stepsApi, type StepsSeries } from '../api/steps-api';
+import { stepsApi, type StepsGoal, type StepsSeries } from '../api/steps-api';
 import { StepsDetailChart } from '../components/steps-detail-chart';
+import { StepsDailyGoal } from '../components/steps-daily-goal';
 import { dateInHcm, getMonday, isFutureHcmDate, shiftCalendarDate, weekDates } from '../utils/steps-date';
 import { stepsMessages } from '../messages';
 import { stepsArt } from '../assets/steps-art';
@@ -40,16 +41,28 @@ export default function StepsScreen() {
   const [retry, setRetry] = useState(0);
   const [result, setResult] = useState<{ key: string; series: StepsSeries } | null>(null);
   const [failure, setFailure] = useState<{ key: string; message: 'sessionAttention' | 'loadFailed' } | null>(null);
+  const [goalOverride, setGoalOverride] = useState<{ scopeKey: string; goal: StepsGoal | null; afterRetry: number } | null>(null);
+  const [goalBusyScope, setGoalBusyScope] = useState<string | null>(null);
+  const [goalFailure, setGoalFailure] = useState<{ scopeKey: string; message: 'goalSaveFailed' | 'goalRemoveFailed' } | null>(null);
   const [settledQueryKey, setSettledQueryKey] = useState<string | null>(null);
   const requestId = useRef(0);
+  const goalMutationId = useRef(0);
   const sessionKey = `${status}:${user?.id ?? ''}`;
+  const goalScopeKey = `${sessionKey}:${today}`;
+  const activeGoalScope = useRef<string | null>(goalScopeKey);
+  const goalDataKey = `${sessionKey}:day:${today}`;
   const dataKey = `${sessionKey}:${period}:${period === 'day' ? selectedDate : weekStart}`;
   const queryKey = `${dataKey}:${retry}`;
+  const retryRef = useRef(0);
   const displayed = result?.key === dataKey ? result.series : null;
   const error = failure?.key === queryKey ? failure.message : null;
   const pending = status === 'authenticated' && settledQueryKey !== queryKey;
   const loading = pending && !displayed && !error;
-  const refresh = useCallback(() => setRetry((value) => value + 1), []);
+  const refresh = useCallback(() => {
+    const nextRetry = retryRef.current + 1;
+    retryRef.current = nextRetry;
+    setRetry(nextRetry);
+  }, []);
   useHeartRateRefresh(refresh, period === 'day' && selectedDate === today ? 15_000 : undefined);
   const dates = useMemo(() => weekDates(selectedDate), [selectedDate]);
   const monday = getMonday(today);
@@ -60,11 +73,21 @@ export default function StepsScreen() {
   const params = useMemo(() => period === 'day' ? { date: selectedDate } : { weekStartDate: weekStart }, [period, selectedDate, weekStart]);
 
   useEffect(() => {
+    activeGoalScope.current = goalScopeKey;
+    return () => { activeGoalScope.current = null; };
+  }, [goalScopeKey]);
+
+  useEffect(() => {
     const id = ++requestId.current;
     if (status !== 'authenticated') return;
     const controller = new AbortController();
     stepsApi.series(period, params, controller.signal)
-      .then((series) => { if (id === requestId.current && !controller.signal.aborted) { setResult({ key: dataKey, series }); setFailure(null); setSettledQueryKey(queryKey); } })
+      .then((series) => { if (id === requestId.current && !controller.signal.aborted) {
+        setResult({ key: dataKey, series });
+        setFailure(null);
+        setSettledQueryKey(queryKey);
+        if (dataKey === goalDataKey) setGoalOverride((current) => current?.scopeKey === goalScopeKey && retry >= current.afterRetry ? null : current);
+      } })
       .catch((cause: unknown) => {
         if (id !== requestId.current || controller.signal.aborted) return;
         const message = cause instanceof ApiError && cause.status === 401 ? 'sessionAttention' : 'loadFailed';
@@ -72,7 +95,35 @@ export default function StepsScreen() {
         setSettledQueryKey(queryKey);
       });
     return () => { controller.abort(); if (requestId.current === id) requestId.current += 1; };
-  }, [status, user?.id, period, params, sessionKey, dataKey, queryKey]);
+  }, [status, user?.id, period, params, sessionKey, dataKey, queryKey, goalDataKey, goalScopeKey, retry]);
+
+  const mutateGoal = useCallback(async (targetSteps: number | null): Promise<boolean> => {
+    if (status !== 'authenticated') return false;
+    const id = ++goalMutationId.current;
+    setGoalBusyScope(goalScopeKey);
+    setGoalFailure(null);
+    try {
+      let goal: StepsGoal | null;
+      if (targetSteps === null) {
+        await stepsApi.removeGoal();
+        goal = null;
+      } else goal = await stepsApi.setGoal(targetSteps);
+      if (id !== goalMutationId.current || activeGoalScope.current !== goalScopeKey) return true;
+      const nextRetry = retryRef.current + 1;
+      retryRef.current = nextRetry;
+      requestId.current += 1;
+      setGoalOverride({ scopeKey: goalScopeKey, goal, afterRetry: nextRetry });
+      setRetry(nextRetry);
+      return true;
+    } catch {
+      if (id === goalMutationId.current && activeGoalScope.current === goalScopeKey) {
+        setGoalFailure({ scopeKey: goalScopeKey, message: targetSteps === null ? 'goalRemoveFailed' : 'goalSaveFailed' });
+      }
+      return false;
+    } finally {
+      if (id === goalMutationId.current) setGoalBusyScope(null);
+    }
+  }, [goalScopeKey, status]);
 
   const movePeriod = (offset: number) => {
     if (period === 'day') {
@@ -90,6 +141,9 @@ export default function StepsScreen() {
     : '—';
   const stepPeakValue = peak ? t('stepValue', { count: peak.steps!.toLocaleString(locale) }) : '—';
   const refreshing = pending;
+  const goalOverrideForDate = period === 'day' && selectedDate === today && goalOverride?.scopeKey === goalScopeKey ? goalOverride : null;
+  const selectedGoal = goalOverrideForDate ? goalOverrideForDate.goal : displayed?.goal ?? null;
+  const selectedGoalProgress = goalOverrideForDate ? null : displayed?.progressPercent ?? null;
 
   return <View style={{ flex: 1, backgroundColor: theme.background }}>
     <LinearGradient colors={scheme === 'dark' ? ['#202E2C', '#1B2726'] : ['#F5FCF8', '#E9F7F0']} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} pointerEvents="none" />
@@ -115,6 +169,8 @@ export default function StepsScreen() {
             {error && displayed ? <View style={{ flexDirection: 'row', gap: spacing.xs }}><ThemedText variant="caption" themeColor="danger" accessibilityRole="alert">{t(error)}</ThemedText><Pressable accessibilityRole="button" onPress={refresh}><ThemedText variant="caption" themeColor="steps">{t('retry')}</ThemedText></Pressable></View> : null}
           </View>
         </View>
+
+        {period === 'day' ? <StepsDailyGoal key={selectedDate} goal={selectedGoal} totalSteps={displayed?.totalSteps ?? null} progressPercent={selectedGoalProgress} date={selectedDate} today={today} busy={goalBusyScope === goalScopeKey} error={goalFailure?.scopeKey === goalScopeKey ? goalFailure.message : null} onSave={(targetSteps) => mutateGoal(targetSteps)} onRemove={() => mutateGoal(null)} /> : null}
 
         <View style={{ padding: spacing.md, gap: spacing.md, borderRadius: radius.xl, backgroundColor: theme.backgroundElement, boxShadow: shadows.card }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}><SvgXml xml={stepsArt.chart.replace(/currentColor/g, theme.steps)} width={28} height={28} accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" /><ThemedText variant="heading" style={{ flex: 1 }}>{t('analytics')}</ThemedText></View>
