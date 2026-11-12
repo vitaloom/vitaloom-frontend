@@ -35,7 +35,7 @@ export function OnboardingHero({ slide, height, topInset }: Props) {
         </View>
 
         {slide.showsBrand && (
-          <View style={[styles.brand, { marginTop: topInset + spacing.sm, backgroundColor: theme.illustrationSurface }]}>
+          <View style={[styles.brand, { marginTop: topInset + spacing.sm }]}>
             <Svg
               width={sizing.controlComfortable}
               height={sizing.iconLg}
