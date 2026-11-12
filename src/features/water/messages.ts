@@ -25,7 +25,7 @@ export const waterMessages = {
     goalReached: 'Daily goal reached',
     quickAdd: 'Quick Add',
     chooseAmount: 'Choose amount',
-    customAmount: 'Custom amount',
+    customAmount: 'Custom',
     millilitres: '{amount} millilitres',
     addNowLabel: 'Add {amount} millilitres now',
     adding: 'Adding…',
