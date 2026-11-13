@@ -2,7 +2,7 @@ export type Day = string;
 export type SleepType = 'main' | 'nap';
 export type Feeling = 'comfortable' | 'normal' | 'tired';
 export type CivilTime = { day: Day; hour: string; minute: string; offsetMinutes?: number };
-export type SleepDraft = { sleepType: SleepType; feeling: Feeling | null } & (
+export type SleepDraft = { feeling: Feeling | null } & (
   | { method: 'range'; timeZone: string; start: CivilTime; end: CivilTime }
   | { method: 'duration'; endDay: Day; hours: string; minutes: string }
 );
@@ -10,7 +10,7 @@ export type SessionValue = { sleepType: SleepType; feeling: Feeling | null; day:
   | { method: 'range'; timeZone: string; start: CivilTime; end: CivilTime; startAt: string; endAt: string }
   | { method: 'duration' }
 );
-export type SleepSession = SessionValue & { id: string; revision: number; confirmedAt: string };
+export type SleepSession = SessionValue & { id: string; revision: number; confirmedAt: string; editable: boolean };
 export type SleepContext = { today: Day; timeZone: string };
 export type GoalEntry = { effectiveDay: Day; minutes: number | null };
 export type GoalState = { minutes: number | null; revision: number; effectiveDay: Day | null; verified: boolean };
@@ -28,7 +28,7 @@ export type JournalPage = { sessions: SleepSession[]; verified: boolean; nextCur
 export type InsightCode = 'A01' | 'A02' | 'A03' | 'A04' | 'A05' | 'B01' | 'B02' | 'B03' | 'B04' | 'C01' | 'C03' | 'C04';
 export type InsightCategory = 'patterns' | 'feelings' | 'discoveries';
 export type InsightStatus = 'ready' | 'no-data' | 'insufficient' | 'unverified' | 'stale';
-export type AnalyticsQuery = { week: Day; timeZone?: string; sleepType?: SleepType };
+export type AnalyticsQuery = { week: Day; timeZone?: string };
 export type InsightKey = AnalyticsQuery & { code: InsightCode; version?: string };
 export type EvidenceMeasure = { label: string; value: number; unit: 'minutes' | 'days' | 'sessions' | 'percent'; detail?: string };
 export type Insight = {
@@ -77,15 +77,15 @@ export type AiResponse =
 
 export type Mutation =
   | { kind: 'create-session'; draft: SleepDraft }
-  | { kind: 'update-session'; id: string; revision: number; draft: SleepDraft }
-  | { kind: 'delete-session'; id: string; revision: number }
+  | { kind: 'update-session'; id: string; revision: number; confirmedAt?: string; draft: SleepDraft }
+  | { kind: 'delete-session'; id: string; revision: number; confirmedAt?: string }
   | { kind: 'set-goal'; revision: number; hours: string; minutes: string }
   | { kind: 'remove-goal'; revision: number }
   | { kind: 'set-ai-consent'; enabled: boolean };
 export type WriteResult =
   | { kind: 'confirmed'; version: string; recordId?: string; revision?: number; effectiveDay?: Day }
   | { kind: 'validation'; field: string; message: string }
-  | { kind: 'conflict'; reason: 'overlap' | 'stale' | 'deleted'; message: string }
+  | { kind: 'conflict'; reason: 'overlap' | 'stale' | 'deleted' | 'duplicate' | 'week-locked' | 'not-latest'; message: string }
   | { kind: 'rejected'; message: string }
   | { kind: 'unknown'; attemptId: string };
 export type ReadResult<T> =

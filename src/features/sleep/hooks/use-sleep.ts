@@ -49,7 +49,7 @@ export function useSleepRead<T>(read: () => Promise<ReadResult<T>>, key: string,
 
 type Confirmation = Extract<WriteResult, { kind: 'confirmed' }>;
 
-export function useSleepSessionMutation(onConfirmed: () => void) {
+export function useSleepSessionMutation(onConfirmed: (result: Confirmation) => void) {
   const repository = useSleepRepository();
   const inFlight = useRef(false);
   const mounted = useRef(true);
@@ -68,7 +68,7 @@ export function useSleepSessionMutation(onConfirmed: () => void) {
     try {
       const outcome = await repository.mutate(sleepFixturesEnabled() ? uuid.v4() : '', mutation);
       if (!mounted.current) return;
-      if (outcome.kind === 'confirmed') onConfirmed();
+      if (outcome.kind === 'confirmed') onConfirmed(outcome);
       else setResult(outcome.kind === 'unknown'
         ? { kind: 'rejected', message: 'Could not confirm the change. Reload your records before trying again.' }
         : outcome);

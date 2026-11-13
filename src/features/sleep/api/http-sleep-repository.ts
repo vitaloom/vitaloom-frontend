@@ -17,6 +17,7 @@ type ApiCivilTime = { day: string; hour: string; minute: string; offsetMinutes?:
 type ApiSession = {
   id: string;
   confirmedAt: string;
+  editable?: boolean;
   sleepType: 'MAIN' | 'NAP';
   method: 'RANGE' | 'DURATION';
   feeling?: 'COMFORTABLE' | 'NORMAL' | 'TIRED' | null;
@@ -46,7 +47,7 @@ function mapSession(value: ApiSession): SleepSession {
     throw new Error('Sleep service returned an invalid session classification.');
   }
   const base = {
-    id: value.id, revision: 1, confirmedAt: value.confirmedAt, sleepType, feeling,
+    id: value.id, revision: 1, confirmedAt: value.confirmedAt, editable: sleepType === 'main' && value.editable === true, sleepType, feeling,
     day: value.day, minutes: value.minutes,
   };
   if (value.method === 'DURATION') {
@@ -72,7 +73,7 @@ function mapSession(value: ApiSession): SleepSession {
 function toApiWrite(value: ReturnType<typeof validateSession> & { kind: 'valid' }) {
   const session = value.value;
   const common = {
-    sleepType: session.sleepType.toUpperCase(),
+    sleepType: 'MAIN',
     method: session.method.toUpperCase(),
     feeling: session.feeling?.toUpperCase() ?? null,
   };
@@ -86,6 +87,14 @@ function toApiWrite(value: ReturnType<typeof validateSession> & { kind: 'valid' 
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Sleep request failed.';
+}
+
+function dailySummary(day: string, sessions: SleepSession[]): DailySummary {
+  const mainSessions = sessions.filter((session) => session.day === day && session.sleepType === 'main');
+  const goal = { minutes: null, revision: 0, effectiveDay: null, verified: false } as const;
+  if (mainSessions.length > 1) return { day, status: 'unverified', minutes: null, goal, progress: null };
+  if (mainSessions.length === 0) return { day, status: 'no-data', minutes: null, goal, progress: null };
+  return { day, status: 'recorded', minutes: mainSessions[0].minutes, goal, progress: null };
 }
 
 export class HttpSleepRepository implements SleepRepository {
@@ -165,14 +174,24 @@ export class HttpSleepRepository implements SleepRepository {
     const journal = await this.getJournal();
     if (journal.kind === 'error') return journal;
     const today = this.getContext().today;
-    const daily: DailySummary = {
-      day: today, status: 'unverified', minutes: null,
-      goal: { minutes: null, revision: 0, effectiveDay: null, verified: false }, progress: null,
-    };
-    return { kind: 'ready', data: { latest: journal.data.sessions[0] ?? null, daily, featured: null } };
+    const daily = dailySummary(today, journal.data.sessions);
+    const mainSessions = journal.data.sessions.filter((session) => session.sleepType === 'main');
+    const latestDay = mainSessions.reduce<string | null>((latest, session) => !latest || session.day > latest ? session.day : latest, null);
+    const latestForDay = latestDay ? mainSessions.filter((session) => session.day === latestDay) : [];
+    const latest = latestForDay.length === 1 ? latestForDay[0] : null;
+    return { kind: 'ready', data: { latest, daily, featured: null } };
   }
 
-  async getDaily(_day: Day): Promise<ReadResult<DailySummary>> { return unavailable('Daily totals'); }
+  async getDaily(day: Day): Promise<ReadResult<DailySummary>> {
+    if (day > this.getContext().today) {
+      return { kind: 'ready', data: { day, status: 'future', minutes: null,
+        goal: { minutes: null, revision: 0, effectiveDay: null, verified: false }, progress: null } };
+    }
+    const journal = await this.getJournal({ from: day, to: day });
+    if (journal.kind === 'error') return journal;
+    if (!journal.data.verified) return { kind: 'ready', data: { ...dailySummary(day, []), status: 'unverified' } };
+    return { kind: 'ready', data: dailySummary(day, journal.data.sessions) };
+  }
   async getGoal(_day?: Day): Promise<ReadResult<GoalState>> { return unavailable('Sleep Goals'); }
   async getWeekly(_query: AnalyticsQuery): Promise<ReadResult<WeeklySummary>> { return unavailable('Weekly analytics'); }
   async getInsights(_query: AnalyticsQuery): Promise<ReadResult<InsightList>> { return unavailable('Sleep Insights'); }
@@ -205,11 +224,13 @@ export class HttpSleepRepository implements SleepRepository {
 
     try {
       if (method === 'DELETE') {
-        await this.send<void>(path, { method });
+        await this.send<void>(path, { method, ...(mutation.kind === 'delete-session' && mutation.confirmedAt
+          ? { headers: new Headers({ 'If-Match': `"${mutation.confirmedAt}"` }) } : {}) });
         for (const listener of this.listeners) listener();
         return { kind: 'confirmed', version: 'server', recordId: mutation.kind === 'delete-session' ? mutation.id : undefined };
       }
       const headers = new Headers({ 'Content-Type': 'application/json' });
+      if (mutation.kind === 'update-session' && mutation.confirmedAt) headers.set('If-Match', `"${mutation.confirmedAt}"`);
       const response = await this.send<ApiSession>(path, {
         method, headers, body,
       });
@@ -219,11 +240,18 @@ export class HttpSleepRepository implements SleepRepository {
     } catch (error) {
       if (error instanceof ApiError && (error.status === 409 || error.status === 412
         || (error.status === 404 && error.code === 'SLEEP_NOT_FOUND'))) {
-        const reason = error.code === 'SLEEP_OVERLAP' ? 'overlap' : error.code === 'SLEEP_NOT_FOUND' ? 'deleted' : 'stale';
+        const reason = error.code === 'SLEEP_OVERLAP' ? 'overlap'
+          : error.code === 'SLEEP_NOT_FOUND' ? 'deleted'
+          : error.code === 'SLEEP_DAY_ALREADY_RECORDED' ? 'duplicate'
+          : error.code === 'SLEEP_WEEK_LOCKED' ? 'week-locked'
+          : error.code === 'SLEEP_RECORD_NOT_LATEST' ? 'not-latest' : 'stale';
         return { kind: 'conflict', reason, message: error.message };
       }
       if (error instanceof ApiError && (error.status === 400 || error.status === 422)) {
         return { kind: 'validation', field: error.field ?? 'session', message: error.message };
+      }
+      if (error instanceof ApiError && (error.status === 0 || error.status >= 500)) {
+        return { kind: 'rejected', message: 'Could not confirm the change. Reload your journal before trying again.' };
       }
       return { kind: 'rejected', message: errorMessage(error) };
     }

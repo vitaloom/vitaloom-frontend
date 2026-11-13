@@ -18,13 +18,13 @@ function evidenceValue(measure: EvidenceMeasure) {
 }
 
 export default function SleepInsightDetailScreen() {
-  const params = useLocalSearchParams<{ code: string; week?: string; timeZone?: string; sleepType?: string; version?: string }>();
+  const params = useLocalSearchParams<{ code: string; week?: string; timeZone?: string; version?: string }>();
   const repository = useSleepRepository();
   const [refreshIdentity, setRefreshIdentity] = useState('');
   const identity = JSON.stringify(params);
   const key = {
     code: params.code as InsightCode, week: params.week ?? startOfWeek(repository.getContext().today),
-    timeZone: params.timeZone, sleepType: params.sleepType === 'nap' ? 'nap' as const : undefined,
+    timeZone: params.timeZone,
     version: refreshIdentity === identity ? undefined : params.version,
   };
   const { state, reload } = useSleepRead(() => repository.getInsight(key), `insight:${JSON.stringify(key)}`);

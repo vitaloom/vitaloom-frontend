@@ -14,16 +14,19 @@ const clockHours = Array.from({ length: 24 }, (_, index) => String(index).padSta
 const durationHours = Array.from({ length: 25 }, (_, index) => String(index));
 const minuteOptions = Array.from({ length: 60 }, (_, index) => String(index).padStart(2, '0'));
 
-export function SleepRecordDateField({ label, day, maximumDay, onChange }: {
+export function SleepRecordDateField({ label, day, maximumDay, minimumDay, disabledDays, onChange }: {
   label: string;
   day: Day;
   maximumDay: Day;
+  minimumDay?: Day;
+  disabledDays?: Day[];
   onChange: (day: Day) => void;
 }) {
   const [open, setOpen] = useState(false);
   return <>
     <PickerField label={label} value={day ? sleepDay(day) : 'Choose date'} onPress={() => setOpen(true)} />
     {open ? <SleepCalendarPicker title={label} selected={day || null} anchor={maximumDay} maximumDay={maximumDay}
+      minimumDay={minimumDay} disabledDays={disabledDays}
       onSelect={(nextDay) => { onChange(nextDay); setOpen(false); }} onClose={() => setOpen(false)} /> : null}
   </>;
 }

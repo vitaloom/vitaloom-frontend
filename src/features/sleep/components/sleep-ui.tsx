@@ -124,8 +124,10 @@ export function SleepWriteNotice({ result, reconcile, reload }: {
   if (result.kind === 'unknown') return <SleepNotice title="Result not yet confirmed"
     message="Check the outcome before sending another change." actionLabel="Check result" onAction={reconcile} />;
   const conflict = result.kind === 'conflict' && result.reason !== 'overlap';
+  const duplicate = result.kind === 'conflict' && result.reason === 'duplicate';
   return <SleepNotice title={conflict ? 'This item changed' : 'Check your changes'} message={result.message} error
-    actionLabel={(conflict || result.kind === 'rejected') && reload ? 'Reload confirmed data' : undefined} onAction={reload} />;
+    actionLabel={duplicate && reload ? 'Open existing record' : (conflict || result.kind === 'rejected') && reload ? 'Reload confirmed data' : undefined}
+    onAction={reload} />;
 }
 
 export function SleepSegments<T extends string>({ options, value, onChange }: {

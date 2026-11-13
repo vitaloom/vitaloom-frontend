@@ -17,6 +17,7 @@ const validation = require('../src/features/sleep/utils/sleep-validation.ts');
 test('civil-date helpers use explicit IANA timezone and Monday week boundaries', () => {
   assert.equal(date.shiftDay('2026-12-31', 1), '2027-01-01');
   assert.equal(date.startOfWeek('2026-11-11'), '2026-11-09');
+  assert.deepEqual(date.currentWeekDays('2026-11-13'), ['2026-11-09', '2026-11-10', '2026-11-11', '2026-11-12', '2026-11-13', '2026-11-14', '2026-11-15']);
   assert.equal(date.dayInZone(new Date('2026-11-10T17:30:00Z'), 'Asia/Ho_Chi_Minh'), '2026-11-11');
   assert.equal(date.shiftDay('0099-12-31', 1), '0100-01-01');
   assert.equal(date.startOfWeek('0001-01-01'), '0001-01-01');
@@ -33,16 +34,17 @@ test('DST folds require a selected offset and DST gaps are rejected', () => {
 
 test('session validation preserves arbitrary exact minutes without synthetic timestamps', () => {
   const context = { today: '2026-11-11', timeZone: 'Asia/Ho_Chi_Minh' };
-  const draft = { method: 'duration', sleepType: 'main', feeling: null, endDay: '2026-11-10', hours: '7', minutes: '17' };
+  const draft = { method: 'duration', feeling: null, endDay: '2026-11-10', hours: '7', minutes: '17' };
   const result = validation.validateSession(draft, context, new Date('2026-11-11T03:00:00Z'));
   assert.equal(result.kind, 'valid');
   assert.equal(result.value.minutes, 437);
   assert.deepEqual(Object.keys(result.value).sort(), ['day', 'feeling', 'method', 'minutes', 'sleepType']);
+  assert.equal(result.value.sleepType, 'main');
 });
 
 test('session validation rejects zero, over-day and future duration-only entries', () => {
   const context = { today: '2026-11-11', timeZone: 'Asia/Ho_Chi_Minh' };
-  const draft = { method: 'duration', sleepType: 'nap', feeling: 'normal', endDay: '2026-11-11', hours: '0', minutes: '0' };
+  const draft = { method: 'duration', feeling: 'normal', endDay: '2026-11-11', hours: '0', minutes: '0' };
   const now = new Date('2026-11-11T03:00:00Z');
   assert.equal(validation.validateSession(draft, context, now).kind, 'validation');
   assert.equal(validation.validateSession({ ...draft, hours: '24' }, context, now).kind, 'valid');
@@ -50,10 +52,29 @@ test('session validation rejects zero, over-day and future duration-only entries
   assert.equal(validation.validateSession({ ...draft, endDay: '2026-11-12', hours: '1' }, context, now).kind, 'validation');
 });
 
-test('range duration uses elapsed instants across DST and rejects unresolved transitions', () => {
-  const context = { today: '2026-11-02', timeZone: 'America/New_York' };
+test('session validation rejects dates before the current week', () => {
+  const context = { today: '2026-11-13', timeZone: 'Asia/Ho_Chi_Minh' };
+  const previousWeek = { method: 'duration', feeling: null, endDay: '2026-11-08', hours: '1', minutes: '0' };
+  const currentWeek = { ...previousWeek, endDay: '2026-11-09' };
+  const now = new Date('2026-11-13T03:00:00Z');
+  assert.equal(validation.validateSession(previousWeek, context, now).kind, 'validation');
+  assert.equal(validation.validateSession(currentWeek, context, now).kind, 'valid');
+});
+
+test('range statistical day cannot be after the Ho Chi Minh current day', () => {
+  const context = { today: '2026-11-13', timeZone: 'Asia/Ho_Chi_Minh' };
   const draft = {
-    method: 'range', sleepType: 'main', feeling: null, timeZone: context.timeZone,
+    method: 'range', feeling: null, timeZone: 'Pacific/Auckland',
+    start: { day: '2026-11-13', hour: '23', minute: '00' },
+    end: { day: '2026-11-14', hour: '00', minute: '00' },
+  };
+  assert.equal(validation.validateSession(draft, context, new Date('2026-11-13T16:50:00Z')).kind, 'validation');
+});
+
+test('range duration uses elapsed instants across DST and rejects unresolved transitions', () => {
+  const context = { today: '2026-11-01', timeZone: 'America/New_York' };
+  const draft = {
+    method: 'range', feeling: null, timeZone: context.timeZone,
     start: { day: '2026-11-01', hour: '01', minute: '30', offsetMinutes: -240 },
     end: { day: '2026-11-01', hour: '02', minute: '30', offsetMinutes: -300 },
   };
@@ -66,7 +87,7 @@ test('range duration uses elapsed instants across DST and rejects unresolved tra
     ...draft,
     start: { day: '2026-03-08', hour: '01', minute: '30', offsetMinutes: -300 },
     end: { day: '2026-03-08', hour: '03', minute: '30', offsetMinutes: -240 },
-  }, context, new Date('2026-11-02T12:00:00Z'));
+  }, { ...context, today: '2026-03-08' }, new Date('2026-03-09T12:00:00Z'));
   assert.equal(spring.kind, 'valid');
   assert.equal(spring.value.minutes, 60);
 });
@@ -93,7 +114,7 @@ test('confirmed mutations refresh readers, keep revisions, and preserve account 
   first.subscribe(() => notifications++);
   const save = await first.mutate('create-1', {
     kind: 'create-session',
-    draft: { method: 'duration', sleepType: 'main', feeling: null, endDay: '2026-11-10', hours: '2', minutes: '17' },
+    draft: { method: 'duration', feeling: null, endDay: '2026-11-10', hours: '2', minutes: '17' },
   });
   assert.equal(save.kind, 'confirmed');
   assert.equal(notifications, 1);
@@ -107,7 +128,7 @@ test('unknown applied write remains hidden until reconciliation and attempt retr
   repository.setNextFault('unknown-after');
   const mutation = {
     kind: 'create-session',
-    draft: { method: 'duration', sleepType: 'main', feeling: null, endDay: '2026-11-10', hours: '2', minutes: '0' },
+    draft: { method: 'duration', feeling: null, endDay: '2026-11-10', hours: '2', minutes: '0' },
   };
   const first = await repository.mutate('attempt-1', mutation);
   assert.deepEqual(first, { kind: 'unknown', attemptId: 'attempt-1' });
@@ -117,11 +138,11 @@ test('unknown applied write remains hidden until reconciliation and attempt retr
   assert.equal((await repository.getJournal()).data.sessions.length, 1);
 });
 
-test('unknown creation revalidates overlap after another confirmed session is written', async () => {
+test('unknown creation revalidates day uniqueness after another confirmed session is written', async () => {
   const { MockSleepRepository } = require('../src/features/sleep/mocks/mock-sleep-repository.ts');
   const repository = new MockSleepRepository('recheck', { today: '2026-11-11', scenario: 'empty' });
   const range = (start, end) => ({
-    method: 'range', sleepType: 'main', feeling: null, timeZone: 'UTC',
+    method: 'range', feeling: null, timeZone: 'UTC',
     start: { day: '2026-11-10', hour: start, minute: '00' },
     end: { day: '2026-11-10', hour: end, minute: '00' },
   });
@@ -130,7 +151,7 @@ test('unknown creation revalidates overlap after another confirmed session is wr
   assert.equal(uncertain.kind, 'unknown');
   assert.equal((await repository.mutate('other-range', { kind: 'create-session', draft: range('01', '03') })).kind, 'confirmed');
   const reconciled = await repository.reconcile('uncertain-range');
-  assert.deepEqual(reconciled.kind === 'conflict' ? reconciled.reason : null, 'overlap');
+  assert.deepEqual(reconciled.kind === 'conflict' ? reconciled.reason : null, 'duplicate');
   assert.equal((await repository.getJournal()).data.sessions.length, 1);
   assert.equal((await repository.reconcile('uncertain-range')).kind, 'conflict');
 });
@@ -138,7 +159,7 @@ test('unknown creation revalidates overlap after another confirmed session is wr
 test('unknown deletion cannot erase a record changed before reconciliation', async () => {
   const { MockSleepRepository } = require('../src/features/sleep/mocks/mock-sleep-repository.ts');
   const repository = new MockSleepRepository('delete-race', { today: '2026-11-11', scenario: 'empty' });
-  const draft = { method: 'duration', sleepType: 'main', feeling: null, endDay: '2026-11-10', hours: '2', minutes: '0' };
+  const draft = { method: 'duration', feeling: null, endDay: '2026-11-10', hours: '2', minutes: '0' };
   const created = await repository.mutate('create-record', { kind: 'create-session', draft });
   repository.setNextFault('unknown-after');
   assert.equal((await repository.mutate('uncertain-delete', {
@@ -161,7 +182,7 @@ test('pending write captures its payload and terminal validation receipts are id
   repository.setNextFault('unknown-after');
   const mutation = {
     kind: 'create-session',
-    draft: { method: 'duration', sleepType: 'main', feeling: null, endDay: '2026-11-10', hours: '2', minutes: '1' },
+    draft: { method: 'duration', feeling: null, endDay: '2026-11-10', hours: '2', minutes: '1' },
   };
   await repository.mutate('captured-write', mutation);
   mutation.draft.hours = '3';
@@ -177,15 +198,20 @@ test('pending write captures its payload and terminal validation receipts are id
 
 test('time ranges reject overlaps but allow adjacent intervals', async () => {
   const { MockSleepRepository } = require('../src/features/sleep/mocks/mock-sleep-repository.ts');
-  const repository = new MockSleepRepository('ranges', { today: '2026-11-11', scenario: 'empty' });
-  const range = (start, end) => ({
-    method: 'range', sleepType: 'main', feeling: null, timeZone: 'UTC',
-    start: { day: '2026-11-10', hour: start, minute: '00' },
-    end: { day: '2026-11-10', hour: end, minute: '00' },
+  const range = (startDay, start, endDay, end) => ({
+    method: 'range', feeling: null, timeZone: 'UTC',
+    start: { day: startDay, hour: start, minute: '00' },
+    end: { day: endDay, hour: end, minute: '00' },
   });
-  assert.equal((await repository.mutate('one', { kind: 'create-session', draft: range('01', '02') })).kind, 'confirmed');
-  assert.equal((await repository.mutate('overlap', { kind: 'create-session', draft: range('01', '03') })).kind, 'conflict');
-  assert.equal((await repository.mutate('adjacent', { kind: 'create-session', draft: range('02', '03') })).kind, 'confirmed');
+  const overlap = new MockSleepRepository('ranges-overlap', { today: '2026-11-11', scenario: 'empty' });
+  assert.equal((await overlap.mutate('one', { kind: 'create-session', draft: range('2026-11-10', '22', '2026-11-10', '23') })).kind, 'confirmed');
+  const intersecting = await overlap.mutate('overlap', { kind: 'create-session', draft: range('2026-11-10', '22', '2026-11-11', '00') });
+  assert.equal(intersecting.kind, 'conflict');
+  assert.equal(intersecting.reason, 'overlap');
+
+  const adjacent = new MockSleepRepository('ranges-adjacent', { today: '2026-11-11', scenario: 'empty' });
+  assert.equal((await adjacent.mutate('one', { kind: 'create-session', draft: range('2026-11-10', '22', '2026-11-10', '23') })).kind, 'confirmed');
+  assert.equal((await adjacent.mutate('touching', { kind: 'create-session', draft: range('2026-11-10', '23', '2026-11-11', '01') })).kind, 'confirmed');
 });
 
 test('journal pagination and source-record selection are stable and scoped', async () => {
@@ -202,7 +228,7 @@ test('journal pagination and source-record selection are stable and scoped', asy
   assert.deepEqual(source.data.sessions.map(({ id }) => id), [first.data.sessions[0].id]);
   const changed = await repository.mutate('new-record', {
     kind: 'create-session',
-    draft: { method: 'duration', sleepType: 'nap', feeling: null, endDay: '2026-11-10', hours: '1', minutes: '0' },
+    draft: { method: 'duration', feeling: null, endDay: '2026-11-10', hours: '1', minutes: '0' },
   });
   assert.equal(changed.kind, 'confirmed');
   assert.equal((await repository.getJournal({ limit: 2, cursor: first.data.nextCursor })).kind, 'error');
@@ -212,7 +238,7 @@ test('edit can change entry mode while preserving reference-zone constraints and
   const { MockSleepRepository } = require('../src/features/sleep/mocks/mock-sleep-repository.ts');
   const repository = new MockSleepRepository('edit', { today: '2026-11-11', scenario: 'empty' });
   const timeRange = {
-    method: 'range', sleepType: 'main', feeling: null, timeZone: 'UTC',
+    method: 'range', feeling: null, timeZone: 'UTC',
     start: { day: '2026-11-10', hour: '01', minute: '00' },
     end: { day: '2026-11-10', hour: '07', minute: '00' },
   };
@@ -225,7 +251,7 @@ test('edit can change entry mode while preserving reference-zone constraints and
   assert.equal(wrongZone.kind, 'validation');
   const duration = await repository.mutate('mode-change', {
     kind: 'update-session', id: created.recordId, revision: created.revision,
-    draft: { method: 'duration', sleepType: 'nap', feeling: 'normal', endDay: '2026-11-10', hours: '3', minutes: '11' },
+    draft: { method: 'duration', feeling: 'normal', endDay: '2026-11-10', hours: '3', minutes: '11' },
   });
   assert.equal(duration.kind, 'confirmed');
   const record = (await repository.getSession(created.recordId)).data;
@@ -240,11 +266,11 @@ test('record updates enforce stale and deleted revisions; deletion only follows 
   const repository = new MockSleepRepository('revisions', { today: '2026-11-11', scenario: 'empty' });
   const created = await repository.mutate('create', {
     kind: 'create-session',
-    draft: { method: 'duration', sleepType: 'main', feeling: null, endDay: '2026-11-10', hours: '1', minutes: '37' },
+    draft: { method: 'duration', feeling: null, endDay: '2026-11-10', hours: '1', minutes: '37' },
   });
   const stale = await repository.mutate('stale-update', {
     kind: 'update-session', id: created.recordId, revision: 0,
-    draft: { method: 'duration', sleepType: 'main', feeling: null, endDay: '2026-11-10', hours: '2', minutes: '0' },
+    draft: { method: 'duration', feeling: null, endDay: '2026-11-10', hours: '2', minutes: '0' },
   });
   assert.deepEqual(stale.kind === 'conflict' ? stale.reason : null, 'stale');
   const deleted = await repository.mutate('delete', {
@@ -253,9 +279,39 @@ test('record updates enforce stale and deleted revisions; deletion only follows 
   assert.equal(deleted.kind, 'confirmed');
   const retry = await repository.mutate('edit-deleted', {
     kind: 'update-session', id: created.recordId, revision: created.revision,
-    draft: { method: 'duration', sleepType: 'main', feeling: null, endDay: '2026-11-10', hours: '2', minutes: '0' },
+    draft: { method: 'duration', feeling: null, endDay: '2026-11-10', hours: '2', minutes: '0' },
   });
   assert.deepEqual(retry.kind === 'conflict' ? retry.reason : null, 'deleted');
+});
+
+test('only the latest statistical day can be edited or deleted and duplicate days are rejected', async () => {
+  const { MockSleepRepository } = require('../src/features/sleep/mocks/mock-sleep-repository.ts');
+  const repository = new MockSleepRepository('latest', { today: '2026-11-13', scenario: 'empty' });
+  const draft = (endDay) => ({ method: 'duration', feeling: null, endDay, hours: '1', minutes: '0' });
+  const latest = await repository.mutate('latest-create', { kind: 'create-session', draft: draft('2026-11-12') });
+  const backfill = await repository.mutate('backfill-create', { kind: 'create-session', draft: draft('2026-11-11') });
+  assert.equal(latest.kind, 'confirmed');
+  assert.equal(backfill.kind, 'confirmed');
+  const records = (await repository.getJournal()).data.sessions;
+  assert.equal(records.find(({ id }) => id === latest.recordId).editable, true);
+  assert.equal(records.find(({ id }) => id === backfill.recordId).editable, false);
+  assert.equal((await repository.mutate('duplicate', {
+    kind: 'create-session', draft: {
+      method: 'range', feeling: null, timeZone: 'UTC',
+      start: { day: '2026-11-10', hour: '23', minute: '00' },
+      end: { day: '2026-11-11', hour: '01', minute: '00' },
+    },
+  })).kind, 'conflict');
+  const update = await repository.mutate('old-update', {
+    kind: 'update-session', id: backfill.recordId, revision: backfill.revision, draft: draft('2026-11-11'),
+  });
+  assert.equal(update.kind, 'conflict');
+  assert.equal(update.reason, 'not-latest');
+  const remove = await repository.mutate('old-delete', {
+    kind: 'delete-session', id: backfill.recordId, revision: backfill.revision,
+  });
+  assert.equal(remove.kind, 'conflict');
+  assert.equal(remove.reason, 'not-latest');
 });
 
 test('goal changes are effective forward and preserve historical values', async () => {
@@ -296,7 +352,7 @@ test('an exact journal date follows the stored wake day across midnight', async 
   const { MockSleepRepository } = require('../src/features/sleep/mocks/mock-sleep-repository.ts');
   const repository = new MockSleepRepository('wake-day', { today: '2026-11-11', scenario: 'empty' });
   const draft = {
-    method: 'range', sleepType: 'main', feeling: null, timeZone: 'Asia/Ho_Chi_Minh',
+    method: 'range', feeling: null, timeZone: 'Asia/Ho_Chi_Minh',
     start: { day: '2026-11-09', hour: '23', minute: '50' },
     end: { day: '2026-11-10', hour: '07', minute: '04' },
   };
@@ -322,7 +378,7 @@ test('an invalid 24-hour goal draft leaves a missing goal inactive', async () =>
 test('an uncertain edit keeps the confirmed duration until the same attempt is checked', async () => {
   const { MockSleepRepository } = require('../src/features/sleep/mocks/mock-sleep-repository.ts');
   const repository = new MockSleepRepository('uncertain-edit', { today: '2026-11-11', scenario: 'empty' });
-  const draft = { method: 'duration', sleepType: 'nap', feeling: null, endDay: '2026-11-10', hours: '1', minutes: '23' };
+  const draft = { method: 'duration', feeling: null, endDay: '2026-11-10', hours: '1', minutes: '23' };
   const created = await repository.mutate('create-nap', { kind: 'create-session', draft });
   const original = (await repository.getSession(created.recordId)).data;
   let refreshes = 0;

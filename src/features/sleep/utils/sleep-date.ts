@@ -25,6 +25,11 @@ export function startOfWeek(day: Day): Day {
   return shiftDay(day, -((date.getUTCDay() + 6) % 7));
 }
 
+export function currentWeekDays(day: Day): Day[] {
+  const monday = startOfWeek(day);
+  return Array.from({ length: 7 }, (_, index) => shiftDay(monday, index));
+}
+
 function partsAt(date: Date, timeZone: string): Record<string, string> {
   let formatter = formatters.get(timeZone);
   if (!formatter) {

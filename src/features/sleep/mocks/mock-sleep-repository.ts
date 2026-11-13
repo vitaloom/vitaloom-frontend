@@ -38,7 +38,7 @@ export class MockSleepRepository implements SleepRepository {
       timeZone: options.timeZone ?? 'Asia/Ho_Chi_Minh',
     };
     this.sessions = this.scenario === 'empty' ? [] : makeFixture(this.context.today, this.context.timeZone);
-    if (this.scenario === 'insufficient') this.sessions = this.sessions.filter((session) => session.id === 'fixture-duration');
+    if (this.scenario === 'insufficient') this.sessions = this.sessions.filter((session) => session.id === 'fixture-6');
     this.goals = this.scenario === 'no-goal' || this.scenario === 'empty' ? [] : [{ effectiveDay: shiftDay(this.context.today, -45), minutes: 480 }];
     this.revision = this.sessions.length;
     this.confirmedCounter = this.sessions.length;
@@ -57,9 +57,10 @@ export class MockSleepRepository implements SleepRepository {
     const state = this.analyticsState();
     const loaded = this.read(state);
     if (loaded.kind === 'error') return loaded;
-    const latest = [...this.sessions].sort((a, b) => b.day.localeCompare(a.day)
-      || b.confirmedAt.localeCompare(a.confirmedAt) || b.id.localeCompare(a.id))[0] ?? null;
-    return { kind: 'ready' as const, data: { latest: latest && copySession(latest), daily: dailySummary(state, this.getContext().today), featured: featuredInsight(state) } };
+    const latestDay = this.sessions.filter((session) => session.sleepType === 'main')
+      .reduce<string | null>((latest, session) => !latest || session.day > latest ? session.day : latest, null);
+    const latest = latestDay ? this.sessions.find((session) => session.sleepType === 'main' && session.day === latestDay) ?? null : null;
+    return { kind: 'ready' as const, data: { latest: latest && { ...copySession(latest), editable: this.isEditable(latest) }, daily: dailySummary(state, this.getContext().today), featured: featuredInsight(state) } };
   }
 
   async getDaily(day: string) {
@@ -73,8 +74,7 @@ export class MockSleepRepository implements SleepRepository {
     const sessions = [...this.sessions].filter((session) =>
       (!query.from || session.day >= query.from) && (!query.to || session.day <= query.to)
       && (!query.sourceIds || query.sourceIds.includes(session.id)))
-      .sort((a, b) => b.day.localeCompare(a.day)
-        || b.confirmedAt.localeCompare(a.confirmedAt) || a.id.localeCompare(b.id));
+      .sort((a, b) => b.day.localeCompare(a.day) || a.id.localeCompare(b.id));
     const limit = Math.max(1, Math.min(query.limit ?? 50, 100));
     const filter = JSON.stringify({ from: query.from ?? null, to: query.to ?? null, limit, sourceIds: query.sourceIds ? [...query.sourceIds].sort() : null });
     let offset = 0;
@@ -91,7 +91,7 @@ export class MockSleepRepository implements SleepRepository {
     const page = sessions.slice(offset, offset + limit);
     const nextOffset = offset + page.length;
     const result: JournalPage = {
-      sessions: page.map(copySession), verified: this.scenario !== 'unverified',
+      sessions: page.map((session) => ({ ...copySession(session), editable: this.isEditable(session) })), verified: this.scenario !== 'unverified',
       nextCursor: nextOffset < sessions.length ? encodeURIComponent(JSON.stringify({ version: this.version(), filter, offset: nextOffset })) : null,
       version: this.version(),
     };
@@ -100,7 +100,7 @@ export class MockSleepRepository implements SleepRepository {
 
   async getSession(id: string) {
     const session = this.sessions.find((candidate) => candidate.id === id);
-    return this.read(session ? copySession(session) : null);
+    return this.read(session ? { ...copySession(session), editable: this.isEditable(session) } : null);
   }
 
   async getGoal(day = this.getContext().today) {
@@ -198,18 +198,25 @@ export class MockSleepRepository implements SleepRepository {
       case 'update-session': {
         const existing = mutation.kind === 'update-session' ? this.sessions.find(({ id }) => id === mutation.id) : undefined;
         if (mutation.kind === 'update-session' && !existing) return { kind: 'conflict', reason: 'deleted', message: 'This session was deleted. Reload the journal.' };
+        if (mutation.kind === 'update-session' && existing && !this.isEditable(existing)) return { kind: 'conflict', reason: 'not-latest', message: 'Only the latest Main Sleep in the current week can be changed.' };
         if (mutation.kind === 'update-session' && existing && existing.revision !== mutation.revision) return { kind: 'conflict', reason: 'stale', message: 'This session changed. Reload before editing.' };
         const validation = validateSession(mutation.draft, this.getContext(), new Date(), existing);
         if (validation.kind === 'validation') return validation;
         const candidate = validation.value;
+        if (candidate.day > this.getContext().today || candidate.day < startOfWeek(this.getContext().today)) {
+          return { kind: 'conflict', reason: 'week-locked', message: 'Sleep can only be recorded during the current week.' };
+        }
+        if (this.sessions.some((session) => session.id !== existing?.id && session.sleepType === 'main' && session.day === candidate.day)) {
+          return { kind: 'conflict', reason: 'duplicate', message: 'A Main Sleep is already recorded for this day.' };
+        }
         if (candidate.method === 'range' && this.sessions.some((session) => session.id !== existing?.id
-          && session.method === 'range' && new Date(candidate.startAt).getTime() < new Date(session.endAt).getTime()
+          && session.sleepType === 'main' && session.method === 'range' && new Date(candidate.startAt).getTime() < new Date(session.endAt).getTime()
           && new Date(candidate.endAt).getTime() > new Date(session.startAt).getTime())) {
           return { kind: 'conflict', reason: 'overlap', message: 'This time range overlaps a confirmed sleep session.' };
         }
         const session: SleepSession = {
           ...candidate, id: existing?.id ?? `sleep-${this.accountKey}-${this.confirmedCounter + 1}`,
-          revision: (existing?.revision ?? 0) + 1, confirmedAt: new Date().toISOString(),
+          revision: (existing?.revision ?? 0) + 1, confirmedAt: new Date().toISOString(), editable: false,
         };
         return { kind: 'confirmed', version: this.version(), recordId: session.id, revision: session.revision };
       }
@@ -217,6 +224,7 @@ export class MockSleepRepository implements SleepRepository {
         const existing = this.sessions.find(({ id }) => id === mutation.id);
         if (!existing) return { kind: 'conflict', reason: 'deleted', message: 'This session was already deleted. Reload the journal.' };
         if (existing.revision !== mutation.revision) return { kind: 'conflict', reason: 'stale', message: 'This session changed. Reload the journal.' };
+        if (!this.isEditable(existing)) return { kind: 'conflict', reason: 'not-latest', message: 'Only the latest Main Sleep in the current week can be deleted.' };
         return { kind: 'confirmed', version: this.version(), recordId: existing.id, revision: existing.revision + 1 };
       }
       case 'set-goal': {
@@ -260,7 +268,7 @@ export class MockSleepRepository implements SleepRepository {
         ...validated.value,
         id: existing?.id ?? `sleep-${this.accountKey}-${++this.confirmedCounter}`,
         revision: (existing?.revision ?? 0) + 1,
-        confirmedAt: new Date().toISOString(),
+        confirmedAt: new Date().toISOString(), editable: false,
       };
       if (existing) this.sessions = this.sessions.map((candidate) => candidate.id === existing.id ? session : candidate);
       else this.sessions = [...this.sessions, session];
@@ -286,6 +294,11 @@ export class MockSleepRepository implements SleepRepository {
     } catch {
       return false;
     }
+  }
+
+  private isEditable(session: SleepSession): boolean {
+    if (session.sleepType !== 'main' || session.day < startOfWeek(this.getContext().today) || session.day > this.getContext().today) return false;
+    return !this.sessions.some((candidate) => candidate.sleepType === 'main' && candidate.day > session.day);
   }
 
   private read<T>(data: T): ReadResult<T> {
@@ -327,12 +340,9 @@ function makeFixture(today: string, timeZone: string): SleepSession[] {
   const samples = [-7, 0].flatMap((weekOffset) => {
     const sampleWeek = shiftDay(week, weekOffset);
     return [
-      ...[0, 1, 2, 3].flatMap((dayOffset) => {
+      ...[0, 1, 2, 3].map((dayOffset) => {
         const day = shiftDay(sampleWeek, dayOffset);
-        return [
-          { day, startDay: shiftDay(day, -1), startHour: '22', feeling: 'comfortable' as const, minutes: 445 + dayOffset * 5 },
-          { day, startDay: day, startHour: '09', feeling: 'tired' as const, minutes: 400 + dayOffset * 5 },
-        ];
+        return { day, startDay: shiftDay(day, -1), startHour: '22', feeling: 'comfortable' as const, minutes: 445 + dayOffset * 5 };
       }),
       { day: shiftDay(sampleWeek, 5), startDay: shiftDay(sampleWeek, 4), startHour: '23', feeling: 'normal' as const, minutes: 438 },
     ];
@@ -348,17 +358,17 @@ function makeFixture(today: string, timeZone: string): SleepSession[] {
       id: `fixture-${index + 1}`, sleepType: 'main', feeling: item.feeling, day: item.day,
       minutes: item.minutes, method: 'range', timeZone, start: startCivil,
       end: endCivil, startAt: start.toISOString(), endAt: endAt.toISOString(), revision: 1,
-      confirmedAt: new Date(Date.UTC(2026, 10, 1 + index)).toISOString(),
+      confirmedAt: new Date(Date.UTC(2026, 10, 1 + index)).toISOString(), editable: false,
     });
   }
   const durationDay = shiftDay(week, 6);
   records.push({
     id: 'fixture-duration', sleepType: 'nap', feeling: null, day: durationDay,
-    minutes: 83, method: 'duration', revision: 1, confirmedAt: new Date(Date.UTC(2026, 10, 5)).toISOString(),
+    minutes: 83, method: 'duration', revision: 1, confirmedAt: new Date(Date.UTC(2026, 10, 5)).toISOString(), editable: false,
   });
   records.push({
     id: 'fixture-today-duration', sleepType: 'main', feeling: 'comfortable', day: today,
-    minutes: 450, method: 'duration', revision: 1, confirmedAt: new Date().toISOString(),
+    minutes: 450, method: 'duration', revision: 1, confirmedAt: new Date().toISOString(), editable: false,
   });
   return records;
 }

@@ -3,22 +3,19 @@ import { router, useLocalSearchParams, usePreventRemove } from 'expo-router';
 import { Image, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
+import { useTranslations } from '@/i18n';
 import { radius, sizing, spacing } from '@/theme';
 import { sleepArt } from '../assets/sleep-art';
 import { SleepConfirmation } from '../components/sleep-confirmation';
 import { SleepRecordDateField, SleepRecordTimeField } from '../components/sleep-record-pickers';
 import { SleepButton, SleepCard, SleepNotice, SleepPage, SleepSegments, SleepWriteNotice } from '../components/sleep-ui';
 import { useSleepSessionMutation, useSleepRead, useSleepRepository } from '../hooks/use-sleep';
-import type { CivilTime, Feeling, SleepContext, SleepDraft, SleepSession, SleepType } from '../types/sleep';
-import { dayInZone, resolveCivil, shiftDay } from '../utils/sleep-date';
+import type { CivilTime, Feeling, SleepContext, SleepDraft, SleepSession } from '../types/sleep';
+import { currentWeekDays, dayInZone, resolveCivil, shiftDay, startOfWeek } from '../utils/sleep-date';
 import { sleepDuration } from '../utils/sleep-format';
 import { validateSession } from '../utils/sleep-validation';
+import { sleepMessages } from '../messages';
 
-const sleepTypes = [{ value: 'main', label: 'Main Sleep' }, { value: 'nap', label: 'Nap' }] as const;
-const editSleepTypes = [
-  { ...sleepTypes[0], art: sleepArt.bed },
-  { ...sleepTypes[1], art: sleepArt.pillow },
-] as const;
 const methods = [{ value: 'range', label: 'Start & End Time' }, { value: 'duration', label: 'Duration Only' }] as const;
 const feelings = [
   { value: 'comfortable', label: 'Comfortable' },
@@ -27,16 +24,40 @@ const feelings = [
 ] as const;
 
 export default function RecordSleepScreen() {
+  const t = useTranslations(sleepMessages);
   const repository = useSleepRepository();
   const context = repository.getContext();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const recordId = typeof id === 'string' ? id : null;
+  const weekStart = startOfWeek(context.today);
+  const { state: journal, reload: reloadJournal } = useSleepRead(
+    () => repository.getJournal({ from: weekStart, to: context.today }), `sleep-editor-week:${weekStart}`, true);
   const { state, reload } = useSleepRead(() => recordId
     ? repository.getSession(recordId)
     : Promise.resolve({ kind: 'ready', data: null }), `sleep-editor:${recordId ?? 'new'}`, true);
   const [editorKey, setEditorKey] = useState(0);
+  const [saved, setSaved] = useState(false);
 
-  if (!recordId) return <RecordForm key="new" context={context} />;
+  if (!recordId && journal.kind === 'loading') return <SleepPage title="Record Sleep" fallback="/sleep" wellness>
+    <SleepNotice title={t('checkingAvailableDays')} loading />
+  </SleepPage>;
+  if (!recordId && journal.kind === 'error') return <SleepPage title="Record Sleep" fallback="/sleep" wellness>
+    <SleepNotice title={t('couldNotVerifyJournal')} message={journal.message} actionLabel={t('tryAgain')} onAction={reloadJournal} error />
+  </SleepPage>;
+  if (!recordId && journal.kind === 'ready' && !journal.data.verified) return <SleepPage title="Record Sleep" fallback="/sleep" wellness>
+    <SleepNotice title={t('historyNotVerified')} message={t('reloadBeforeAdding')} actionLabel={t('tryAgain')} onAction={reloadJournal} error />
+  </SleepPage>;
+  if (!recordId && journal.kind === 'ready') return <RecordForm key="new" context={context} sessions={journal.data.sessions} />;
+  if (!recordId) return <SleepPage title="Record Sleep" fallback="/sleep" wellness>
+    <SleepNotice title={t('couldNotVerifyJournal')} actionLabel={t('tryAgain')} onAction={reloadJournal} error />
+  </SleepPage>;
+  if (journal.kind === 'loading') return <SleepPage title="Edit Sleep Record" fallback="/sleep" wellness>
+    <SleepNotice title={t('checkingLatestRecord')} loading />
+  </SleepPage>;
+  if (journal.kind === 'error' || !journal.data.verified) return <SleepPage title="Edit Sleep Record" fallback="/sleep" wellness>
+    <SleepNotice title={t('couldNotVerifyJournal')} message={journal.kind === 'error' ? journal.message : t('reloadBeforeAdding')}
+      actionLabel={t('tryAgain')} onAction={reloadJournal} error />
+  </SleepPage>;
   const detail = { pathname: '/sleep/journal/[id]', params: { id: recordId } } as const;
   if (state.kind === 'loading') return <SleepPage title="Edit Sleep Record" fallback={detail} wellness>
     <SleepNotice title="Loading record" loading />
@@ -49,31 +70,44 @@ export default function RecordSleepScreen() {
       onAction={() => router.dismissTo('/sleep/journal')} error />
   </SleepPage>;
 
-  return <RecordForm key={`${recordId}:${editorKey}`} context={context} session={state.data} onReload={() => {
+  const latestSession = journal.data.sessions.find((session) => session.id === recordId);
+  if (!saved && (!state.data.editable || !latestSession?.editable)) return <SleepPage title="Record is read-only" fallback={detail} wellness>
+    <SleepNotice title={t('recordReadOnly')} message={t('onlyLatestEditable')}
+      actionLabel={t('journal')} onAction={() => router.dismissTo('/sleep/journal')} />
+  </SleepPage>;
+
+  return <RecordForm key={`${recordId}:${editorKey}`} context={context} sessions={journal.data.sessions} session={latestSession} onSaved={() => setSaved(true)} onReload={() => {
     setEditorKey((previous) => previous + 1);
     reload();
+    reloadJournal();
   }} />;
 }
 
-function RecordForm({ context, session, onReload }: { context: SleepContext; session?: SleepSession; onReload?: () => void }) {
+function RecordForm({ context, sessions, session, onSaved, onReload }: { context: SleepContext; sessions: SleepSession[]; session?: SleepSession; onSaved?: () => void; onReload?: () => void }) {
+  const t = useTranslations(sleepMessages);
   const [base] = useState(session);
-  const [sleepType, setSleepType] = useState<SleepType>(base?.sleepType ?? 'main');
+  const occupiedDays = [...new Set(sessions.filter((item) => item.sleepType === 'main' && item.id !== base?.id).map((item) => item.day))];
+  const availableDays = currentWeekDays(context.today).filter((day) => day <= context.today && !occupiedDays.includes(day));
+  const defaultDay = base?.day ?? availableDays.at(-1) ?? context.today;
   const [method, setMethod] = useState<SleepDraft['method']>(base?.method ?? 'range');
   const [feeling, setFeeling] = useState<Feeling | null>(base?.feeling ?? null);
   const [timeZone, setTimeZone] = useState(base?.method === 'range' ? base.timeZone : context.timeZone);
   const [start, setStart] = useState<CivilTime>(base?.method === 'range' ? base.start
-    : base ? { day: '', hour: '', minute: '' } : { day: shiftDay(context.today, -1), hour: '23', minute: '00' });
+    : base ? { day: '', hour: '', minute: '' } : { day: shiftDay(defaultDay, -1), hour: '23', minute: '00' });
   const [end, setEnd] = useState<CivilTime>(base?.method === 'range' ? base.end
-    : base ? { day: '', hour: '', minute: '' } : { day: context.today, hour: '07', minute: '00' });
-  const [endDay, setEndDay] = useState(base?.day ?? context.today);
+    : base ? { day: '', hour: '', minute: '' } : { day: defaultDay, hour: '07', minute: '00' });
+  const [endDay, setEndDay] = useState(defaultDay);
   const [hours, setHours] = useState(base?.method === 'duration' ? String(Math.floor(base.minutes / 60)) : '');
   const [minutes, setMinutes] = useState(base?.method === 'duration' ? String(base.minutes % 60).padStart(2, '0') : '');
   const [submitted, setSubmitted] = useState(false);
+  const [submittedDay, setSubmittedDay] = useState<string | null>(null);
   const [exit, setExit] = useState<'saved' | 'discarded' | null>(null);
+  const [savedRecordId, setSavedRecordId] = useState<string | null>(null);
+  const [existingDayToOpen, setExistingDayToOpen] = useState<string | null>(null);
   const [discard, setDiscard] = useState<(() => void) | null>(null);
 
-  const draft: SleepDraft = method === 'duration' ? { method, sleepType, feeling, endDay, hours, minutes }
-    : { method, sleepType, feeling, timeZone, start, end };
+  const draft: SleepDraft = method === 'duration' ? { method, feeling, endDay, hours, minutes }
+    : { method, feeling, timeZone, start, end };
   const now = new Date();
   const check = validateSession(draft, context, now, base);
   const dst = method === 'range' ? ([{ label: 'Start', time: start, set: setStart }, { label: 'End', time: end, set: setEnd }] as const)
@@ -84,10 +118,14 @@ function RecordForm({ context, session, onReload }: { context: SleepContext; ses
 
   const recordId = base?.id;
   const detail = recordId ? { pathname: '/sleep/journal/[id]', params: { id: recordId } } as const : '/sleep';
-  const mutation = useSleepSessionMutation(() => setExit('saved'));
+  const mutation = useSleepSessionMutation((result) => {
+    onSaved?.();
+    setSavedRecordId(result.recordId ?? base?.id ?? null);
+    setExit('saved');
+  });
   const locked = base?.method === 'range';
   const dirty = Boolean(base && (
-    draft.sleepType !== base.sleepType || draft.feeling !== base.feeling || draft.method !== base.method ||
+    draft.feeling !== base.feeling || draft.method !== base.method ||
     (draft.method === 'range' && base.method === 'range' &&
       (draft.timeZone !== base.timeZone || !sameCivilTime(draft.start, base.start) || !sameCivilTime(draft.end, base.end))) ||
     (draft.method === 'duration' && base.method === 'duration' &&
@@ -99,25 +137,40 @@ function RecordForm({ context, session, onReload }: { context: SleepContext; ses
   });
   useEffect(() => {
     if (exit === 'saved') {
-      router.dismissTo(recordId ? { pathname: '/sleep/journal/[id]', params: { id: recordId } } : '/sleep');
+      const savedId = savedRecordId ?? recordId;
+      router.dismissTo(savedId ? { pathname: '/sleep/journal/[id]', params: { id: savedId } } : '/sleep');
+    } else if (exit === 'discarded' && existingDayToOpen) {
+      router.dismissTo({ pathname: '/sleep/journal', params: { day: existingDayToOpen } });
     }
-  }, [exit, recordId]);
+  }, [exit, recordId, savedRecordId, existingDayToOpen]);
 
   function save() {
     setSubmitted(true);
-    if (check.kind !== 'valid') return;
-    mutation.run(base ? { kind: 'update-session', id: base.id, revision: base.revision, draft } : { kind: 'create-session', draft });
+    if (check.kind !== 'valid' || availableDays.length === 0 || check.value.day < startOfWeek(context.today)
+      || check.value.day > context.today || occupiedDays.includes(check.value.day)) return;
+    setSubmittedDay(check.value.day);
+    mutation.run(base ? { kind: 'update-session', id: base.id, revision: base.revision, confirmedAt: base.confirmedAt, draft } : { kind: 'create-session', draft });
   }
 
-  const typeControl = <SleepSegments options={base ? editSleepTypes : sleepTypes} value={sleepType} onChange={setSleepType} />;
+  async function handleWriteAction() {
+    if (mutation.result?.kind === 'conflict' && mutation.result.reason === 'duplicate' && submittedDay) {
+      setExistingDayToOpen(submittedDay);
+      setExit('discarded');
+      return;
+    }
+    (onReload ?? (() => router.push('/sleep/journal')))();
+  }
+
   const methodControl = <>
     <ThemedText variant="bodyStrong">{base ? 'Entry Method' : 'Input Method'}</ThemedText>
     <SleepSegments options={methods} value={method} onChange={setMethod} />
   </>;
   const latestRangeDay = pickerDayInZone(now, timeZone, context.today);
+  const maximumWakeDay = latestRangeDay < context.today ? latestRangeDay : context.today;
   const rangeFields = <>
       <TimeFields label="Start" value={start} maximumDay={latestRangeDay} onChange={setStart} />
-      <TimeFields label="Wake" value={end} maximumDay={latestRangeDay} onChange={setEnd} />
+      <TimeFields label="Wake" value={end} maximumDay={maximumWakeDay} minimumDay={startOfWeek(context.today)}
+        disabledDays={occupiedDays} onChange={setEnd} />
       <TimeZoneField label={locked ? 'Saved reference timezone' : 'Reference timezone · IANA name'} value={timeZone} editable={!locked}
         onChange={(text) => {
           setTimeZone(text);
@@ -128,19 +181,17 @@ function RecordForm({ context, session, onReload }: { context: SleepContext; ses
         {locked ? 'This record keeps its original timezone.' : 'Both times use this timezone. Example: Asia/Ho_Chi_Minh.'}
       </ThemedText>
   </>;
-  const durationDate = <SleepRecordDateField label="End date" day={endDay} maximumDay={context.today} onChange={setEndDay} />;
+  const durationDate = <SleepRecordDateField label="End date" day={endDay} maximumDay={context.today}
+    minimumDay={startOfWeek(context.today)} disabledDays={occupiedDays} onChange={setEndDay} />;
   const durationFields = <SleepRecordTimeField label="Sleep duration" hours={hours} minutes={minutes} duration
     onChange={(nextHours, nextMinutes) => { setHours(nextHours); setMinutes(nextMinutes); }} />;
   const feelingPicker = <FeelingPicker value={feeling} onChange={setFeeling} />;
   const saveButton = <SleepButton label={base ? 'Save Changes' : 'Save Sleep Record'} onPress={save}
-    disabled={mutation.busy} busy={mutation.busy} />;
+    disabled={mutation.busy || (!base && availableDays.length === 0)} busy={mutation.busy} />;
 
   return <SleepPage title={base ? 'Edit Sleep Record' : 'Record Sleep'} fallback={detail} hero={!base}
     wellness={Boolean(base)} wellnessHero={Boolean(base)}>
-    {base ? <SleepCard>
-      <ThemedText variant="bodyStrong">Sleep Type</ThemedText>
-      {typeControl}
-    </SleepCard> : typeControl}
+    {!base && availableDays.length === 0 ? <SleepNotice title={t('noAvailableDays')} message={t('everyDayRecorded')} /> : null}
     {base ? <SleepCard>{methodControl}{method === 'range' ? rangeFields : <>{durationDate}{durationFields}</>}</SleepCard>
       : <>{methodControl}{method === 'range' ? <SleepCard>{rangeFields}</SleepCard> : <>
         <SleepCard>{durationDate}</SleepCard>
@@ -160,8 +211,12 @@ function RecordForm({ context, session, onReload }: { context: SleepContext; ses
       </ThemedText>
     </SleepCard>
     {base ? <SleepCard>{feelingPicker}</SleepCard> : feelingPicker}
+    {!base && check.kind === 'valid' && sessions.some((item) => item.sleepType === 'main' && item.day > check.value.day)
+      ? <SleepNotice title={t('readOnlyAfterSave')} message={t('newerEntryExists')} /> : null}
+    {!base && check.kind === 'valid' && occupiedDays.includes(check.value.day)
+      ? <SleepNotice title={t('dayAlreadyRecorded')} message={t('openExistingRecord')} /> : null}
     {submitted && check.kind === 'validation' ? <SleepNotice title="Check sleep details" message={check.message} error /> : null}
-    <SleepWriteNotice result={mutation.result} reload={onReload ?? (() => router.push('/sleep/journal'))} />
+    <SleepWriteNotice result={mutation.result} reload={handleWriteAction} />
     {base ? <View style={styles.row}>
       <View style={styles.action}><SleepButton label="Cancel" variant="secondary" disabled={mutation.busy}
         onPress={() => router.dismissTo(detail)} /></View>
@@ -189,15 +244,18 @@ function pickerDayInZone(now: Date, timeZone: string, fallback: string) {
   }
 }
 
-function TimeFields({ label, value, maximumDay, onChange }: {
+function TimeFields({ label, value, maximumDay, minimumDay, disabledDays, onChange }: {
   label: string;
   value: CivilTime;
   maximumDay: string;
+  minimumDay?: string;
+  disabledDays?: string[];
   onChange: (value: CivilTime) => void;
 }) {
   return <View style={styles.fields}>
     <ThemedText variant="bodyStrong">{label}</ThemedText>
     <SleepRecordDateField label={`${label} date`} day={value.day} maximumDay={maximumDay}
+      minimumDay={label === 'Wake' ? minimumDay : undefined} disabledDays={label === 'Wake' ? disabledDays : undefined}
       onChange={(day) => { if (day !== value.day) onChange({ ...value, day, offsetMinutes: undefined }); }} />
     <SleepRecordTimeField label={`${label} time`} hours={value.hour} minutes={value.minute}
       onChange={(hour, minute) => {
