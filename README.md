@@ -64,7 +64,12 @@ Start with [UI Foundation](./docs/ui/README.md), [Design Tokens](./docs/ui/token
 
 ## Backend integration
 
-The canonical API behavior is maintained in [vitaloom-backend/docs/api/api-contract.md](https://github.com/vitaloom/vitaloom-backend/blob/main/docs/api/api-contract.md). The auth client uses `EXPO_PUBLIC_API_BASE_URL` as the backend origin; copy `.env.example` to `.env` and set a host reachable from the device. The example uses `http://10.0.2.2:8080` for an Android emulator. A physical device needs the development machine's current LAN address and the actual backend `SERVER_PORT` (for example, `http://192.168.1.7:6969` on one local network). Restart Expo after changing `.env` so the app receives the new URL.
+The canonical API behavior is maintained in [vitaloom-backend/docs/api/api-contract.md](https://github.com/vitaloom/vitaloom-backend/blob/main/docs/api/api-contract.md). Copy `.env.example` to `.env` and set `EXPO_PUBLIC_API_BASE_URL` to an origin reachable from the device. The client appends `/api` to that origin.
+
+- Through Nginx, use the gateway's `NGINX_PORT` (default `80`). On a physical device, use the development machine's LAN address, for example `http://192.168.1.7:80`.
+- For a direct Spring Boot connection, use `SERVER_PORT` (default `8080`). The example uses `http://10.0.2.2:8080` for an Android emulator.
+
+Restart Expo after changing `.env` so the app receives the new URL.
 
 After sign-in or registration, the access token stays in memory and the refresh token is stored with Expo SecureStore. Startup exchanges the stored refresh token and loads `/api/auth/me`; protected requests refresh once and retry once when needed. Sign-out clears local credentials. Lint, typecheck and auth concurrency tests pass; a device/emulator end-to-end walkthrough has not yet been run.
 

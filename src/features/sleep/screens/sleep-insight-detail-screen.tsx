@@ -5,6 +5,7 @@ import { ThemedText } from '@/components/themed-text';
 import { spacing } from '@/theme';
 import { sleepArt } from '../assets/sleep-art';
 import { SleepAiSection } from '../components/sleep-ai-section';
+import { sleepFixturesEnabled } from '../api/get-sleep-repository';
 import { SleepButton, SleepCard, SleepNotice, SleepPage } from '../components/sleep-ui';
 import { useSleepRead, useSleepRepository } from '../hooks/use-sleep';
 import type { EvidenceMeasure, InsightCode } from '../types/sleep';
@@ -30,7 +31,7 @@ export default function SleepInsightDetailScreen() {
   const insight = state.kind === 'ready' ? state.data : null;
   const available = insight?.status === 'ready' && insight.eligible;
 
-  return <SleepPage title="Insight Detail" fallback="/sleep/insights" demo>
+  return <SleepPage title="Insight Detail" fallback="/sleep/insights" demo={sleepFixturesEnabled()}>
     {state.kind === 'loading' ? <SleepNotice title="Checking evidence" loading /> : null}
     {state.kind === 'error' ? <SleepNotice title="Could not load this insight" message={state.message}
       error actionLabel="Retry" onAction={reload} /> : null}

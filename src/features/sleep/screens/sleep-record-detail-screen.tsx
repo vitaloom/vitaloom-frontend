@@ -7,42 +7,26 @@ import { spacing } from '@/theme';
 import { sleepArt } from '../assets/sleep-art';
 import { SleepConfirmation } from '../components/sleep-confirmation';
 import { SleepButton, SleepCard, SleepNotice, SleepPage, SleepWriteNotice } from '../components/sleep-ui';
-import { useSleepMutation, useSleepRead, useSleepRepository } from '../hooks/use-sleep';
+import { useSleepSessionMutation, useSleepRead, useSleepRepository } from '../hooks/use-sleep';
 import { sleepDay, sleepDuration } from '../utils/sleep-format';
 
 export default function SleepRecordDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const repository = useSleepRepository();
   const { state, reload } = useSleepRead(() => repository.getSession(id), `sleep-session:${id}`);
-  const [confirmationRevision, setConfirmationRevision] = useState<number | null>(null);
-  const remove = useSleepMutation(() => router.dismissTo('/sleep/journal'), `sleep-session:${id}`);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const remove = useSleepSessionMutation(() => router.dismissTo('/sleep/journal'));
   const session = state.kind === 'ready' ? state.data : null;
-  const editPending = remove.pendingKind === 'update-session';
-  const deletePending = remove.pendingKind === 'delete-session';
-  const unknown = remove.result?.kind === 'unknown' && !editPending;
-  const conflict = remove.result?.kind === 'conflict' && !editPending;
   return <SleepPage title="Sleep Record"
     fallback="/sleep/journal" wellness wellnessHero>
     {state.kind === 'loading' ? <SleepNotice title="Loading record" loading /> : null}
     {state.kind === 'error' ? <SleepNotice title="Could not load record" message={state.message} actionLabel="Try again" onAction={reload} error /> : null}
     {state.kind === 'ready' && !session ? <SleepNotice title="This record is no longer available" message="It may have been removed from another device."
       actionLabel="Open Journal" onAction={() => router.dismissTo('/sleep/journal')} /> : null}
-    {editPending ? <SleepNotice title="Edit result not yet confirmed"
-      message="Open the editor to check the pending change before starting another update."
-      actionLabel="Check edit result" onAction={() => router.push({ pathname: '/sleep/record', params: { id } })} /> : null}
-    {remove.result?.kind === 'unknown' && !editPending ? <SleepWriteNotice result={remove.result} reconcile={remove.reconcile} /> : null}
-    {conflict ? <SleepNotice title={remove.result?.kind === 'conflict' && remove.result.reason === 'deleted'
-      ? 'This record was deleted' : 'This record changed'}
-      message={remove.result?.kind === 'conflict' ? remove.result.message : undefined} error
-      actionLabel={remove.result?.kind === 'conflict' && remove.result.reason !== 'deleted' ? 'Reload confirmed record' : 'Open Journal'}
-      onAction={() => {
-        if (remove.result?.kind === 'conflict' && remove.result.reason !== 'deleted') {
-          remove.clear();
-          reload();
-        } else router.dismissTo('/sleep/journal');
-      }} /> : null}
-    {remove.result && remove.result.kind !== 'unknown' && remove.result.kind !== 'conflict' && !editPending
-      ? <SleepWriteNotice result={remove.result} reconcile={remove.reconcile} /> : null}
+    <SleepWriteNotice result={remove.result} reload={() => {
+      remove.clear();
+      reload();
+    }} />
     {session ? <>
       <SleepCard tone="mint">
         <View style={styles.summary}>
@@ -70,22 +54,21 @@ export default function SleepRecordDetailScreen() {
       </ThemedText>
       <View style={styles.actions}>
         <View style={styles.action}>
-          <SleepButton label="Delete Record" onPress={() => setConfirmationRevision(session.revision)} variant="danger"
-            disabled={remove.busy || unknown || conflict || editPending || deletePending} busy={deletePending && remove.busy} />
+          <SleepButton label="Delete Record" onPress={() => setConfirmDelete(true)} variant="danger"
+            disabled={remove.busy} busy={remove.busy} />
         </View>
         <View style={styles.action}>
           <SleepButton label="Edit Record" onPress={() => router.push({ pathname: '/sleep/record', params: { id: session.id } })}
-            disabled={remove.busy || unknown || conflict || editPending || deletePending} />
+            disabled={remove.busy} />
         </View>
       </View>
     </> : null}
-    {confirmationRevision !== null ? <SleepConfirmation title="Delete this sleep record?"
+    {confirmDelete && session ? <SleepConfirmation title="Delete this sleep record?"
       message="This confirmed record will be removed from your journal after you approve the deletion."
       cancelLabel="Keep Record" confirmLabel="Confirm Delete"
-      onCancel={() => setConfirmationRevision(null)} onConfirm={() => {
-        const revision = confirmationRevision;
-        setConfirmationRevision(null);
-        remove.run({ kind: 'delete-session', id, revision });
+      onCancel={() => setConfirmDelete(false)} onConfirm={() => {
+        setConfirmDelete(false);
+        void remove.run({ kind: 'delete-session', id: session.id, revision: session.revision });
       }} /> : null}
   </SleepPage>;
 }

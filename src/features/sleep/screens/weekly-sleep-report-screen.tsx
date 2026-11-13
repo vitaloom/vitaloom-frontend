@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { sleepFixturesEnabled } from '../api/get-sleep-repository';
 import { SleepNotice, SleepPage } from '../components/sleep-ui';
 import { SleepTimeZoneChoices } from '../components/sleep-time-zone-choices';
 import { SleepWeekPicker } from '../components/sleep-week-picker';
@@ -14,7 +15,7 @@ export default function WeeklySleepReportScreen() {
   const query = { week, timeZone: timeZone || undefined };
   const { state, reload } = useSleepRead(() => repository.getWeekly(query), `weekly:${week}:${timeZone}`);
 
-  return <SleepPage title="Weekly Sleep Report" hero demo>
+  return <SleepPage title="Weekly Sleep Report" hero demo={sleepFixturesEnabled()}>
     <SleepWeekPicker week={week} today={today} onChange={(next) => { setTimeZone(''); setWeek(next); }} />
     {state.kind === 'loading' ? <SleepNotice title="Loading weekly sleep" loading /> : null}
     {state.kind === 'error' ? <SleepNotice title="Could not load weekly sleep" message={state.message}

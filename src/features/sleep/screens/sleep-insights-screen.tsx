@@ -35,7 +35,7 @@ export default function SleepInsightsScreen() {
   const changeWeek = (next: string) => { setTimeZone(''); setWeek(next); };
 
   return <SleepPage title="Sleep Insights" subtitle={items.length ? 'Explore patterns in recorded sleep and feelings.' : undefined}
-    hero={items.length > 0} wellness={items.length === 0}>
+    hero={true} wellness={items.length === 0}>
     <SleepSegments options={filters} value={category} onChange={setCategory} />
     <SleepWeekPicker week={week} today={today} onChange={changeWeek} />
     {category === 'feelings' ? <>

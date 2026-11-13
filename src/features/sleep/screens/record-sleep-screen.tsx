@@ -8,7 +8,7 @@ import { sleepArt } from '../assets/sleep-art';
 import { SleepConfirmation } from '../components/sleep-confirmation';
 import { SleepRecordDateField, SleepRecordTimeField } from '../components/sleep-record-pickers';
 import { SleepButton, SleepCard, SleepNotice, SleepPage, SleepSegments, SleepWriteNotice } from '../components/sleep-ui';
-import { useSleepMutation, useSleepRead, useSleepRepository } from '../hooks/use-sleep';
+import { useSleepSessionMutation, useSleepRead, useSleepRepository } from '../hooks/use-sleep';
 import type { CivilTime, Feeling, SleepContext, SleepDraft, SleepSession, SleepType } from '../types/sleep';
 import { dayInZone, resolveCivil, shiftDay } from '../utils/sleep-date';
 import { sleepDuration } from '../utils/sleep-format';
@@ -84,11 +84,8 @@ function RecordForm({ context, session, onReload }: { context: SleepContext; ses
 
   const recordId = base?.id;
   const detail = recordId ? { pathname: '/sleep/journal/[id]', params: { id: recordId } } as const : '/sleep';
-  const mutation = useSleepMutation(() => setExit('saved'), recordId ? `sleep-session:${recordId}` : 'create-sleep-session');
-  const stale = base?.revision !== session?.revision || (mutation.result?.kind === 'conflict' && mutation.result.reason !== 'overlap');
-  const unknown = mutation.result?.kind === 'unknown';
+  const mutation = useSleepSessionMutation(() => setExit('saved'));
   const locked = base?.method === 'range';
-  const deleting = mutation.pendingKind === 'delete-session';
   const dirty = Boolean(base && (
     draft.sleepType !== base.sleepType || draft.feeling !== base.feeling || draft.method !== base.method ||
     (draft.method === 'range' && base.method === 'range' &&
@@ -97,8 +94,8 @@ function RecordForm({ context, session, onReload }: { context: SleepContext; ses
       (draft.endDay !== base.day || draft.hours !== String(Math.floor(base.minutes / 60)) ||
         draft.minutes !== String(base.minutes % 60).padStart(2, '0')))
   ));
-  usePreventRemove(Boolean(base && !exit && (dirty || (mutation.busy && !deleting))), ({ repeat }) => {
-    if (!mutation.busy || deleting) setDiscard(() => repeat);
+  usePreventRemove(!exit && (dirty || mutation.busy), ({ repeat }) => {
+    if (!mutation.busy) setDiscard(() => repeat);
   });
   useEffect(() => {
     if (exit === 'saved') {
@@ -108,7 +105,7 @@ function RecordForm({ context, session, onReload }: { context: SleepContext; ses
 
   function save() {
     setSubmitted(true);
-    if (check.kind !== 'valid' || stale || unknown || deleting) return;
+    if (check.kind !== 'valid') return;
     mutation.run(base ? { kind: 'update-session', id: base.id, revision: base.revision, draft } : { kind: 'create-session', draft });
   }
 
@@ -136,7 +133,7 @@ function RecordForm({ context, session, onReload }: { context: SleepContext; ses
     onChange={(nextHours, nextMinutes) => { setHours(nextHours); setMinutes(nextMinutes); }} />;
   const feelingPicker = <FeelingPicker value={feeling} onChange={setFeeling} />;
   const saveButton = <SleepButton label={base ? 'Save Changes' : 'Save Sleep Record'} onPress={save}
-    disabled={stale || unknown || deleting} busy={mutation.busy && !deleting} />;
+    disabled={mutation.busy} busy={mutation.busy} />;
 
   return <SleepPage title={base ? 'Edit Sleep Record' : 'Record Sleep'} fallback={detail} hero={!base}
     wellness={Boolean(base)} wellnessHero={Boolean(base)}>
@@ -164,13 +161,9 @@ function RecordForm({ context, session, onReload }: { context: SleepContext; ses
     </SleepCard>
     {base ? <SleepCard>{feelingPicker}</SleepCard> : feelingPicker}
     {submitted && check.kind === 'validation' ? <SleepNotice title="Check sleep details" message={check.message} error /> : null}
-    {stale && !mutation.result ? <SleepNotice title="This record changed" message="Reload the confirmed record to start a new edit."
-      actionLabel="Reload confirmed record" onAction={onReload} error /> : null}
-    {deleting ? <SleepNotice title="Deletion is pending" message="Check the outcome on the record before saving changes."
-      actionLabel="Open record" onAction={() => router.dismissTo(detail)} />
-      : <SleepWriteNotice result={mutation.result} reconcile={mutation.reconcile} reload={onReload} />}
+    <SleepWriteNotice result={mutation.result} reload={onReload ?? (() => router.push('/sleep/journal'))} />
     {base ? <View style={styles.row}>
-      <View style={styles.action}><SleepButton label="Cancel" variant="secondary" disabled={mutation.busy && !deleting}
+      <View style={styles.action}><SleepButton label="Cancel" variant="secondary" disabled={mutation.busy}
         onPress={() => router.dismissTo(detail)} /></View>
       <View style={styles.action}>{saveButton}</View>
     </View> : saveButton}

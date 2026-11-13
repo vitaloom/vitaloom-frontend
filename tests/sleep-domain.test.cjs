@@ -43,10 +43,11 @@ test('session validation preserves arbitrary exact minutes without synthetic tim
 test('session validation rejects zero, over-day and future duration-only entries', () => {
   const context = { today: '2026-11-11', timeZone: 'Asia/Ho_Chi_Minh' };
   const draft = { method: 'duration', sleepType: 'nap', feeling: 'normal', endDay: '2026-11-11', hours: '0', minutes: '0' };
-  assert.equal(validation.validateSession(draft, context, new Date()).kind, 'validation');
-  assert.equal(validation.validateSession({ ...draft, hours: '24' }, context, new Date()).kind, 'valid');
-  assert.equal(validation.validateSession({ ...draft, hours: '24', minutes: '1' }, context, new Date()).kind, 'validation');
-  assert.equal(validation.validateSession({ ...draft, endDay: '2026-11-12', hours: '1' }, context, new Date()).kind, 'validation');
+  const now = new Date('2026-11-11T03:00:00Z');
+  assert.equal(validation.validateSession(draft, context, now).kind, 'validation');
+  assert.equal(validation.validateSession({ ...draft, hours: '24' }, context, now).kind, 'valid');
+  assert.equal(validation.validateSession({ ...draft, hours: '24', minutes: '1' }, context, now).kind, 'validation');
+  assert.equal(validation.validateSession({ ...draft, endDay: '2026-11-12', hours: '1' }, context, now).kind, 'validation');
 });
 
 test('range duration uses elapsed instants across DST and rejects unresolved transitions', () => {

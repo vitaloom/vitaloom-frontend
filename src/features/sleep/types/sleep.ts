@@ -90,4 +90,4 @@ export type WriteResult =
   | { kind: 'unknown'; attemptId: string };
 export type ReadResult<T> =
   | { kind: 'ready'; data: T }
-  | { kind: 'error'; message: string };
+  | { kind: 'error'; message: string; code?: string };

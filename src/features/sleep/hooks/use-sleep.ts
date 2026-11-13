@@ -1,7 +1,8 @@
+import { uuid } from 'expo';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useAuth } from '@/features/auth/store/auth-context';
-import { getSleepRepository } from '../api/get-sleep-repository';
+import { getSleepRepository, sleepFixturesEnabled } from '../api/get-sleep-repository';
 import type { SleepRepository } from '../api/sleep-repository';
 import type { Mutation, ReadResult, WriteResult } from '../types/sleep';
 
@@ -47,10 +48,44 @@ export function useSleepRead<T>(read: () => Promise<ReadResult<T>>, key: string,
 }
 
 type Confirmation = Extract<WriteResult, { kind: 'confirmed' }>;
+
+export function useSleepSessionMutation(onConfirmed: () => void) {
+  const repository = useSleepRepository();
+  const inFlight = useRef(false);
+  const mounted = useRef(true);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<WriteResult | null>(null);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+
+  async function run(mutation: Extract<Mutation, { kind: 'create-session' | 'update-session' | 'delete-session' }>) {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setBusy(true);
+    setResult(null);
+    try {
+      const outcome = await repository.mutate(sleepFixturesEnabled() ? uuid.v4() : '', mutation);
+      if (!mounted.current) return;
+      if (outcome.kind === 'confirmed') onConfirmed();
+      else setResult(outcome.kind === 'unknown'
+        ? { kind: 'rejected', message: 'Could not confirm the change. Reload your records before trying again.' }
+        : outcome);
+    } catch {
+      if (mounted.current) setResult({ kind: 'rejected', message: 'Could not save the change. Reload your records before trying again.' });
+    } finally {
+      inFlight.current = false;
+      if (mounted.current) setBusy(false);
+    }
+  }
+
+  return { busy, result, run, clear: () => setResult(null) };
+}
+
 type PendingWrite = { attemptId: string; kind: Mutation['kind']; busy: boolean };
 type WriteStore = { pending: Map<string, PendingWrite>; listeners: Set<() => void> };
 const writesByRepository = new WeakMap<SleepRepository, WriteStore>();
-let attemptSequence = 0;
 
 function writeStore(repository: SleepRepository): WriteStore {
   const existing = writesByRepository.get(repository);
@@ -105,7 +140,7 @@ export function useSleepMutation(onConfirmed: (result: Confirmation) => void, sc
     pendingKind: pending?.kind,
     run(mutation: Mutation) {
       if (store.pending.has(scope)) return;
-      const attemptId = `sleep-${Date.now()}-${++attemptSequence}`;
+      const attemptId = uuid.v4();
       void execute(attemptId, mutation.kind, () => repository.mutate(attemptId, mutation));
     },
     reconcile() {
