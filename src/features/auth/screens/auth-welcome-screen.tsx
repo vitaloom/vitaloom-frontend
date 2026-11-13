@@ -53,7 +53,7 @@ export default function AuthWelcomeScreen({ mode: initialMode }: { mode?: AuthFo
           <View style={{ gap: spacing.md }}>
             <AuthPrimaryButton label={t('signIn')} disabled={!!mode} onPress={() => setMode('sign-in')} />
             <AuthPrimaryButton label={t('createAccount')} disabled={!!mode} outline onPress={() => setMode('register')} />
-            {__DEV__ && <AuthPrimaryButton label={t('restartOnboarding')} disabled={!!mode} outline onPress={() => router.replace('/onboarding')} />}
+            {/* {__DEV__ && <AuthPrimaryButton label={t('restartOnboarding')} disabled={!!mode} outline onPress={() => router.replace('/onboarding')} />} */}
           </View>
         </AuthBottomSheet>
         {mode && (

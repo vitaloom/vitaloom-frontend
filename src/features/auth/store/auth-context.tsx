@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ApiError, setAccessToken, setRefreshHandler } from '@/lib/api/http-client';
+import { ApiError, resetApiSession, setAccessToken, setRefreshHandler } from '@/lib/api/http-client';
 import { authStorage } from '@/lib/storage/auth-storage';
 import { authApi } from '../api/auth-api';
 import type { AuthStatus, AuthTokens, AuthUser, RegisterResult } from '../types/auth';
@@ -79,7 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error instanceof ApiError && error.status === 401) {
         generationRef.current += 1;
         refreshTokenRef.current = null;
-        setAccessToken(null);
+        resetApiSession();
         setUser(null);
         await authStorage.clear().catch(() => undefined);
         setStatus('unauthenticated');
@@ -98,7 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (generationRef.current !== generation) return;
       if (!storedToken) {
         refreshTokenRef.current = null;
-        setAccessToken(null);
+        resetApiSession();
         setUser(null);
         setStatus('unauthenticated');
         return;
@@ -131,6 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refreshTokenRef.current = tokens.refreshToken;
     await authStorage.saveRefreshToken(tokens.refreshToken);
     if (generation !== generationRef.current) return;
+    resetApiSession();
     setAccessToken(tokens.accessToken);
     setUser(tokens.user);
     await updateProfileInvitation(tokens.user, generation);
@@ -154,7 +155,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     generationRef.current += 1;
     refreshTokenRef.current = null;
-    setAccessToken(null);
+    resetApiSession();
     setUser(null);
     setPendingProfileInvitation(false);
     setStatus('unauthenticated');

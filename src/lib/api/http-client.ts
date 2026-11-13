@@ -1,7 +1,7 @@
 import { createSingleFlight, retryAfterUnauthorized } from './single-flight';
 
 export class ApiError extends Error {
-  constructor(public readonly status: number, public readonly code: string, message: string) {
+  constructor(public readonly status: number, public readonly code: string, message: string, public readonly field?: string) {
     super(message);
     this.name = 'ApiError';
   }
@@ -9,15 +9,23 @@ export class ApiError extends Error {
 
 let accessToken: string | null = null;
 let refreshAccessToken: (() => Promise<string>) | null = null;
-const refreshSingleFlight = createSingleFlight(async () => {
+let sessionGeneration = 0;
+const newRefreshFlight = () => createSingleFlight(async () => {
   if (!refreshAccessToken) throw new Error('Authentication is not initialized.');
   return refreshAccessToken();
 });
+let refreshSingleFlight = newRefreshFlight();
 
 const baseUrl = (process.env.EXPO_PUBLIC_API_BASE_URL ?? '').replace(/\/$/, '');
 
 export function setAccessToken(token: string | null) { accessToken = token; }
 export function setRefreshHandler(handler: (() => Promise<string>) | null) { refreshAccessToken = handler; }
+export function getApiSessionGeneration() { return sessionGeneration; }
+export function resetApiSession() {
+  sessionGeneration += 1;
+  accessToken = null;
+  refreshSingleFlight = newRefreshFlight();
+}
 
 async function parseResponse<T>(response: Response): Promise<T> {
   const parsedBody: unknown = await response.json().catch(() => ({}));
@@ -38,7 +46,7 @@ async function parseResponse<T>(response: Response): Promise<T> {
       : typeof nestedError.message === 'string' && nestedError.message.length > 0
         ? nestedError.message
         : 'Request failed.';
-    throw new ApiError(response.status, code, message);
+    throw new ApiError(response.status, code, message, typeof body.field === 'string' ? body.field : undefined);
   }
   return parsedBody as T;
 }
@@ -56,12 +64,30 @@ async function send<T>(path: string, init: RequestInit, bearer: string | null): 
   return parseResponse<T>(response);
 }
 
-export async function apiRequest<T>(path: string, init: RequestInit = {}, authenticated = false): Promise<T> {
+export async function apiRequest<T>(
+  path: string, init: RequestInit = {}, authenticated = false, expectedSession = sessionGeneration,
+): Promise<T> {
+  const assertSession = () => {
+    if (authenticated && expectedSession !== sessionGeneration) {
+      throw new ApiError(401, 'AUTH_SESSION_CHANGED', 'The authenticated account changed.');
+    }
+  };
   const initialToken = authenticated ? accessToken : null;
   return retryAfterUnauthorized(
-    (token) => send<T>(path, init, token),
+    async (token) => {
+      assertSession();
+      try {
+        const result = await send<T>(path, init, token);
+        assertSession();
+        return result;
+      } catch (error) {
+        assertSession();
+        throw error;
+      }
+    },
     initialToken,
-    (error) => error instanceof ApiError && error.status === 401 && authenticated && !!refreshAccessToken,
+    (error) => error instanceof ApiError && error.status === 401 && error.code !== 'AUTH_SESSION_CHANGED'
+      && authenticated && !!refreshAccessToken,
     () => accessToken,
     refreshSingleFlight,
   );

@@ -1,17 +1,18 @@
 # Sleep Tracking
 
-This folder documents the frontend-only Sleep tracking implementation.
+This folder documents Sleep tracking and the F1 backend integration.
 
 1. [Source analysis](01-source-analysis.md)
-2. [Proposed API contract](02-api-contract.md)
+2. [API contract](02-api-contract.md)
 3. [UI implementation plan](03-ui-implementation-plan.md)
 4. [Asset mapping](04-asset-mapping.md)
 5. [Screen behavior and scenario mapping](05-screen-behavior-mapping.md)
 6. [Test report](06-test-report.md)
 7. [Implementation report](07-implementation-report.md)
 8. [Backend integration handoff](08-backend-integration-handoff.md)
+9. [F1 integration report](09-api-integration-report.md)
 
-Open the authenticated Sleep entry at /sleep. See the test report before attempting simulator or web smoke tests. Repository data in this phase is in-memory mock data. It does not synchronize across app restarts or devices.
+Open the authenticated Sleep entry at /sleep. F1 uses the backend by default. The handoff describes backend setup and the explicit development fixture mode.
 
 ## 2026-11-11 supplement
 

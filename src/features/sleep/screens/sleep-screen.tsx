@@ -5,6 +5,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { translate, useI18n, useTranslations, type Language } from '@/i18n';
 import { radius, sizing, spacing } from '@/theme';
 import { sleepArt } from '../assets/sleep-art';
+import { sleepFixturesEnabled } from '../api/get-sleep-repository';
 import { SleepButton, SleepCard, SleepNotice, SleepPage } from '../components/sleep-ui';
 import { useSleepRead, useSleepRepository } from '../hooks/use-sleep';
 import { sleepMessages } from '../messages';
@@ -34,11 +35,14 @@ export default function SleepScreen() {
   const summary = state.kind === 'ready' ? state.data : null;
   const featured = summary?.featured;
 
-  return <SleepPage title={t('title')} subtitle={t('subtitle')} home hero demo>
+  const fixtures = sleepFixturesEnabled();
+
+  return <SleepPage title={t('title')} subtitle={t('subtitle')} home hero demo={fixtures}>
     {state.kind === 'loading' ? <SleepNotice title={t('loading')} loading /> : null}
-    {state.kind === 'error' ? <SleepNotice title={t('loadError')} actionLabel={t('tryAgain')} onAction={reload} error /> : null}
+    {state.kind === 'error' ? <SleepNotice title={t('loadError')} message={state.message}
+      actionLabel={t('tryAgain')} onAction={reload} error /> : null}
     {summary ? <>
-      {summary.daily.status === 'unverified' ? <SleepNotice title={t('unverified')}
+      {fixtures && summary.daily.status === 'unverified' ? <SleepNotice title={t('unverified')}
         actionLabel={t('reload')} onAction={reload} /> : <LatestSleep session={summary.latest} />}
       <DailyGoal summary={summary.daily} />
     </> : null}

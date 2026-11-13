@@ -118,14 +118,14 @@ export function SleepNotice({ title, message, actionLabel, onAction, loading, er
 }
 
 export function SleepWriteNotice({ result, reconcile, reload }: {
-  result: WriteResult | null; reconcile: () => void; reload?: () => void;
+  result: WriteResult | null; reconcile?: () => void; reload?: () => void;
 }) {
   if (!result || result.kind === 'confirmed') return null;
   if (result.kind === 'unknown') return <SleepNotice title="Result not yet confirmed"
     message="Check the outcome before sending another change." actionLabel="Check result" onAction={reconcile} />;
   const conflict = result.kind === 'conflict' && result.reason !== 'overlap';
   return <SleepNotice title={conflict ? 'This item changed' : 'Check your changes'} message={result.message} error
-    actionLabel={conflict && reload ? 'Reload confirmed data' : undefined} onAction={reload} />;
+    actionLabel={(conflict || result.kind === 'rejected') && reload ? 'Reload confirmed data' : undefined} onAction={reload} />;
 }
 
 export function SleepSegments<T extends string>({ options, value, onChange }: {
