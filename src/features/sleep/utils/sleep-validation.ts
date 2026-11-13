@@ -1,5 +1,5 @@
 import type { Feeling, SessionValue, SleepContext, SleepDraft, SleepSession } from '../types/sleep';
-import { dayInZone, resolveCivil } from './sleep-date';
+import { dayInZone, resolveCivil, startOfWeek } from './sleep-date';
 
 type Validation = { kind: 'validation'; field: string; message: string };
 type ValidSession = { kind: 'valid'; value: SessionValue };
@@ -24,9 +24,6 @@ export function validateSession(
   now: Date,
   existing?: SleepSession,
 ): SessionValidation {
-  if (draft.sleepType !== 'main' && draft.sleepType !== 'nap') {
-    return { kind: 'validation', field: 'sleepType', message: 'Choose Main Sleep or Nap.' };
-  }
   if (!validFeeling(draft.feeling)) return { kind: 'validation', field: 'feeling', message: 'Choose one of the available feelings.' };
 
   let value: SessionValue;
@@ -38,7 +35,7 @@ export function validateSession(
     const minutes = Number(draft.minutes);
     const total = hours * 60 + minutes;
     if (minutes > 59 || total < 1 || total > 1440) return { kind: 'validation', field: 'duration', message: 'Duration must be between 1 and 1,440 minutes.' };
-    value = { method: 'duration', sleepType: draft.sleepType, feeling: draft.feeling, day: draft.endDay, minutes: total };
+    value = { method: 'duration', sleepType: 'main', feeling: draft.feeling, day: draft.endDay, minutes: total };
   } else {
     if (!validDay(draft.start.day) || !validDay(draft.end.day)) return { kind: 'validation', field: 'time', message: 'Choose valid start and end dates.' };
     if (existing?.method === 'range' && draft.timeZone !== existing.timeZone) {
@@ -62,12 +59,18 @@ export function validateSession(
       return { kind: 'validation', field: 'end', message: 'Sleep cannot be recorded in the future.' };
     }
     value = {
-      method: 'range', sleepType: draft.sleepType, feeling: draft.feeling, day: draft.end.day,
+      method: 'range', sleepType: 'main', feeling: draft.feeling, day: draft.end.day,
       minutes: elapsedMinutes, timeZone: draft.timeZone,
       start: { ...draft.start, hour: draft.start.hour.padStart(2, '0'), minute: draft.start.minute.padStart(2, '0') },
       end: { ...draft.end, hour: draft.end.hour.padStart(2, '0'), minute: draft.end.minute.padStart(2, '0') },
       startAt: start.instant, endAt: end.instant,
     };
+  }
+  if (value.day < startOfWeek(context.today)) {
+    return { kind: 'validation', field: 'day', message: 'Sleep can only be recorded during the current week.' };
+  }
+  if (value.day > context.today) {
+    return { kind: 'validation', field: 'day', message: 'Sleep cannot be recorded for a future day.' };
   }
   return { kind: 'valid', value };
 }

@@ -1,12 +1,11 @@
 import { useState } from 'react';
-import { ThemedText } from '@/components/themed-text';
 import { SleepInsightCard } from '../components/sleep-insight-card';
 import { SleepInsightsFallback } from '../components/sleep-insights-fallback';
 import { SleepTimeZoneChoices } from '../components/sleep-time-zone-choices';
 import { SleepNotice, SleepPage, SleepSegments } from '../components/sleep-ui';
 import { SleepWeekPicker } from '../components/sleep-week-picker';
 import { useSleepRead, useSleepRepository } from '../hooks/use-sleep';
-import type { InsightCategory, SleepType } from '../types/sleep';
+import type { InsightCategory } from '../types/sleep';
 import { shiftDay, startOfWeek } from '../utils/sleep-date';
 import { distinctInsights, insightFallback } from '../utils/sleep-insights';
 
@@ -16,17 +15,14 @@ const filters = [
   { value: 'feelings', label: 'Feelings' },
   { value: 'discoveries', label: 'Discoveries' },
 ] as const;
-const sleepTypes = [{ value: 'main', label: 'Main Sleep' }, { value: 'nap', label: 'Nap' }] as const;
-
 export default function SleepInsightsScreen() {
   const repository = useSleepRepository();
   const { today } = repository.getContext();
   const [week, setWeek] = useState(() => shiftDay(startOfWeek(today), -7));
   const [category, setCategory] = useState<InsightCategory | 'all'>('all');
   const [timeZone, setTimeZone] = useState('');
-  const [sleepType, setSleepType] = useState<SleepType>('main');
-  const query = { week, timeZone: timeZone || undefined, sleepType };
-  const queryKey = `insights:${week}:${timeZone}:${sleepType}`;
+  const query = { week, timeZone: timeZone || undefined };
+  const queryKey = `insights:${week}:${timeZone}`;
   const { state, reload } = useSleepRead(() => repository.getInsights(query), queryKey);
   const list = state.kind === 'ready' ? state.data : null;
   const candidates = list?.items.filter((item) => category === 'all' || item.category === category) ?? [];
@@ -38,10 +34,6 @@ export default function SleepInsightsScreen() {
     hero={true} wellness={items.length === 0}>
     <SleepSegments options={filters} value={category} onChange={setCategory} />
     <SleepWeekPicker week={week} today={today} onChange={changeWeek} />
-    {category === 'feelings' ? <>
-      <ThemedText variant="label">Feeling distribution by session type</ThemedText>
-      <SleepSegments options={sleepTypes} value={sleepType} onChange={setSleepType} />
-    </> : null}
     {(category === 'patterns' || category === 'all') && list?.status === 'ready'
       ? <SleepTimeZoneChoices options={list.timeZones} value={timeZone} onChange={setTimeZone} /> : null}
     {state.kind === 'loading' ? <SleepNotice title="Loading insights" loading /> : null}

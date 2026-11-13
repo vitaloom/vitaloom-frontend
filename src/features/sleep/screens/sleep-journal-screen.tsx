@@ -3,22 +3,25 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
+import { useTranslations } from '@/i18n';
 import { radius, sizing, spacing } from '@/theme';
 import { sleepArt } from '../assets/sleep-art';
 import { SleepCalendarPicker } from '../components/sleep-calendar-picker';
 import { useSleepRead, useSleepRepository } from '../hooks/use-sleep';
 import { sleepDay, sleepDuration } from '../utils/sleep-format';
+import { sleepMessages } from '../messages';
 import { SleepCard, SleepButton, SleepNotice, SleepPage } from '../components/sleep-ui';
 import type { SleepSession } from '../types/sleep';
 
 export default function SleepJournalScreen() {
   const repository = useSleepRepository();
+  const t = useTranslations(sleepMessages);
   const { today } = repository.getContext();
   const theme = useTheme();
-  const { sourceIds, sourceVersion } = useLocalSearchParams<{ sourceIds?: string; sourceVersion?: string }>();
+  const { sourceIds, sourceVersion, day: requestedDay } = useLocalSearchParams<{ sourceIds?: string; sourceVersion?: string; day?: string }>();
   const sources = typeof sourceIds === 'string' ? [...new Set(sourceIds.split(',').filter(Boolean))] : [];
   const [filterOpen, setFilterOpen] = useState(false);
-  const [filterDay, setFilterDay] = useState<string | null>(null);
+  const [filterDay, setFilterDay] = useState<string | null>(typeof requestedDay === 'string' ? requestedDay : null);
   const query = sources.length
     ? { sourceIds: sources }
     : filterDay ? { from: filterDay, to: filterDay } : undefined;
@@ -120,6 +123,7 @@ export default function SleepJournalScreen() {
               <View style={styles.sessionFooter}>
                 <ThemedText variant="caption" themeColor="textSecondary">{session.method === 'range' ? 'Start & End' : 'Duration only'}</ThemedText>
                 {session.feeling ? <ThemedText variant="labelStrong" themeColor="accent">Feeling · {session.feeling}</ThemedText> : null}
+                {session.sleepType === 'nap' || !session.editable ? <ThemedText variant="caption" themeColor="textSecondary">{t('readOnly')}</ThemedText> : null}
               </View>
             </View>
           </View>

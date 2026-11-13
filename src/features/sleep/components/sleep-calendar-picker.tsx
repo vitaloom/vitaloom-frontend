@@ -19,11 +19,13 @@ const weekdays = [
 
 const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
 
-export function SleepCalendarPicker({ title, selected, anchor, maximumDay, onSelect, onClose, onClear }: {
+export function SleepCalendarPicker({ title, selected, anchor, maximumDay, minimumDay, disabledDays, onSelect, onClose, onClear }: {
   title: string;
   selected: Day | null;
   anchor: Day;
   maximumDay?: Day;
+  minimumDay?: Day;
+  disabledDays?: Day[];
   onSelect: (day: Day) => void;
   onClose: () => void;
   onClear?: () => void;
@@ -64,7 +66,8 @@ export function SleepCalendarPicker({ title, selected, anchor, maximumDay, onSel
           if (!day) return <View key={`blank-${index}`} accessible={false} style={styles.dayBlank} />;
           const isSelected = day === selected;
           const isAnchor = day === anchor;
-          const disabled = Boolean(maximumDay && day > maximumDay);
+          const disabled = Boolean((maximumDay && day > maximumDay) || (minimumDay && day < minimumDay)
+            || disabledDays?.includes(day));
           const dateNumber = Number(day.slice(-2));
           const backgroundColor = isSelected ? theme.accent : isAnchor ? theme.backgroundSelected : 'transparent';
           const foreground = isSelected ? 'onAccent' : isAnchor ? 'accent' : 'text';

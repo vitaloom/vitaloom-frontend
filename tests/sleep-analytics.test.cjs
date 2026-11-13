@@ -38,28 +38,46 @@ const seed = [
   dayRecord('1', '2026-11-02', 360, 'comfortable'),
   dayRecord('2', '2026-11-03', 420, 'comfortable'),
   dayRecord('3', '2026-11-04', 480, 'comfortable'),
-  dayRecord('4', '2026-11-04', 540, 'comfortable'),
   dayRecord('5', '2026-11-06', 300, 'tired'),
   dayRecord('6', '2026-11-07', 330, 'tired'),
-  dayRecord('7', '2026-11-07', 360, 'tired'),
   dayRecord('8', '2026-11-08', 390, 'tired'),
   dayRecord('nap', '2026-11-08', 30, 'normal', 'nap'),
 ];
-test('confirmed totals include all sessions, allow above 24 hours and leave missing days null', () => {
+test('daily sleep value uses one main session and leaves missing days null', () => {
   const state = base([dayRecord('1', week, 1440), dayRecord('2', week, 75, null, 'nap')], {
     goals: [{ effectiveDay: week, minutes: 480 }],
   });
-  assert.equal(dailySummary(state, week).minutes, 1515);
-  assert.equal(dailySummary(state, week).progress, 1515 / 480 * 100);
+  assert.equal(dailySummary(state, week).minutes, 1440);
+  assert.equal(dailySummary(state, week).progress, 1440 / 480 * 100);
   assert.equal(dailySummary(state, '2026-11-03').minutes, null);
   assert.equal(dailySummary(state, '2026-11-03').progress, null);
   assert.equal(dailySummary({ ...state, verified: false }, week).status, 'unverified');
   assert.equal(dailySummary({ ...state, goalVerified: false }, week).progress, null);
 });
-test('weekly average uses recorded days, not sessions, and current coverage uses elapsed dates', () => {
+test('duplicate main records make that day and weekly evidence unverified', () => {
+  const state = base([dayRecord('1', week, 420), dayRecord('2', week, 480)]);
+  assert.equal(dailySummary(state, week).status, 'unverified');
+  const report = weeklySummary(state, { week });
+  assert.equal(report.verified, false);
+  assert.equal(report.days[0].status, 'unverified');
+  assert.equal(report.averageMinutes, null);
+  assert.equal(get(state, 'B01').status, 'unverified');
+});
+
+test('paired-week feeling evidence is withheld when the prior week has duplicate Main Sleep', () => {
+  const previous = [
+    dayRecord('prior-duplicate', '2026-10-26', 480, 'comfortable'),
+    dayRecord('prior-extra', '2026-10-27', 440, 'normal'),
+  ];
+  const state = base([...seed, ...previous]);
+  assert.equal(get(state, 'B03').eligible, false);
+  assert.equal(get(state, 'A03').eligible, false);
+  assert.equal(get(state, 'B01').eligible, true);
+});
+test('weekly average uses unique recorded main days, not sessions, and current coverage uses elapsed dates', () => {
   const report = weeklySummary(base(seed), { week });
   assert.equal(report.recordedDays, 6);
-  assert.equal(report.averageMinutes, 3210 / 6);
+  assert.equal(report.averageMinutes, 2280 / 6);
   assert.equal(report.days[3].status, 'no-data');
   assert.equal(report.elapsedDays, 7);
   const current = weeklySummary(base(seed), { week: '2026-11-09' });
@@ -68,35 +86,37 @@ test('weekly average uses recorded days, not sessions, and current coverage uses
   assert.equal(current.averageMinutes, null);
   assert.equal(current.storyEligible, false);
 });
-test('legacy aliases and B/C insights apply distinct-day, paired-week, goal and per-session sample policies', () => {
+test('Main-only B/C insights apply distinct-day, paired-week, goal and per-session sample policies', () => {
   const state = base(seed, { goals: [{ effectiveDay: '2026-11-04', minutes: 330 }] });
-  for (const code of ['A01', 'A02', 'A03', 'A05', 'B01', 'B02', 'B03', 'B04', 'C01', 'C03', 'C04']) {
+  for (const code of ['A01', 'A02', 'A03', 'A05', 'B01', 'B03', 'B04', 'C03', 'C04']) {
     assert.equal(get(state, code).status, 'ready', code);
   }
-  assert.equal(get(state, 'B02').evidence.find((measure) => measure.label === 'Comfortable average').value, 450);
-  assert.equal(get(state, 'B02').sourceIds.length, 8);
-  assert.equal(get(state, 'B04').evidence[0].value, 3);
+  assert.equal(get(state, 'B02').eligible, false);
+  assert.equal(get(state, 'B01').evidence.find((measure) => measure.label === 'Without a feeling').value, 0);
+  assert.equal(get(state, 'B01').sourceIds.includes('nap'), false);
+  assert.equal(get(state, 'B04').evidence[0].value, 2);
   assert.equal(get(base(seed), 'B04').eligible, false);
   assert.equal(get(base(seed.filter((entry) => entry.id !== '8')), 'C01').eligible, false);
   assert.equal(get(base(seed.filter((entry) => entry.id !== 'before-3')), 'A03').eligible, false);
   assert.equal(get(base(seed), 'C02'), undefined);
 });
-test('A04 selects the longest range before zone filtering, excludes ties and requires explicit zone', () => {
+test('A04 uses the single main range for the day and requires explicit zone', () => {
   const sessions = [
     range('1', '2026-11-01T16:40:00Z', '2026-11-02T00:00:00Z'),
     range('2', '2026-11-02T17:10:00Z', '2026-11-03T00:00:00Z'),
     range('3', '2026-11-03T17:10:00Z', '2026-11-04T00:30:00Z'),
-    dayRecord('long', '2026-11-02', 1440),
   ];
   assert.equal(get(base(sessions), 'A04').eligible, false);
   const selected = { week, timeZone: zone };
   assert.deepEqual(get(base(sessions), 'A04', selected).evidence.map((value) => value.value), [30, 30]);
+  const durationOnly = dayRecord('estimated', '2026-11-04', 420);
+  assert.equal(get(base([...sessions.slice(0, 2), durationOnly]), 'A04', selected).eligible, false);
   const tied = range('tie', '2026-11-04T04:00:00Z', '2026-11-04T11:20:00Z');
   assert.equal(get(base([...sessions, tied]), 'A04', selected).eligible, false);
   const otherZone = range('different', '2026-11-04T01:00:00Z', '2026-11-04T09:00:00Z', 'UTC');
   assert.equal(get(base([...sessions, otherZone]), 'A04', selected).eligible, false);
 });
-test('A04 excludes a transition week and a representative crossing DST into a following week', () => {
+test('A04 excludes a transition week and a range crossing DST into a following week', () => {
   const timeZone = 'America/New_York';
   const sessions = [
     range('1', '2026-10-29T03:00:00Z', '2026-10-29T10:00:00Z', timeZone),
@@ -125,7 +145,7 @@ test('stale and unverified evidence suppress claims; optional AI is consent, evi
   assert.equal(get({ ...state, stale: true }, 'B02').status, 'stale');
   assert.deepEqual(get({ ...state, stale: true }, 'B02').evidence, []);
   assert.equal(get({ ...state, verified: false }, 'B02').summary, '');
-  const insight = get(state, 'B02');
+  const insight = get(state, 'B01');
   assert.equal(aiFixture(state, { kind: 'explanation', insight: insight.key }, true, false).status, 'fixture');
 });
 

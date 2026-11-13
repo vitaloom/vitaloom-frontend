@@ -1,5 +1,7 @@
 # Sleep Journal Basic CRUD integration
 
+This report records the original CRUD integration. See the [Main Sleep handoff](10-main-sleep-handoff.md) for the current business rules, migration status and verification.
+
 The original F1 integration was simplified in place. Mobile uses authenticated HTTP to create, list, open, edit and delete Sleep sessions. The backend persists records with ordinary MongoDB operations and scopes each lookup to the JWT subject. The existing screens, input fields and delete confirmation are retained.
 
 See the [API contract](02-api-contract.md) for the five endpoints, DTO mappings, and deferred reliability work. The [local setup](08-backend-integration-handoff.md) works with standalone MongoDB and the transaction flag disabled. No legacy data migration is required for the Sleep session collection. Any old development receipt and guard collections are unused and were left in place.

@@ -31,11 +31,14 @@ export function effectiveGoal(state: AnalyticsState, day: Day): GoalState {
 
 export function dailySummary(state: AnalyticsState, day: Day): DailySummary {
   const goal = effectiveGoal(state, day);
-  const sum = state.sessions.reduce((total, session) => session.day === day ? total + session.minutes : total, 0);
-  const status = day > state.context.today ? 'future' : !state.verified ? 'unverified' : sum ? 'recorded' : 'no-data';
+  const sessions = state.sessions.filter((session) => session.day === day && session.sleepType === 'main');
+  const minutes = sessions.length === 1 ? sessions[0].minutes : null;
+  const status = day > state.context.today ? 'future'
+    : !state.verified || sessions.length > 1 ? 'unverified'
+      : minutes !== null ? 'recorded' : 'no-data';
   return {
-    day, status, minutes: status === 'recorded' ? sum : null, goal,
-    progress: status === 'recorded' && goal.minutes ? sum / goal.minutes * 100 : null,
+    day, status, minutes: status === 'recorded' ? minutes : null, goal,
+    progress: status === 'recorded' && goal.minutes ? minutes! / goal.minutes * 100 : null,
   };
 }
 
@@ -56,31 +59,27 @@ function weekStats(state: AnalyticsState, week: Day) {
   const days = Array.from({ length: 7 }, (_, index) => dailySummary(state, shiftDay(week, index)));
   const logged = days.filter(isRecorded);
   const goalDays = logged.filter((day) => day.progress !== null);
-  const sessions = inPeriod(state.sessions, week, endDay);
+  const conflicted = days.some((day) => day.status === 'unverified' && state.sessions.some((session) => session.day === day.day));
+  const sessions = uniqueMainSessions(inPeriod(state.sessions, week, endDay));
   const elapsedDays = days.filter((day) => day.day <= state.context.today).length;
   return {
-    endDay, days, logged, goalDays, sessions, elapsedDays,
+    endDay, days, logged, goalDays, sessions, elapsedDays, conflicted,
     complete: endDay < state.context.today,
-    averageMinutes: logged.length ? average(logged) : null,
+    averageMinutes: logged.length && !conflicted ? average(logged) : null,
     goalMet: goalDays.filter((day) => (day.progress ?? 0) >= 100).length,
   };
 }
 
 type RangeSession = SleepSession & { method: 'range' };
-function representatives(sessions: readonly SleepSession[]) {
-  const groups = new Map<Day, RangeSession[]>();
+function uniqueMainSessions(sessions: readonly SleepSession[]) {
+  const groups = new Map<Day, SleepSession[]>();
   for (const session of sessions) {
-    if (session.method !== 'range' || session.sleepType !== 'main') continue;
+    if (session.sleepType !== 'main') continue;
     const group = groups.get(session.day) ?? [];
     group.push(session);
     groups.set(session.day, group);
   }
-  const selected: RangeSession[] = [];
-  for (const group of groups.values()) {
-    group.sort((left, right) => right.minutes - left.minutes);
-    if (group[0].minutes !== group[1]?.minutes) selected.push(group[0]);
-  }
-  return selected;
+  return [...groups.values()].filter((group) => group.length === 1).map(([session]) => session);
 }
 
 function timingSample(records: readonly RangeSession[], week: Day, timeZone?: string) {
@@ -116,17 +115,18 @@ type Evidence = Pick<Insight, 'summary' | 'sample' | 'evidence' | 'sourceIds'> &
 const sourceIds = (sessions: readonly SleepSession[]) => sessions.map(({ id }) => id);
 
 export function insightList(state: AnalyticsState, query: AnalyticsQuery): InsightList {
-  const { week, timeZone, sleepType = 'main' } = query;
+  const { week, timeZone } = query;
   const current = weekStats(state, week);
   const previousWeek = shiftDay(week, -7);
   const previous = weekStats(state, previousWeek);
-  const representative = representatives(current.sessions);
-  const timeZones = [...new Set(representative.map((record) => record.timeZone))].sort();
-  const listStatus = state.stale ? 'stale' : !state.verified ? 'unverified' : current.sessions.length ? 'ready' : 'no-data';
-  const coverage = state.verified && !state.stale ? `${current.logged.length} of ${current.elapsedDays} days recorded` : 'Coverage unavailable';
+  const ranges = current.sessions.filter((session): session is RangeSession => session.method === 'range');
+  const timeZones = [...new Set(ranges.map((record) => record.timeZone))].sort();
+  const listStatus = state.stale ? 'stale' : !state.verified || current.conflicted ? 'unverified' : current.sessions.length ? 'ready' : 'no-data';
+  const coverage = state.verified && !state.stale && !current.conflicted
+    ? `${current.logged.length} of ${current.elapsedDays} days recorded` : 'Coverage unavailable';
   const item = (code: InsightCode, requirement: string, data?: Evidence, needsGoal = false): Insight => {
     const status: InsightStatus = state.stale ? 'stale'
-      : !state.verified || (needsGoal && !state.goalVerified) ? 'unverified'
+      : !state.verified || current.conflicted || (needsGoal && !state.goalVerified) ? 'unverified'
         : !current.sessions.length ? 'no-data' : data ? 'ready' : 'insufficient';
     const ready = status === 'ready' ? data : undefined;
     return {
@@ -175,7 +175,7 @@ export function insightList(state: AnalyticsState, query: AnalyticsQuery): Insig
   } : undefined;
   const a03 = item('A03', 'Requires two consecutive completed weeks with at least three recorded days each.', durationTrend);
 
-  const timing = timingSample(representative, week, timeZone);
+  const timing = timingSample(ranges, week, timeZone);
   const relativeMinute = (session: RangeSession, field: 'start' | 'end') => {
     const value = session[field];
     const dayDelta = (Date.parse(`${value.day}T00:00Z`) - Date.parse(`${session.day}T00:00Z`)) / 86_400_000;
@@ -187,10 +187,10 @@ export function insightList(state: AnalyticsState, query: AnalyticsQuery): Insig
   };
   const a04 = item('A04', 'Choose a reference timezone with at least three eligible timing days and no transition in the week.', timing.length >= 3 ? {
     summary: `Bedtimes varied by ${spread('start')} minutes and wake times by ${spread('end')} minutes in ${timeZone}.`,
-    sample: `${timing.length} representative main sleep sessions`,
+    sample: `${timing.length} days with a Main Sleep time range`,
     evidence: [measure('Bedtime spread', spread('start'), 'minutes'), measure('Wake time spread', spread('end'), 'minutes')],
     sourceIds: sourceIds(timing),
-    limitation: 'Uses the longest eligible main sleep time range per day, excluding tied days and clock changes.',
+    limitation: 'Uses the eligible Main Sleep time range from each day in the selected timezone.',
   } : undefined);
 
   const weekdays = current.days.slice(0, 5).filter(isRecorded);
@@ -203,10 +203,10 @@ export function insightList(state: AnalyticsState, query: AnalyticsQuery): Insig
       sourceIds: sourceIds(current.sessions),
     } : undefined);
 
-  const selectedType = current.sessions.filter((session) => session.sleepType === sleepType);
+  const selectedType = current.sessions;
   const assessed = selectedType.filter((session) => session.feeling);
   const distribution = counts(assessed);
-  const typeName = sleepType === 'main' ? 'main sleep' : 'nap';
+  const typeName = 'main sleep';
   const b01 = item('B01', `Requires at least three assessed ${typeName} sessions.`, assessed.length >= 3 ? {
     summary: `Across ${assessed.length} assessed ${typeName} sessions, Comfortable was selected ${distribution.comfortable} times, Normal ${distribution.normal} and Tired ${distribution.tired}.`,
     sample: `${assessed.length} of ${selectedType.length} ${typeName} sessions assessed`,
@@ -218,8 +218,8 @@ export function insightList(state: AnalyticsState, query: AnalyticsQuery): Insig
     sourceIds: sourceIds(assessed),
   } : undefined);
 
-  const main = current.sessions.filter((session) => session.sleepType === 'main' && session.feeling);
-  const priorMain = previous.sessions.filter((session) => session.sleepType === 'main' && session.feeling);
+  const main = current.sessions.filter((session) => session.feeling);
+  const priorMain = previous.sessions.filter((session) => session.feeling);
   const comfortable = main.filter((session) => session.feeling === 'comfortable');
   const tired = main.filter((session) => session.feeling === 'tired');
   const contrast = comfortable.length >= 4 && tired.length >= 4 ? {
@@ -231,13 +231,13 @@ export function insightList(state: AnalyticsState, query: AnalyticsQuery): Insig
       measure('Difference', average(comfortable) - average(tired), 'minutes', 'Comfortable minus Tired'),
     ],
     sourceIds: sourceIds([...comfortable, ...tired]),
-    limitation: 'Each group contains assessed main sleep sessions. Other feelings and naps are excluded.',
+    limitation: 'Each group contains assessed main sleep sessions. Other feelings are excluded.',
   } : undefined;
   const b02 = item('B02', 'Requires four Comfortable and four Tired main sleep sessions.', contrast);
 
   const currentFeelings = counts(main);
   const previousFeelings = counts(priorMain);
-  const feelingTrend = current.complete && main.length >= 3 && priorMain.length >= 3 ? {
+  const feelingTrend = current.complete && !previous.conflicted && main.length >= 3 && priorMain.length >= 3 ? {
     from: previousWeek,
     summary: 'Compare the share of each feeling across two completed weeks of assessed main sleep.',
     sample: `${main.length} assessed sessions this week and ${priorMain.length} the prior week`,
@@ -297,12 +297,13 @@ export function weeklySummary(state: AnalyticsState, query: AnalyticsQuery): Wee
   const list = insightList(state, query);
   const insights = order(distinctInsights(list.items));
   return {
-    week: query.week, endDay: stats.endDay, complete: stats.complete, verified: state.verified, version: state.version,
-    days: stats.days, averageMinutes: stats.averageMinutes, recordedDays: state.verified ? stats.logged.length : null,
+    week: query.week, endDay: stats.endDay, complete: stats.complete, verified: state.verified && !stats.conflicted, version: state.version,
+    days: stats.days, averageMinutes: stats.averageMinutes,
+    recordedDays: state.verified && !stats.conflicted ? stats.logged.length : null,
     elapsedDays: stats.elapsedDays,
-    goalMet: state.verified && state.goalVerified ? stats.goalMet : null,
-    goalEligible: state.verified && state.goalVerified ? stats.goalDays.length : null,
-    feelings: state.verified ? counts(stats.sessions) : null,
+    goalMet: state.verified && !stats.conflicted && state.goalVerified ? stats.goalMet : null,
+    goalEligible: state.verified && !stats.conflicted && state.goalVerified ? stats.goalDays.length : null,
+    feelings: state.verified && !stats.conflicted ? counts(stats.sessions) : null,
     insights, timeZones: list.timeZones,
     storyEligible: stats.complete && state.verified && insights.some(advanced),
   };

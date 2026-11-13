@@ -3,18 +3,22 @@ import { Image, StyleSheet, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
+import { useTranslations } from '@/i18n';
 import { spacing } from '@/theme';
 import { sleepArt } from '../assets/sleep-art';
 import { SleepConfirmation } from '../components/sleep-confirmation';
 import { SleepButton, SleepCard, SleepNotice, SleepPage, SleepWriteNotice } from '../components/sleep-ui';
 import { useSleepSessionMutation, useSleepRead, useSleepRepository } from '../hooks/use-sleep';
+import type { SleepSession } from '../types/sleep';
 import { sleepDay, sleepDuration } from '../utils/sleep-format';
+import { sleepMessages } from '../messages';
 
 export default function SleepRecordDetailScreen() {
+  const t = useTranslations(sleepMessages);
   const { id } = useLocalSearchParams<{ id: string }>();
   const repository = useSleepRepository();
   const { state, reload } = useSleepRead(() => repository.getSession(id), `sleep-session:${id}`);
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [sessionToDelete, setSessionToDelete] = useState<SleepSession | null>(null);
   const remove = useSleepSessionMutation(() => router.dismissTo('/sleep/journal'));
   const session = state.kind === 'ready' ? state.data : null;
   return <SleepPage title="Sleep Record"
@@ -46,29 +50,31 @@ export default function SleepRecordDetailScreen() {
         <DetailRow label="Statistical day" value={sleepDay(session.day)} />
         {session.feeling ? <DetailRow label="Feeling" value={capitalize(session.feeling)} /> : null}
         <DetailRow label="Record status" value="Confirmed" status />
+        <DetailRow label={t('editStatus')} value={session.editable ? t('latestThisWeek') : t('readOnly')} />
       </SleepCard>
       <ThemedText variant="caption" themeColor="textSecondary" style={styles.methodNote}>
         {session.method === 'range'
           ? 'Dates and times use the timezone saved with this record.'
           : 'Only the recorded duration and statistical day are available.'}
       </ThemedText>
-      <View style={styles.actions}>
+      {session.editable ? <View style={styles.actions}>
         <View style={styles.action}>
-          <SleepButton label="Delete Record" onPress={() => setConfirmDelete(true)} variant="danger"
+          <SleepButton label="Delete Record" onPress={() => setSessionToDelete(session)} variant="danger"
             disabled={remove.busy} busy={remove.busy} />
         </View>
         <View style={styles.action}>
           <SleepButton label="Edit Record" onPress={() => router.push({ pathname: '/sleep/record', params: { id: session.id } })}
             disabled={remove.busy} />
         </View>
-      </View>
+      </View> : null}
     </> : null}
-    {confirmDelete && session ? <SleepConfirmation title="Delete this sleep record?"
+    {sessionToDelete ? <SleepConfirmation title="Delete this sleep record?"
       message="This confirmed record will be removed from your journal after you approve the deletion."
       cancelLabel="Keep Record" confirmLabel="Confirm Delete"
-      onCancel={() => setConfirmDelete(false)} onConfirm={() => {
-        setConfirmDelete(false);
-        void remove.run({ kind: 'delete-session', id: session.id, revision: session.revision });
+      onCancel={() => setSessionToDelete(null)} onConfirm={() => {
+        const confirmed = sessionToDelete;
+        setSessionToDelete(null);
+        void remove.run({ kind: 'delete-session', id: confirmed.id, revision: confirmed.revision, confirmedAt: confirmed.confirmedAt });
       }} /> : null}
   </SleepPage>;
 }
