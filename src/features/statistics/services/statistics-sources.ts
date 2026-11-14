@@ -1,4 +1,5 @@
 import { heartRateApi } from '@/features/heart-rate/api/heart-rate-api';
+import { isStatisticsRateLimit } from '@/lib/api/http-client';
 import { dateInHcm } from '@/features/heart-rate/utils/heart-rate-date';
 import { stepsApi } from '@/features/steps/api/steps-api';
 import { ApiWaterRepository } from '@/features/water/services/api-water.repository';
@@ -15,6 +16,8 @@ const heartRate: MetricSource = async (period, signal) => {
     heartRateApi.series(period.mode, params(period), signal),
     day ? heartRateApi.summary(period.start, signal) : Promise.resolve(null),
   ]);
+  if (series.status === 'rejected' && isStatisticsRateLimit(series.reason)) throw series.reason;
+  if (summary.status === 'rejected' && isStatisticsRateLimit(summary.reason)) throw summary.reason;
   if (series.status === 'rejected' && (summary.status === 'rejected' || !day)) throw series.reason;
 
   const now = Date.now();

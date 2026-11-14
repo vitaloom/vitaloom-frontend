@@ -14,6 +14,33 @@ require.extensions['.ts'] = (module, filename) => {
 
 const { ApiError, apiRequest, rawApiRequest, resetApiSession, setAccessToken, setRefreshHandler } = require('../src/lib/api/http-client.ts');
 
+test('a Statistics 429 pauses both metrics without blocking auth or queuing requests', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalNow = Date.now;
+  let now = 1000;
+  Date.now = () => now;
+  const requests = [];
+  globalThis.fetch = async (url) => {
+    requests.push(url);
+    return requests.length === 1
+      ? new Response('{}', { status: 429, headers: { 'Retry-After': '2' } })
+      : new Response('{}', { status: 200 });
+  };
+  try {
+    const blocked = (error) => error.status === 429 && error.retryAt === 3000;
+    await assert.rejects(apiRequest('/statistics/heart-rate/daily'), blocked);
+    await assert.rejects(apiRequest('/statistics/steps/daily'), blocked);
+    await rawApiRequest('/auth/refresh');
+    assert.equal(requests.length, 2);
+    now = 3000;
+    await apiRequest('/statistics/steps/daily');
+    assert.equal(requests.length, 3);
+  } finally {
+    globalThis.fetch = originalFetch;
+    Date.now = originalNow;
+  }
+});
+
 test('an expired request cannot replay a mutation with a new account token', async () => {
   const originalFetch = globalThis.fetch;
   let finish;

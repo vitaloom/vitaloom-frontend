@@ -48,6 +48,7 @@ type AuthContextValue = {
   register: (email: string, password: string) => Promise<RegisterResult>;
   signOut: () => Promise<void>;
   retryRestore: () => Promise<void>;
+  refreshRateLimit: { retryAt?: number } | null;
   pendingProfileInvitation: boolean;
   resolveProfileInvitation: (decision: ProfileInvitationDecision) => Promise<void>;
 };
@@ -58,6 +59,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>('checking');
   const [user, setUser] = useState<AuthUser | null>(null);
   const [pendingProfileInvitation, setPendingProfileInvitation] = useState(false);
+  const [refreshRateLimit, setRefreshRateLimit] = useState<{ retryAt?: number } | null>(null);
+  const refreshRetryAtRef = useRef(0);
   const refreshTokenRef = useRef<string | null>(null);
   const generationRef = useRef(0);
 
@@ -67,15 +70,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refreshAccess = useCallback(async (expectedGeneration: number) => {
+    if (refreshRetryAtRef.current > Date.now()) {
+      throw new ApiError(429, 'REFRESH_RATE_LIMITED', 'Session refresh is rate limited.', undefined, refreshRetryAtRef.current);
+    }
     const refreshToken = refreshTokenRef.current;
     if (!refreshToken) throw new ApiError(401, 'INVALID_REFRESH_TOKEN', 'Please sign in again.');
     try {
       const result = await authApi.refresh(refreshToken);
       if (generationRef.current !== expectedGeneration) throw new Error('Session changed while refreshing.');
+      refreshRetryAtRef.current = 0;
+      setRefreshRateLimit(null);
       setAccessToken(result.accessToken);
       return result.accessToken;
     } catch (error) {
       if (generationRef.current !== expectedGeneration) throw error;
+      const rateLimit = error instanceof ApiError && error.status === 429 ? { retryAt: error.retryAt } : null;
+      refreshRetryAtRef.current = rateLimit?.retryAt ?? 0;
+      setRefreshRateLimit(rateLimit);
       if (error instanceof ApiError && error.status === 401) {
         generationRef.current += 1;
         refreshTokenRef.current = null;
@@ -91,6 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const restore = useCallback(async () => {
+    if (refreshRetryAtRef.current > Date.now()) return;
     setStatus((current) => current === 'authenticated' ? current : 'checking');
     const generation = generationRef.current;
     try {
@@ -128,6 +140,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const acceptTokens = useCallback(async (tokens: AuthTokens, expectedGeneration: number) => {
     if (generationRef.current !== expectedGeneration) return;
     const generation = ++generationRef.current;
+    refreshRetryAtRef.current = 0;
+    setRefreshRateLimit(null);
     refreshTokenRef.current = tokens.refreshToken;
     await authStorage.saveRefreshToken(tokens.refreshToken);
     if (generation !== generationRef.current) return;
@@ -154,6 +168,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     generationRef.current += 1;
+    refreshRetryAtRef.current = 0;
+    setRefreshRateLimit(null);
     refreshTokenRef.current = null;
     resetApiSession();
     setUser(null);
@@ -169,7 +185,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await saveProfileInvitationDecision(currentUser.id, decision);
     if (generationRef.current === generation && user?.id === currentUser.id) setPendingProfileInvitation(false);
   }, [status, user]);
-  const value = useMemo(() => ({ status, user, signIn, register, signOut, retryRestore: restore, pendingProfileInvitation, resolveProfileInvitation }), [status, user, signIn, register, signOut, restore, pendingProfileInvitation, resolveProfileInvitation]);
+  const value = useMemo(() => ({ status, user, signIn, register, signOut, retryRestore: restore, refreshRateLimit, pendingProfileInvitation, resolveProfileInvitation }), [status, user, signIn, register, signOut, restore, refreshRateLimit, pendingProfileInvitation, resolveProfileInvitation]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
