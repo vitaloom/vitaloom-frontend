@@ -1,15 +1,37 @@
 import { createSingleFlight, retryAfterUnauthorized } from './single-flight';
 
 export class ApiError extends Error {
-  constructor(public readonly status: number, public readonly code: string, message: string, public readonly field?: string) {
+  constructor(
+    public readonly status: number,
+    public readonly code: string,
+    message: string,
+    public readonly field?: string,
+    public readonly retryAt?: number,
+  ) {
     super(message);
     this.name = 'ApiError';
   }
 }
 
+function parseRetryAt(header: string | null): number | undefined {
+  const value = header?.trim();
+  if (!value) return undefined;
+  const deadline = /^\d+$/.test(value) ? Date.now() + Number(value) * 1000 : Date.parse(value);
+  return Number.isSafeInteger(deadline) ? deadline : undefined;
+}
+
 let accessToken: string | null = null;
 let refreshAccessToken: (() => Promise<string>) | null = null;
 let sessionGeneration = 0;
+let statisticsRetryAt = 0;
+
+export function statisticsCoolingDown(): boolean {
+  return statisticsRetryAt > Date.now();
+}
+
+export function isStatisticsRateLimit(error: unknown): boolean {
+  return error instanceof ApiError && error.code === 'STATISTICS_RATE_LIMITED';
+}
 const newRefreshFlight = () => createSingleFlight(async () => {
   if (!refreshAccessToken) throw new Error('Authentication is not initialized.');
   return refreshAccessToken();
@@ -46,12 +68,22 @@ async function parseResponse<T>(response: Response): Promise<T> {
       : typeof nestedError.message === 'string' && nestedError.message.length > 0
         ? nestedError.message
         : 'Request failed.';
-    throw new ApiError(response.status, code, message, typeof body.field === 'string' ? body.field : undefined);
+    throw new ApiError(
+      response.status,
+      code,
+      message,
+      typeof body.field === 'string' ? body.field : undefined,
+      response.status === 429 ? parseRetryAt(response.headers.get('Retry-After')) : undefined,
+    );
   }
   return parsedBody as T;
 }
 
 async function send<T>(path: string, init: RequestInit, bearer: string | null): Promise<T> {
+  const statistics = path.startsWith('/statistics/');
+  if (statistics && statisticsCoolingDown()) {
+    throw new ApiError(429, 'STATISTICS_RATE_LIMITED', 'Statistics requests are temporarily limited.', undefined, statisticsRetryAt);
+  }
   const headers = new Headers(init.headers);
   if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
   if (bearer) headers.set('Authorization', `Bearer ${bearer}`);
@@ -60,6 +92,11 @@ async function send<T>(path: string, init: RequestInit, bearer: string | null): 
     response = await fetch(`${baseUrl}/api${path}`, { ...init, headers });
   } catch {
     throw new ApiError(0, 'NETWORK_ERROR', 'Unable to connect. Check your connection and try again.');
+  }
+  if (statistics && response.status === 429) {
+    const retryAt = parseRetryAt(response.headers.get('Retry-After')) ?? Date.now() + 2000;
+    statisticsRetryAt = Math.max(statisticsRetryAt, retryAt);
+    throw new ApiError(429, 'STATISTICS_RATE_LIMITED', 'Statistics requests are temporarily limited.', undefined, statisticsRetryAt);
   }
   return parseResponse<T>(response);
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
@@ -10,6 +10,7 @@ import { heartRateApi, type HeartRateSummary } from '@/features/heart-rate/api/h
 import { stepsApi } from '@/features/steps/api/steps-api';
 import { dateInHcm } from '@/features/heart-rate/utils/heart-rate-date';
 import { useHeartRateRefresh } from '@/features/heart-rate/hooks/use-heart-rate-refresh';
+import { isStatisticsRateLimit, statisticsCoolingDown } from '@/lib/api/http-client';
 import { useSleepRead, useSleepRepository } from '@/features/sleep/hooks/use-sleep';
 import { DashboardHeader } from '../components/dashboard-header';
 import { MetricCard, type HeartRateTile, type SleepTile, type StepsTile } from '../components/metric-card';
@@ -33,7 +34,10 @@ export default function HomeScreen() {
   const sleepRepository = useSleepRepository();
   const { state: sleepDaily, reload: reloadSleep } = useSleepRead(
     () => sleepRepository.getDaily(sleepRepository.getContext().today), 'home:daily-sleep');
-  const retry = useCallback(() => setRequest((value) => value + 1), []);
+  const statsPending = useRef(0);
+  const retry = useCallback(() => {
+    if (!statsPending.current && !statisticsCoolingDown()) setRequest((value) => value + 1);
+  }, []);
   const refresh = useCallback(() => {
     retry();
     reloadSleep();
@@ -44,9 +48,18 @@ export default function HomeScreen() {
     if (status !== 'authenticated') return;
     const controller = new AbortController();
     let active = true;
+    statsPending.current += 1;
     heartRateApi.summary(dateInHcm(), controller.signal)
       .then((result) => { if (active) setSettled({ key: sessionKey, summary: result }); })
-      .catch(() => { if (active && !controller.signal.aborted) setSettled({ key: sessionKey, failed: true }); });
+      .catch((error: unknown) => {
+        if (!active) return;
+        if (isStatisticsRateLimit(error)) {
+          setSettled((previous) => previous?.key === sessionKey ? previous : { key: sessionKey });
+        } else {
+          setSettled({ key: sessionKey, failed: true });
+        }
+      })
+      .finally(() => { statsPending.current -= 1; });
     return () => { active = false; controller.abort(); };
   }, [status, user?.id, request, sessionKey]);
 
@@ -54,9 +67,11 @@ export default function HomeScreen() {
     if (status !== 'authenticated') return;
     const controller = new AbortController();
     let active = true;
+    statsPending.current += 1;
     stepsApi.series('day', { date: dateInHcm() }, controller.signal)
       .then((result) => { if (active) setStepsSettled({ key: sessionKey, totalSteps: result.totalSteps, goal: result.goal?.targetSteps, progressPercent: result.progressPercent, buckets: result.buckets.map((bucket) => bucket.steps) }); })
-      .catch(() => { if (active && !controller.signal.aborted) setStepsSettled({ key: sessionKey, failed: true }); });
+      .catch((error: unknown) => { if (active && !isStatisticsRateLimit(error)) setStepsSettled({ key: sessionKey, failed: true }); })
+      .finally(() => { statsPending.current -= 1; });
     return () => { active = false; controller.abort(); };
   }, [status, user?.id, request, sessionKey]);
 
