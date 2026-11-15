@@ -7,6 +7,7 @@ import type {
   InsightKey, InsightList, JournalPage, JournalQuery, Mutation, ReadResult, SleepContext, SleepSession,
   RecentSleepDay, RecentSleepHighlight, RecentSleepInsight, RecentSleepReport, WeeklySummary, WriteResult,
   SleepInsightDetail, SleepInsightItem, SleepInsightList, SleepInsightPeriod, SleepInsightStatus,
+  AiConsent, RecentStory,
 } from '../types/sleep';
 
 const apiBase = '/sleep/v2';
@@ -94,6 +95,14 @@ function isCivilDay(value: unknown): value is string {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const date = new Date(`${value}T00:00:00Z`);
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
+function readAiConsent(value: unknown): AiConsent {
+  const consent = value as Partial<AiConsent> | null | undefined;
+  if (typeof consent?.enabled !== 'boolean' || typeof consent.available !== 'boolean') {
+    throw new Error('Sleep service returned invalid AI consent.');
+  }
+  return { enabled: consent.enabled, available: consent.available };
 }
 
 function invalidRecentReport(): never {
@@ -381,12 +390,60 @@ export class HttpSleepRepository implements SleepRepository {
   async getWeekly(_query: AnalyticsQuery): Promise<ReadResult<WeeklySummary>> { return unavailable('Weekly analytics'); }
   async getInsights(_query: AnalyticsQuery): Promise<ReadResult<InsightList>> { return unavailable('Sleep Insights'); }
   async getInsight(_key: InsightKey): Promise<ReadResult<Insight | null>> { return unavailable('Sleep Insights'); }
-  async getAiConsent(): Promise<ReadResult<boolean>> { return unavailable('AI consent'); }
-  async getAi(_request: AiRequest): Promise<ReadResult<AiResponse>> { return unavailable('Sleep AI'); }
+  async getAiConsent(): Promise<ReadResult<AiConsent>> {
+    try {
+      const value = await this.send<unknown>('/sleep/ai/consent', { method: 'GET' });
+      return { kind: 'ready', data: readAiConsent(value) };
+    } catch (error) {
+      return { kind: 'error', message: errorMessage(error), ...(error instanceof ApiError ? { code: error.code } : {}) };
+    }
+  }
+  async getAi(_request: AiRequest): Promise<ReadResult<AiResponse>> { return unavailable('Sleep AI explanations'); }
+
+  async getRecentStory(): Promise<ReadResult<RecentStory>> {
+    try {
+      const value = await this.send<unknown>('/sleep/recent/story', { method: 'GET' });
+      if (!value || typeof value !== 'object') throw new Error('Sleep service returned an invalid Recent Story.');
+      const story = value as RecentStory;
+      if (story.status === 'DISABLED' || story.status === 'CONSENT_REQUIRED' || story.status === 'INELIGIBLE') {
+        return { kind: 'ready', data: { status: story.status } };
+      }
+      const { headline, observations } = story;
+      if ((story.status !== 'STORY' && story.status !== 'FALLBACK')
+        || typeof headline !== 'string' || !headline.trim()
+        || !Array.isArray(observations) || observations.length === 0 || observations.length > 2
+        || observations.some((observation) => !observation
+          || !['A01', 'B01'].includes(observation.insightCode)
+          || [observation.text, observation.dataContext, observation.evidenceFingerprint]
+            .some((field) => typeof field !== 'string' || !field.trim()))
+        || !observations.some(({ insightCode }) => insightCode === 'B01')
+        || new Set(observations.map(({ insightCode }) => insightCode)).size !== observations.length) {
+        throw new Error('Sleep service returned an invalid Recent Story.');
+      }
+      return { kind: 'ready', data: story };
+    } catch (error) {
+      return { kind: 'error', message: errorMessage(error), ...(error instanceof ApiError ? { code: error.code } : {}) };
+    }
+  }
 
   async mutate(_attemptId: string, mutation: Mutation): Promise<WriteResult> {
-    if (mutation.kind === 'set-goal' || mutation.kind === 'remove-goal' || mutation.kind === 'set-ai-consent') {
+    if (mutation.kind === 'set-goal' || mutation.kind === 'remove-goal') {
       return { kind: 'rejected', message: 'This operation is not available from the Sleep Journal service.' };
+    }
+    if (mutation.kind === 'set-ai-consent') {
+      try {
+        const response = await this.send<unknown>('/sleep/ai/consent', {
+          method: 'PUT', headers: new Headers({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ enabled: mutation.enabled }),
+        });
+        const confirmed = readAiConsent(response);
+        if (confirmed.enabled !== mutation.enabled || (confirmed.enabled && !confirmed.available)) {
+          throw new Error('Sleep service could not confirm the AI consent change.');
+        }
+        return { kind: 'confirmed', version: 'server' };
+      } catch (error) {
+        return { kind: 'rejected', message: errorMessage(error) };
+      }
     }
     let method: 'POST' | 'PUT' | 'DELETE';
     let path: string;

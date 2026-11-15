@@ -9,13 +9,14 @@ import { useSleepRead, useSleepRepository } from '../hooks/use-sleep';
 import { sleepMessages } from '../messages';
 import type { RecentSleepReport } from '../types/sleep';
 import { sleepDay } from '../utils/sleep-format';
+import { RecentSleepStory } from '../components/recent-sleep-story';
 
 export default function RecentSleepReportScreen() {
   const t = useTranslations(sleepMessages);
   const { locale } = useI18n();
   const fixtures = sleepFixturesEnabled();
   const repository = useSleepRepository();
-  const { state, reload } = useSleepRead(() => repository.getRecent(), 'sleep-recent');
+  const { state, reload } = useSleepRead(() => repository.getRecent(), 'sleep-recent', false, true);
 
   return <SleepPage title={t('recentReport')} fallback="/sleep" demo={fixtures}>
     {state.kind === 'loading' ? <SleepNotice title={t('loading')} loading /> : null}
@@ -72,6 +73,7 @@ function RecentReport({ report, locale }: { report: RecentSleepReport; locale: s
         <ThemedText variant="caption" themeColor="textSecondary">{insight.summary}</ThemedText>
       </>}
     </SleepCard>)}
+    <RecentSleepStory report={report} />
     <SleepButton label={t('viewAllInsights')} variant="secondary" onPress={() => router.push('/sleep/insights')} />
     {report.dataStatus === 'no-data' ? <SleepButton label={t('recordSleep')} onPress={() => router.push('/sleep/record')} /> : null}
   </>;

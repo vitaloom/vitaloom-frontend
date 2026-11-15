@@ -13,7 +13,7 @@ export function SleepAiSection({ request, requestKey }: { request: AiRequest; re
   if (consent.state.kind === 'loading') return null;
   if (consent.state.kind === 'error') return <SleepNotice title="AI preference unavailable" message={consent.state.message}
     actionLabel="Retry" onAction={consent.reload} />;
-  const enabled = consent.state.data;
+  const enabled = consent.state.data.enabled;
   const unknown = mutation.result?.kind === 'unknown';
 
   return <SleepCard tone="lilac">

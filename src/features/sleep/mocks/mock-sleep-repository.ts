@@ -173,12 +173,16 @@ export class MockSleepRepository implements SleepRepository {
     return this.read(copyInsight(result));
   }
 
-  async getAiConsent() { return this.read(this.consent); }
+  async getAiConsent() { return this.read({ enabled: this.consent, available: true }); }
 
   async getAi(request: AiRequest) {
     const state = this.analyticsState();
     const response = aiFixture(state, request, this.consent, this.scenario === 'ai-unavailable');
     return this.read(response);
+  }
+
+  async getRecentStory() {
+    return this.read({ status: this.consent ? 'INELIGIBLE' as const : 'DISABLED' as const });
   }
 
   async mutate(attemptId: string, mutation: Mutation): Promise<WriteResult> {

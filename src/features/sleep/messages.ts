@@ -32,6 +32,11 @@ export const sleepMessages = {
     insightRetry: 'Try again', insightsEmpty: 'No supported insights are available for this period.',
     insightsTitle: 'Sleep Insights', insightsSubtitle: 'Explore recent sleep patterns and feelings.',
     loadingInsights: 'Loading insights', failedInsights: 'Could not load insights', loadingInsight: 'Loading insight',
+    aiConsentTitle: 'Optional Sleep Story', aiConsentDescription: 'When enabled, the service uses limited verified sleep summaries for this story. This development preview uses a deterministic fake provider and sends no data to an AI provider.',
+    aiConsentTurnOn: 'Allow Sleep Story', aiConsentTurnOff: 'Turn off Sleep Story', aiPreferenceError: 'Sleep Story preference unavailable',
+    recentStoryTitle: 'Recent Sleep Story', recentStoryLoading: 'Loading your story', recentStoryUnavailable: 'Story unavailable', aiPreferenceLoading: 'Loading Sleep Story preference',
+    recentStoryFallback: 'Evidence summary · not AI generated',
+    openStoryInsight: 'Open {code} insight detail',
   },
   vi: {
     title: 'Theo dõi giấc ngủ', subtitle: 'Ghi lại giấc ngủ và khám phá các xu hướng.',
@@ -66,5 +71,10 @@ export const sleepMessages = {
     insightRetry: 'Thử lại', insightsEmpty: 'Hiện chưa có thông tin được hỗ trợ cho giai đoạn này.',
     insightsTitle: 'Thông tin giấc ngủ', insightsSubtitle: 'Khám phá kiểu hình và cảm nhận giấc ngủ gần đây.',
     loadingInsights: 'Đang tải thông tin', failedInsights: 'Không thể tải thông tin', loadingInsight: 'Đang tải chi tiết',
+    aiConsentTitle: 'Câu chuyện giấc ngủ tùy chọn', aiConsentDescription: 'Khi bật, dịch vụ dùng bản tóm tắt giấc ngủ đã xác minh và ở mức cần thiết. Bản xem trước phát triển này dùng bộ giả lập xác định trước và không gửi dữ liệu đến nhà cung cấp AI.',
+    aiConsentTurnOn: 'Cho phép câu chuyện giấc ngủ', aiConsentTurnOff: 'Tắt câu chuyện giấc ngủ', aiPreferenceError: 'Không thể tải tùy chọn câu chuyện giấc ngủ',
+    recentStoryTitle: 'Câu chuyện giấc ngủ gần đây', recentStoryLoading: 'Đang tải câu chuyện', recentStoryUnavailable: 'Không thể tải câu chuyện', aiPreferenceLoading: 'Đang tải tùy chọn câu chuyện giấc ngủ',
+    recentStoryFallback: 'Tóm tắt bằng chứng · không do AI tạo',
+    openStoryInsight: 'Mở chi tiết thông tin {code}',
   },
 } as const;

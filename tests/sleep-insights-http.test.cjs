@@ -81,3 +81,39 @@ test('invalid insight status and malformed detail responses become read errors',
   assert.equal((await repository.getAllInsights()).kind, 'error');
   assert.equal((await repository.getInsightDetail('B01')).kind, 'error');
 });
+
+test('AI consent and Recent Story use authenticated server-owned HTTP contracts', async () => {
+  const story = { status: 'STORY', headline: 'Recent sleep', observations: [
+    { insightCode: 'B01', text: 'A pattern', dataContext: '3 rated sessions', evidenceFingerprint: 'fp-1' },
+  ] };
+  const { repository, requests } = repositoryFor([
+    { enabled: true, available: true }, story, { enabled: false, available: true },
+  ]);
+  assert.deepEqual(await repository.getAiConsent(), { kind: 'ready', data: { enabled: true, available: true } });
+  assert.deepEqual(await repository.getRecentStory(), { kind: 'ready', data: story });
+  assert.deepEqual(await repository.mutate('consent-1', { kind: 'set-ai-consent', enabled: false }), { kind: 'confirmed', version: 'server' });
+  assert.deepEqual(requests.map(({ path, init, authenticated }) => [path, init.method, authenticated]), [
+    ['/sleep/ai/consent', 'GET', true], ['/sleep/recent/story', 'GET', true], ['/sleep/ai/consent', 'PUT', true],
+  ]);
+  assert.equal(requests[2].init.body, JSON.stringify({ enabled: false }));
+});
+
+test('Recent Story rejects invalid status, unsupported claims and more than two observations', async () => {
+  const observation = { insightCode: 'B01', text: 'x', dataContext: 'x', evidenceFingerprint: 'x' };
+  const invalid = [
+    { status: 'UNKNOWN' },
+    { status: 'STORY' },
+    { status: 'STORY', headline: 'x', observations: [{ ...observation, insightCode: 'C01' }] },
+    { status: 'FALLBACK', headline: 'x', observations: [{ ...observation, insightCode: 'A01' }] },
+    { status: 'STORY', headline: 'x', observations: [observation, observation] },
+    { status: 'STORY', headline: 'x', observations: [observation, observation, observation] },
+  ];
+  const { repository } = repositoryFor(invalid);
+  for (let index = 0; index < invalid.length; index += 1) assert.equal((await repository.getRecentStory()).kind, 'error');
+});
+
+test('AI consent writes confirm the state returned by the server', async () => {
+  const { repository } = repositoryFor([{ enabled: false, available: true }]);
+  const outcome = await repository.mutate('consent-1', { kind: 'set-ai-consent', enabled: true });
+  assert.equal(outcome.kind, 'rejected');
+});
