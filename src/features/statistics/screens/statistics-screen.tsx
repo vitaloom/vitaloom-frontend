@@ -48,7 +48,8 @@ export default function StatisticsScreen() {
     { metric: 'water', route: '/water', query: water },
     { metric: 'sleep', route: '/sleep', query: sleep },
   ] as const;
-  const refreshing = cards.some(({ query }) => query.pending && query.previous != null);
+  const visibleCards = mode === 'week' ? cards.filter(({ metric }) => metric !== 'sleep') : cards;
+  const refreshing = visibleCards.some(({ query }) => query.pending && query.previous != null);
 
   const selectDate = (date: string) => {
     const currentStart = makePeriod(mode, today, today).start;
@@ -75,7 +76,7 @@ export default function StatisticsScreen() {
             <StatisticsBanner visuals={visuals} dark={scheme === 'dark'} />
             <StatisticsPeriodSelector period={period} visuals={visuals} onMode={setMode} onMove={selectDate} />
             <View style={styles.cards}>
-              {cards.map(({ metric, route, query }) => (
+              {visibleCards.map(({ metric, route, query }) => (
                 <StatisticsMetricCard key={metric} metric={metric} mode={mode} visuals={visuals}
                   state={query.state} previous={query.previous} onRetry={query.retry} onOpen={() => router.push(route)} />
               ))}

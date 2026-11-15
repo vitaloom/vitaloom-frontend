@@ -1,1 +1,1 @@
-export { default } from '@/features/sleep/screens/weekly-sleep-report-screen';
+export { default } from '@/features/sleep/screens/recent-sleep-report-screen';

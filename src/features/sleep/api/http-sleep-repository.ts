@@ -5,7 +5,7 @@ import type { SleepRepository } from './sleep-repository';
 import type {
   AiRequest, AiResponse, AnalyticsQuery, DailySummary, Day, Feeling, GoalState, HomeSummary, Insight,
   InsightKey, InsightList, JournalPage, JournalQuery, Mutation, ReadResult, SleepContext, SleepSession,
-  WeeklySummary, WriteResult,
+  RecentSleepDay, RecentSleepInsight, RecentSleepReport, WeeklySummary, WriteResult,
 } from '../types/sleep';
 
 const apiBase = '/sleep/v2';
@@ -89,6 +89,97 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Sleep request failed.';
 }
 
+function isCivilDay(value: unknown): value is string {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
+function invalidRecentReport(): never {
+  throw new Error('Sleep service returned an invalid Recent report.');
+}
+
+export function mapRecentSleepReport(value: unknown): RecentSleepReport {
+  if (!value || typeof value !== 'object') return invalidRecentReport();
+  const report = value as Record<string, unknown>;
+  const period = report.period;
+  if (!period || typeof period !== 'object') return invalidRecentReport();
+  const { start, end, timeZone } = period as Record<string, unknown>;
+  if (!isCivilDay(start) || !isCivilDay(end) || timeZone !== reportingZone) return invalidRecentReport();
+  const firstDay = new Date(`${start}T00:00:00Z`);
+  const lastDay = new Date(`${end}T00:00:00Z`);
+  if (lastDay.getTime() - firstDay.getTime() !== 6 * 86400000) return invalidRecentReport();
+  if (!Array.isArray(report.days) || report.days.length !== 7) return invalidRecentReport();
+
+  const days: RecentSleepDay[] = report.days.map((entry, index) => {
+    if (!entry || typeof entry !== 'object') return invalidRecentReport();
+    const day = entry as Record<string, unknown>;
+    const expectedDay = new Date(firstDay.getTime() + index * 86400000).toISOString().slice(0, 10);
+    if (day.day !== expectedDay || !isCivilDay(day.day)) return invalidRecentReport();
+    if (day.status === 'RECORDED' && Number.isInteger(day.minutes) && Number(day.minutes) >= 1 && Number(day.minutes) <= 1440) {
+      return { day: day.day, status: 'recorded', minutes: Number(day.minutes) };
+    }
+    if ((day.status === 'NOT_RECORDED' || day.status === 'UNVERIFIED') && day.minutes === null) {
+      return { day: day.day, status: day.status === 'NOT_RECORDED' ? 'not-recorded' : 'unverified', minutes: null };
+    }
+    return invalidRecentReport();
+  });
+
+  const recorded = days.filter((day) => day.status === 'recorded').length;
+  const status = report.dataStatus;
+  const insights = report.insights;
+  if (report.coverageDenominator !== 7 || !Array.isArray(insights)) return invalidRecentReport();
+  let dataStatus: RecentSleepReport['dataStatus'];
+  let recordedDays: number | null;
+  let average: number | null;
+  let mappedInsights: RecentSleepInsight[];
+
+  if (status === 'UNVERIFIED_DATA') {
+    if (days.some((day) => day.status === 'not-recorded') || report.recordedDays !== null
+      || report.averageMinutesPerRecordedDay !== null || insights.length !== 0) return invalidRecentReport();
+    dataStatus = 'unverified-data';
+    recordedDays = null;
+    average = null;
+    mappedInsights = [];
+  } else if (status === 'NO_DATA') {
+    if (recorded !== 0 || days.some((day) => day.status !== 'not-recorded') || report.recordedDays !== 0
+      || report.averageMinutesPerRecordedDay !== null || insights.length !== 0) return invalidRecentReport();
+    dataStatus = 'no-data';
+    recordedDays = 0;
+    average = null;
+    mappedInsights = [];
+  } else if (status === 'VERIFIED') {
+    if (recorded === 0 || days.some((day) => day.status === 'unverified') || report.recordedDays !== recorded
+      || !Number.isInteger(report.averageMinutesPerRecordedDay) || Number(report.averageMinutesPerRecordedDay) < 1
+      || Number(report.averageMinutesPerRecordedDay) > 1440) {
+      return invalidRecentReport();
+    }
+    dataStatus = 'verified';
+    recordedDays = recorded;
+    average = report.averageMinutesPerRecordedDay as number | null;
+    if (recorded >= 3) {
+      if (insights.length !== 1) return invalidRecentReport();
+      const insight = insights[0];
+      if (!insight || typeof insight !== 'object') return invalidRecentReport();
+      const item = insight as Record<string, unknown>;
+      if (item.code !== 'A01' || item.status !== 'READY' || item.sampleDays !== recorded || item.denominatorDays !== 7) return invalidRecentReport();
+      mappedInsights = [{ code: 'A01', status: 'ready', sampleDays: recorded, denominatorDays: 7 }];
+    } else {
+      if (insights.length !== 0) return invalidRecentReport();
+      mappedInsights = [];
+    }
+  } else {
+    return invalidRecentReport();
+  }
+
+  return {
+    period: { start, end, timeZone },
+    dataStatus, days, recordedDays, coverageDenominator: 7,
+    averageMinutesPerRecordedDay: average,
+    insights: mappedInsights,
+  };
+}
+
 function dailySummary(day: string, sessions: SleepSession[]): DailySummary {
   const mainSessions = sessions.filter((session) => session.day === day && session.sleepType === 'main');
   const goal = { minutes: null, revision: 0, effectiveDay: null, verified: false } as const;
@@ -163,6 +254,17 @@ export class HttpSleepRepository implements SleepRepository {
       if (error instanceof ApiError && error.status === 404 && error.code === 'SLEEP_NOT_FOUND') {
         return { kind: 'ready', data: null };
       }
+      return {
+        kind: 'error', message: errorMessage(error),
+        ...(error instanceof ApiError ? { code: error.code } : {}),
+      };
+    }
+  }
+
+  async getRecent(): Promise<ReadResult<RecentSleepReport>> {
+    try {
+      return { kind: 'ready', data: mapRecentSleepReport(await this.send<unknown>('/sleep/recent', { method: 'GET' })) };
+    } catch (error) {
       return {
         kind: 'error', message: errorMessage(error),
         ...(error instanceof ApiError ? { code: error.code } : {}),

@@ -24,6 +24,17 @@ export type DailySummary = {
 };
 export type JournalQuery = { from?: Day; to?: Day; cursor?: string; limit?: number; sourceIds?: string[] };
 export type JournalPage = { sessions: SleepSession[]; verified: boolean; nextCursor: string | null; version: string };
+export type RecentSleepDay = { day: Day; status: 'recorded' | 'not-recorded' | 'unverified'; minutes: number | null };
+export type RecentSleepInsight = { code: 'A01'; status: 'ready'; sampleDays: number; denominatorDays: 7 };
+export type RecentSleepReport = {
+  period: { start: Day; end: Day; timeZone: 'Asia/Ho_Chi_Minh' };
+  dataStatus: 'no-data' | 'verified' | 'unverified-data';
+  days: RecentSleepDay[];
+  recordedDays: number | null;
+  coverageDenominator: 7;
+  averageMinutesPerRecordedDay: number | null;
+  insights: RecentSleepInsight[];
+};
 
 export type InsightCode = 'A01' | 'A02' | 'A03' | 'A04' | 'A05' | 'B01' | 'B02' | 'B03' | 'B04' | 'C01' | 'C03' | 'C04';
 export type InsightCategory = 'patterns' | 'feelings' | 'discoveries';

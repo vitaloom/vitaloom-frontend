@@ -4,7 +4,9 @@ import { AuthProvider, useAuth } from '@/features/auth/store/auth-context';
 import { AppearanceProvider, useAppearance } from '@/theme/appearance-provider';
 import { colors } from '@/theme/colors';
 import { StatusBar } from 'expo-status-bar';
+import { ActivityIndicator, View } from 'react-native';
 import { I18nProvider, useTranslations } from '@/i18n';
+import { authMessages } from '@/features/auth/messages';
 import { sleepMessages } from '@/features/sleep/messages';
 
 export default function RootLayout() {
@@ -38,9 +40,16 @@ function AuthenticatedNavigator() {
   const { scheme } = useAppearance();
   const { status, pendingProfileInvitation } = useAuth();
   const t = useTranslations(sleepMessages);
+  const tAuth = useTranslations(authMessages);
   const themeColors = colors[scheme];
   const authenticated = status === 'authenticated';
   const authenticationScreenAvailable = status === 'unauthenticated' || status === 'temporarilyUnavailable';
+
+  // Wait for session restoration before route protection handles the incoming URL.
+  if (status === 'checking') return <View accessibilityRole="progressbar" accessibilityLabel={tAuth('restoreLoading')}
+    style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: themeColors.background }}>
+    <ActivityIndicator color={themeColors.accent} />
+  </View>;
 
   return <Stack screenOptions={{
     headerShown: false,

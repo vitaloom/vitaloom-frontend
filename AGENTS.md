@@ -1,5 +1,9 @@
 This is an Expo/React Native mobile application. Prioritize mobile-first patterns, performance, and cross-platform compatibility.
 
+## VitaLoom development workflow
+
+For tasks in the VitaLoom workspace, read the [workspace instructions](../AGENTS.md), [workflow and source map](../vitaloom-business-docs-and-tools/docs/development-workflow/README.md) and [Decision Ledger](../vitaloom-business-docs-and-tools/docs/development-workflow/decisions.md). Use the owning Business, Backend and Design documents and the current feature integration before editing. Apply the local conventions and checks below.
+
 ## Expo has changed — do not trust your training data
 
 Expo ships breaking changes every SDK release. APIs you remember are likely renamed, moved, or removed. Before writing any code that touches an Expo, EAS, or React Native API:

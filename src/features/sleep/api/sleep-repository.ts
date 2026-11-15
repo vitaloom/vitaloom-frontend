@@ -1,6 +1,6 @@
 import type {
   AiRequest, AiResponse, AnalyticsQuery, DailySummary, Day, GoalState, HomeSummary, Insight,
-  InsightKey, InsightList, JournalPage, JournalQuery, Mutation, ReadResult, SleepContext, SleepSession,
+  InsightKey, InsightList, JournalPage, JournalQuery, Mutation, ReadResult, RecentSleepReport, SleepContext, SleepSession,
   WeeklySummary, WriteResult,
 } from '../types/sleep';
 
@@ -11,6 +11,7 @@ export interface SleepRepository {
   getDaily(day: Day): Promise<ReadResult<DailySummary>>;
   getJournal(query?: JournalQuery): Promise<ReadResult<JournalPage>>;
   getSession(id: string): Promise<ReadResult<SleepSession | null>>;
+  getRecent(): Promise<ReadResult<RecentSleepReport>>;
   getGoal(day?: Day): Promise<ReadResult<GoalState>>;
   getWeekly(query: AnalyticsQuery): Promise<ReadResult<WeeklySummary>>;
   getInsights(query: AnalyticsQuery): Promise<ReadResult<InsightList>>;

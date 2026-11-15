@@ -16,7 +16,7 @@ import { insightHref } from '../utils/sleep-navigation';
 const destinations = [
   { key: 'journal', path: '/sleep/journal', icon: '▤' },
   { key: 'insights', path: '/sleep/insights', icon: '▥' },
-  { key: 'weeklyReport', path: '/sleep/weekly', icon: '▦' },
+  { key: 'recentReport', path: '/sleep/recent', icon: '▦' },
 ] as const;
 
 function homeDuration(minutes: number, language: Language) {

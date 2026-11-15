@@ -71,10 +71,51 @@ test('explicit development mode preserves the scenario fixtures', async () => {
     const journal = await repo.getJournal();
     assert.equal(journal.kind, 'ready');
     assert.deepEqual(journal.data.sessions, []);
+    const recent = await repo.getRecent();
+    assert.equal(recent.kind, 'error');
   } finally {
     resetApiSession();
     delete process.env.EXPO_PUBLIC_SLEEP_MODE;
     delete process.env.EXPO_PUBLIC_SLEEP_SCENARIO;
     delete globalThis.__DEV__;
+  }
+});
+
+test('a Recent response from a prior account session is discarded after account switch', async () => {
+  const originalFetch = globalThis.fetch;
+  let releaseFirst;
+  let firstRequest = true;
+  const payload = {
+    period: { start: '2026-11-08', end: '2026-11-14', timeZone: 'Asia/Ho_Chi_Minh' },
+    dataStatus: 'NO_DATA',
+    days: Array.from({ length: 7 }, (_, index) => ({
+      day: new Date(Date.UTC(2026, 10, 8 + index)).toISOString().slice(0, 10),
+      status: 'NOT_RECORDED', minutes: null,
+    })),
+    recordedDays: 0, coverageDenominator: 7, averageMinutesPerRecordedDay: null, insights: [],
+  };
+  globalThis.fetch = () => {
+    if (firstRequest) {
+      firstRequest = false;
+      return new Promise((resolve) => { releaseFirst = resolve; });
+    }
+    return Promise.resolve(new Response(JSON.stringify(payload)));
+  };
+  try {
+    resetApiSession();
+    setAccessToken('account-a-token');
+    const accountA = getSleepRepository('account-a');
+    const pendingRecent = accountA.getRecent();
+    resetApiSession();
+    setAccessToken('account-b-token');
+    const accountB = getSleepRepository('account-b');
+    releaseFirst(new Response(JSON.stringify(payload)));
+    assert.deepEqual(await pendingRecent, {
+      kind: 'error', message: 'The authenticated account changed.', code: 'AUTH_SESSION_CHANGED',
+    });
+    assert.equal((await accountB.getRecent()).kind, 'ready');
+  } finally {
+    resetApiSession();
+    globalThis.fetch = originalFetch;
   }
 });

@@ -18,4 +18,8 @@ Only a successful mutation refreshes subscribed reads and triggers the success f
 
 Only the documented SLEEP_NOT_FOUND response maps to a verified missing record. A failed list request stays an error. The HTTP adapter maps the complete list to the existing Journal view. The paging and evidence interfaces remain available to development fixtures.
 
-The same-day Journal query supplies today's recorded Main Sleep duration for Sleep Home and the Dashboard. A verified empty day displays a missing-record state. F2 Goals, Weekly Reports, Insights, consent and AI remain development fixtures. See the [Main Sleep handoff](10-main-sleep-handoff.md) for verification and rollout details.
+The same-day Journal query supplies today's recorded Main Sleep duration for Sleep Home and the Dashboard. A verified empty day displays a missing-record state. See the [Main Sleep handoff](10-main-sleep-handoff.md) for F1 verification and rollout details.
+
+## P1 Recent Report integration
+
+The adapter uses authenticated `GET /api/sleep/recent` through the shared client. Mobile displays the server's seven dates, recorded-day metrics and READY A01 highlight. `NO_DATA` offers Main Sleep recording, `UNVERIFIED_DATA` shows only verified individual records and uncertain dates, and request failures show an error with retry. The Mobile screen route `/sleep/weekly` is an alias for `/sleep/recent`. [Backend contract](../../../../vitaloom-backend/docs/features/sleep-report/api-contract.md) · [Recent integration report](11-recent-report-integration.md)

@@ -103,6 +103,10 @@ export class MockSleepRepository implements SleepRepository {
     return this.read(session ? { ...copySession(session), editable: this.isEditable(session) } : null);
   }
 
+  async getRecent() {
+    return { kind: 'error' as const, message: 'Recent Sleep is available from the authenticated service only.' };
+  }
+
   async getGoal(day = this.getContext().today) {
     const entry = [...this.goals].reverse().find((candidate) => candidate.effectiveDay <= day);
     return this.read({ minutes: entry?.minutes ?? null, revision: this.revision, effectiveDay: entry?.effectiveDay ?? null, verified: this.scenario !== 'unverified' });
