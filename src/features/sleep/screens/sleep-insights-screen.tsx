@@ -1,6 +1,10 @@
 import { router } from 'expo-router';
+import { SymbolView } from 'expo-symbols';
+import { StyleSheet, View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
+import { useTheme } from '@/hooks/use-theme';
 import { useTranslations } from '@/i18n';
+import { radius, sizing, spacing } from '@/theme';
 import { SleepCard, SleepNotice, SleepPage } from '../components/sleep-ui';
 import { useSleepRead, useSleepRepository } from '../hooks/use-sleep';
 import { sleepMessages } from '../messages';
@@ -20,16 +24,28 @@ function InsightRow({ item, t }: {
 }) {
   const goalCopy = item.code === 'A02' || item.code === 'B04'
     ? sleepGoalInsightCopy(item.code, item.sample, item.evidence, t) : null;
+  const theme = useTheme();
   const title = goalCopy?.title ?? item.title;
   const summary = goalCopy ? goalCopy.summary : item.summary;
-  return <SleepCard onPress={() => router.push({ pathname: '/sleep/insights/[code]', params: { code: item.code } })}
+  return <SleepCard onPress={item.locked ? undefined
+    : () => router.push({ pathname: '/sleep/insights/[code]', params: { code: item.code } })}
     label={`${title}. ${item.locked ? statusMessage(item.status, t) : summary ?? ''}`}>
-    <ThemedText variant="labelStrong">{item.code} · {title}</ThemedText>
-    {item.locked
-      ? <ThemedText variant="subhead" themeColor="textSecondary">{statusMessage(item.status, t)}</ThemedText>
-      : <>
-        {summary ? <ThemedText variant="subhead" themeColor="textSecondary">{summary}</ThemedText> : null}
-      </>}
+    <View style={styles.row}>
+      <View style={[styles.icon, { backgroundColor: item.locked ? theme.backgroundSelected : theme.sleepSoft }]}
+        accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        <SymbolView size={sizing.iconMd} tintColor={item.locked ? theme.textSecondary : theme.accent}
+          name={item.locked ? { ios: 'lock.fill', android: 'lock', web: 'lock' }
+            : item.category === 'A' ? { ios: 'chart.bar.fill', android: 'bar_chart', web: 'bar_chart' }
+              : { ios: 'face.smiling', android: 'mood', web: 'mood' }} />
+      </View>
+      <View style={styles.copy}>
+        <ThemedText variant="bodyStrong">{title}</ThemedText>
+        <ThemedText variant="subhead" themeColor="textSecondary">
+          {item.locked ? statusMessage(item.status, t) : summary || t('insightStatusReady')}
+        </ThemedText>
+      </View>
+      {!item.locked ? <ThemedText accessible={false} variant="heading" themeColor="accent">›</ThemedText> : null}
+    </View>
   </SleepCard>;
 }
 
@@ -41,7 +57,7 @@ export default function SleepInsightsScreen() {
   const patterns = items.filter(({ category }) => category === 'A');
   const feelings = items.filter(({ category }) => category === 'B');
 
-  return <SleepPage title={t('insightsTitle')} subtitle={t('insightsSubtitle')} hero wellness={items.length === 0}>
+  return <SleepPage title={t('insightsTitle')} subtitle={t('insightsSubtitle')} wellness wellnessHero>
     {state.kind === 'loading' ? <SleepNotice title={t('loadingInsights')} loading /> : null}
     {state.kind === 'error' ? <SleepNotice title={t('failedInsights')} message={state.message} error
       actionLabel={t('insightRetry')} onAction={reload} /> : null}
@@ -56,3 +72,9 @@ export default function SleepInsightsScreen() {
     </> : null}
   </SleepPage>;
 }
+
+const styles = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  copy: { flex: 1, gap: spacing.xs },
+  icon: { padding: spacing.sm, borderRadius: radius.md },
+});

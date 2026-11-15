@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import { SymbolView } from 'expo-symbols';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
@@ -14,9 +15,9 @@ import { sleepDay } from '../utils/sleep-format';
 import { insightHref } from '../utils/sleep-navigation';
 
 const destinations = [
-  { key: 'journal', path: '/sleep/journal', icon: '▤' },
-  { key: 'insights', path: '/sleep/insights', icon: '▥' },
-  { key: 'recentReport', path: '/sleep/recent', icon: '▦' },
+  { key: 'journal', path: '/sleep/journal', icon: { ios: 'calendar', android: 'calendar_month', web: 'calendar_month' } },
+  { key: 'sleepGoal', path: '/sleep/goal', icon: { ios: 'target', android: 'track_changes', web: 'track_changes' } },
+  { key: 'recentReport', path: '/sleep/recent', icon: { ios: 'chart.bar.fill', android: 'bar_chart', web: 'bar_chart' } },
 ] as const;
 
 function homeDuration(minutes: number, language: Language) {
@@ -31,7 +32,7 @@ export default function SleepScreen() {
   const theme = useTheme();
   const t = useTranslations(sleepMessages);
   const repository = useSleepRepository();
-  const { state, reload } = useSleepRead(() => repository.getHome(), 'sleep-home');
+  const { state, reload } = useSleepRead(() => repository.getHome(), 'sleep-home', false, true);
   const summary = state.kind === 'ready' ? state.data : null;
   const featured = summary?.featured;
 
@@ -46,28 +47,35 @@ export default function SleepScreen() {
         actionLabel={t('reload')} onAction={reload} /> : <LatestSleep session={summary.latest} />}
       <DailyGoal summary={summary.daily} />
     </> : null}
-    {featured?.eligible && featured.status === 'ready' ? <SleepCard tone="warm"
-      onPress={() => router.push(insightHref(featured))} label={t('openFeatured')}>
-      <View style={styles.row}>
-        <View style={styles.fill}>
-          <ThemedText variant="labelStrong" themeColor="accent">{t('featuredInsight')}</ThemedText>
-          <ThemedText variant="body">{featured.summary}</ThemedText>
-        </View>
-        <Image source={sleepArt.pillow} resizeMode="contain" style={styles.pillow} accessible={false} />
-      </View>
-    </SleepCard> : null}
-    <SleepButton label={t('recordSleep')} onPress={() => router.push('/sleep/record')} />
     <View style={styles.tiles}>
       {destinations.map(({ key, path, icon }) => {
         const label = t(key);
         return <Pressable key={path} accessibilityRole="button"
           accessibilityLabel={t('openDestination', { destination: label })} onPress={() => router.push(path)}
           style={({ pressed }) => [styles.tile, { backgroundColor: pressed ? theme.backgroundSelected : theme.backgroundElement, borderColor: theme.border }]}>
-          <ThemedText variant="heading" themeColor="accent" accessible={false}>{icon}</ThemedText>
+          <View style={[styles.tileIcon, { backgroundColor: theme.sleepSoft }]} accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants">
+            <SymbolView name={icon} tintColor={theme.accent} size={sizing.iconMd} />
+          </View>
           <ThemedText variant="labelStrong" style={styles.center}>{label}</ThemedText>
         </Pressable>;
       })}
     </View>
+    {featured && ('source' in featured || (featured.eligible && featured.status === 'ready')) ? <SleepCard tone="warm"
+      onPress={() => router.push('source' in featured
+        ? { pathname: '/sleep/insights/[code]', params: { code: featured.code } }
+        : insightHref(featured))} label={t('openFeatured')}>
+      <View style={styles.row}>
+        <View style={styles.fill}>
+          <ThemedText variant="labelStrong" themeColor="accent">{t('featuredInsight')}</ThemedText>
+          <ThemedText variant="body">{'source' in featured ? featured.title : featured.summary}</ThemedText>
+          {'source' in featured ? <ThemedText variant="subhead">{featured.summary}</ThemedText> : null}
+        </View>
+        <Image source={sleepArt.pillow} resizeMode="contain" style={styles.pillow} accessible={false} />
+      </View>
+    </SleepCard> : null}
+    <SleepButton label={t('insights')} variant="secondary" onPress={() => router.push('/sleep/insights')} />
+    <SleepButton label={t('recordSleep')} onPress={() => router.push('/sleep/record')} />
   </SleepPage>;
 }
 
@@ -76,7 +84,7 @@ function LatestSleep({ session }: { session: SleepSession | null }) {
   const t = useTranslations(sleepMessages);
   const { language, locale } = useI18n();
   const feelingLabel = { comfortable: t('comfortable'), normal: t('normal'), tired: t('tired') } as const;
-  return <SleepCard onPress={session ? () => router.push({ pathname: '/sleep/journal/[id]', params: { id: session.id } }) : undefined}>
+  return <SleepCard tone="mint" onPress={session ? () => router.push({ pathname: '/sleep/journal/[id]', params: { id: session.id } }) : undefined}>
     <View style={styles.row}>
       <ThemedText variant="heading" style={styles.fill}>{t('latestSleep')}</ThemedText>
       {session ? <ThemedText variant="label" themeColor="textSecondary">{sleepDay(session.day, locale)}</ThemedText> : null}
@@ -84,7 +92,7 @@ function LatestSleep({ session }: { session: SleepSession | null }) {
     {session ? <>
       <View style={styles.row}>
         <ThemedText variant="display" style={styles.fill}>{homeDuration(session.minutes, language)}</ThemedText>
-        {session.feeling ? <View style={[styles.feeling, { backgroundColor: theme.stepsSoft }]}>
+        {session.feeling ? <View style={[styles.feeling, { backgroundColor: theme.backgroundElement }]}>
           <ThemedText variant="labelStrong">{feelingLabel[session.feeling]}</ThemedText>
         </View> : null}
         <ThemedText variant="heading" themeColor="accent" accessible={false}>›</ThemedText>
@@ -130,6 +138,7 @@ const styles = StyleSheet.create({
   tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   tile: { flexGrow: 1, flexBasis: 84, minHeight: sizing.controlComfortable * 1.6, borderRadius: radius.lg, borderWidth: 1,
     alignItems: 'center', justifyContent: 'center', padding: spacing.sm, gap: spacing.xs },
+  tileIcon: { borderRadius: radius.md, padding: spacing.sm },
   center: { textAlign: 'center' },
   track: { flex: 1, borderRadius: radius.full, height: 12, overflow: 'hidden' },
   bar: { height: '100%', borderRadius: radius.full },

@@ -13,6 +13,7 @@ require.extensions['.ts'] = (module, filename) => {
 
 const { HttpSleepRepository } = require('../src/features/sleep/api/http-sleep-repository.ts');
 const { sleepGoalInsightCopy } = require('../src/features/sleep/utils/sleep-goal-insight-copy.ts');
+const { readSleepDetailVisual } = require('../src/features/sleep/utils/sleep-detail-evidence.ts');
 
 const period = { start: '2026-11-08', end: '2026-11-14', timeZone: 'Asia/Ho_Chi_Minh' };
 const item = (status, overrides = {}) => ({
@@ -165,6 +166,76 @@ test('Goal insight copy withholds its summary when server counts disagree', () =
   assert.deepEqual(sleepGoalInsightCopy('B04', { ratedMain: 3, comparableRatedMain: 2 }, {
     exceptionCount: 2, ratedMain: 3, exceptions: [{}],
   }, translate), { title: 'goalInsightB04Title' });
+});
+
+test('Detail visual reader validates current numeric evidence and exact B04 exception rows', () => {
+  const a01 = { code: 'A01', status: 'READY', period,
+    sample: { recordedMainDays: 4, coverageDenominator: 7 },
+    evidence: { recordedMainDays: 4, coverageDenominator: 7 } };
+  const a02 = { code: 'A02', status: 'READY', period,
+    sample: { eligibleMainDays: 4 }, evidence: { metGoalDays: 3, eligibleMainDays: 4 } };
+  const b01 = { code: 'B01', status: 'READY', period,
+    sample: { ratedMain: 3, mainWithoutFeeling: 2 }, evidence: {
+      comfortable: { count: 1, denominator: 3, percentage: 33.33 },
+      normal: { count: 1, denominator: 3, percentage: 33.33 },
+      tired: { count: 1, denominator: 3, percentage: 33.33 }, mainWithoutFeeling: 2,
+    } };
+  const b04 = { code: 'B04', status: 'READY', period,
+    sample: { ratedMain: 3, comparableRatedMain: 2 }, evidence: {
+      exceptionCount: 1, ratedMain: 3,
+      exceptions: [{ day: '2026-11-13', minutes: 480, goalMinutes: 465 }],
+    } };
+  assert.deepEqual(readSleepDetailVisual(a01), { code: 'A01', recordedMainDays: 4, denominator: 7 });
+  assert.deepEqual(readSleepDetailVisual(a02), { code: 'A02', metGoalDays: 3, eligibleMainDays: 4 });
+  assert.equal(readSleepDetailVisual(b01).ratedMain, 3);
+  assert.equal(readSleepDetailVisual(b04).exceptions.length, 1);
+
+  const invalid = [
+    { ...b01, evidence: { ...b01.evidence, comfortable: { count: 2, denominator: 3, percentage: 66.67 } } },
+    { ...b01, evidence: { ...b01.evidence, tired: { count: 1, denominator: 2, percentage: 50 } } },
+    { ...b01, evidence: { ...b01.evidence, normal: { count: 1, denominator: 3, percentage: 34 } } },
+    { ...b01, evidence: { ...b01.evidence, normal: { count: 1, denominator: 3, percent: 33.33 } } },
+    { ...b01, sample: { ratedMain: 6, mainWithoutFeeling: 2 } },
+    { ...a01, evidence: { recordedMainDays: 4, coverageDenominator: 8 } },
+    { ...a02, evidence: { metGoalDays: 5, eligibleMainDays: 4 } },
+    { ...a02, evidence: { metGoalDays: 2, eligibleMainDays: 3 } },
+    { ...b04, evidence: { ...b04.evidence, exceptions: [
+      ...b04.evidence.exceptions, ...b04.evidence.exceptions,
+    ] } },
+    { ...b04, evidence: { ...b04.evidence, exceptions: [
+      { day: '2026-11-13', minutes: 480, goalMinutes: 465 },
+      { day: '2026-11-13', minutes: 480, goalMinutes: 465 },
+    ], exceptionCount: 2 } },
+    { ...b04, evidence: { ...b04.evidence, exceptions: [
+      { day: '2026-11-13', minutes: 480, goalMinutes: 467 },
+    ] } },
+  ];
+  for (const value of invalid) assert.equal(readSleepDetailVisual(value), null);
+  assert.equal(readSleepDetailVisual({ ...b01, status: 'INSUFFICIENT_DATA' }), null);
+});
+
+test('A01/A02 calendars use seven validated day states from Detail only', () => {
+  const daysWith = (statuses) => statuses.map((status, index) => ({
+    day: `2026-11-${String(8 + index).padStart(2, '0')}`, status,
+  }));
+  const coverage = { recordedMainDays: 3, coverageDenominator: 7 };
+  const a01 = { code: 'A01', status: 'READY', period, sample: coverage, evidence: { ...coverage } };
+  const a02 = { code: 'A02', status: 'READY', period, sample: { eligibleMainDays: 3 },
+    evidence: { metGoalDays: 2, eligibleMainDays: 3 } };
+  for (const [detail, days] of [
+    [a01, daysWith(['RECORDED', 'NOT_RECORDED', 'RECORDED', 'NOT_RECORDED', 'NOT_RECORDED', 'RECORDED', 'NOT_RECORDED'])],
+    [a02, daysWith(['MET', 'NO_MAIN', 'NO_GOAL', 'MISSED', 'NO_MAIN', 'NO_MAIN', 'MET'])],
+  ]) {
+    const withDays = (value) => ({ ...detail, evidence: { ...detail.evidence, days: value } });
+    assert.deepEqual(readSleepDetailVisual(withDays(days)).days, days);
+    for (const malformed of [
+      [...days].reverse(), days.slice(1), [{ ...days[0], day: days[1].day }, ...days.slice(1)],
+      [{ ...days[0], status: 'UNKNOWN' }, ...days.slice(1)],
+      [{ ...days[0], status: days[1].status }, ...days.slice(1)],
+    ]) assert.equal(readSleepDetailVisual(withDays(malformed)).days, undefined);
+    assert.equal(readSleepDetailVisual(detail).days, undefined);
+    assert.equal(readSleepDetailVisual({ ...withDays(days), status: 'UNVERIFIED_DATA' }), null);
+  }
 });
 
 test('a fresh detail read observes the latest server evidence for the same code', async () => {

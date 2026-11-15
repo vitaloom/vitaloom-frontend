@@ -33,7 +33,7 @@ export function SleepPage({ title, subtitle, hero, wellness, wellnessHero, heade
             <View pointerEvents="none" style={styles.wave} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
               <Svg width="100%" height="100%" viewBox="0 0 480 100" preserveAspectRatio="none">
                 <Path d="M0 79C95 36 130 100 229 65S363 1 480 16V100H0Z" fill={theme.accentSoft} opacity={0.7} />
-                <Path d="M0 96C112 58 169 109 277 75S404 23 480 26V100H0Z" fill={theme.stepsSoft} />
+                <Path d="M0 96C112 58 169 109 277 75S404 23 480 26V100H0Z" fill={theme.sleepSoft} />
               </Svg>
             </View>
             <Image accessible={false} source={sleepArt.moon} resizeMode="contain" style={styles.moon} />
@@ -73,7 +73,9 @@ export function SleepCard({ children, tone = 'default', onPress, label }: {
   children: ReactNode; tone?: 'default' | 'mint' | 'lilac' | 'warm'; onPress?: () => void; label?: string;
 }) {
   const theme = useTheme();
-  const surfaces = { default: theme.backgroundElement, mint: theme.stepsSoft, lilac: theme.sleepSoft, warm: theme.backgroundSelected };
+  const surfaces = { default: theme.backgroundElement, mint: theme.sleepSoft,
+    lilac: theme.sleepAiSoft,
+    warm: theme.backgroundSelected };
   const style = [styles.card, { backgroundColor: surfaces[tone], borderColor: theme.border }];
   return onPress
     ? <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress}

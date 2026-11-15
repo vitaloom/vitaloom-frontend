@@ -40,6 +40,23 @@ function fakeRequester(responses) {
   return request;
 }
 
+function recentReport({ end = '2026-11-13', dataStatus = 'VERIFIED', highlights = [
+  { code: 'B01', status: 'READY', title: 'Feeling', summary: 'Server-ranked first' },
+  { code: 'A01', status: 'READY', title: 'Coverage', summary: 'Server-ranked second' },
+] } = {}) {
+  const endDate = new Date(`${end}T00:00:00Z`);
+  const start = new Date(endDate.getTime() - 6 * 86400000).toISOString().slice(0, 10);
+  const days = Array.from({ length: 7 }, (_, index) => ({
+    day: new Date(new Date(`${start}T00:00:00Z`).getTime() + index * 86400000).toISOString().slice(0, 10),
+    status: index < 3 ? 'RECORDED' : 'NOT_RECORDED', minutes: index < 3 ? 420 : null,
+  }));
+  return { period: { start, end, timeZone: 'Asia/Ho_Chi_Minh' }, dataStatus, days,
+    recordedDays: dataStatus === 'VERIFIED' ? 3 : null, coverageDenominator: 7,
+    averageMinutesPerRecordedDay: dataStatus === 'VERIFIED' ? 420 : null,
+    insights: dataStatus === 'VERIFIED' ? [{ code: 'A01', status: 'READY', sampleDays: 3, denominatorDays: 7 }] : [],
+    highlights };
+}
+
 test('GET Journal sends only inclusive day bounds and maps a verified empty response', async () => {
   const request = fakeRequester([{ sessions: [] }]);
   const repository = fixedRepository(request);
@@ -93,7 +110,7 @@ test('Home and Daily display confirmed Goal history while unavailable Goal reads
   const recordedMain = durationDto({ sleepType: 'MAIN', editable: true });
   const goal = { minutes: 480, revision: 2, effectiveDay: '2026-11-10', verified: true };
   const repository = fixedRepository(fakeRequester([
-    { sessions: [recordedMain] }, goal, new ApiError(503, 'SLEEP_UNAVAILABLE', 'down'),
+    { sessions: [recordedMain] }, goal, recentReport({ end: '2026-11-13' }), new ApiError(503, 'SLEEP_UNAVAILABLE', 'down'),
     { sessions: [recordedMain] }, goal,
   ]));
   const result = await repository.getHome();
@@ -104,17 +121,63 @@ test('Home and Daily display confirmed Goal history while unavailable Goal reads
   assert.equal(result.data.daily.minutes, null);
   assert.equal(result.data.daily.goal.verified, true);
   assert.equal(result.data.daily.goal.minutes, 480);
-  assert.equal(result.data.featured, null);
+  assert.equal(result.data.featured.source, 'recent');
+  assert.equal(result.data.featured.code, 'B01');
   assert.equal((await repository.getGoal()).kind, 'error');
   const daily = await repository.getDaily('2026-11-12');
   assert.equal(daily.data.status, 'recorded');
   assert.equal(daily.data.goal.minutes, 480);
 
   const unavailableGoalHome = await fixedRepository(fakeRequester([
-    { sessions: [recordedMain] }, new ApiError(503, 'SLEEP_UNAVAILABLE', 'down'),
+    { sessions: [recordedMain] }, new ApiError(503, 'SLEEP_UNAVAILABLE', 'down'), new ApiError(503, 'SLEEP_UNAVAILABLE', 'Recent down'),
   ])).getHome();
   assert.equal(unavailableGoalHome.kind, 'ready');
   assert.equal(unavailableGoalHome.data.daily.goal.verified, false);
+});
+
+test('HTTP Home uses the first verified current Recent highlight and preserves server order', async () => {
+  const request = fakeRequester([
+    { sessions: [] }, { minutes: null, revision: 0, effectiveDay: null, verified: true }, recentReport({ end: '2026-11-13' }),
+  ]);
+  const repository = fixedRepository(request);
+  repository.getContext = () => ({ today: '2026-11-13', timeZone: 'Asia/Ho_Chi_Minh' });
+  const result = await repository.getHome();
+  assert.equal(result.kind, 'ready');
+  assert.deepEqual(result.data.featured, {
+    source: 'recent', code: 'B01', title: 'Feeling', summary: 'Server-ranked first',
+  });
+  assert.deepEqual(request.requests.map(({ path }) => path), ['/sleep/v2/sessions', '/sleep/goal', '/sleep/recent']);
+});
+
+test('HTTP Home hides stale, unverified, and failed Recent highlights without failing Home', async () => {
+  const responses = [
+    recentReport({ end: '2026-11-12' }),
+    recentReport({ end: '2026-11-13', dataStatus: 'UNVERIFIED_DATA', highlights: [] }),
+    new ApiError(503, 'SLEEP_UNAVAILABLE', 'Recent unavailable'),
+  ];
+  for (const response of responses) {
+    const result = await fixedRepository(fakeRequester([
+      { sessions: [] }, { minutes: null, revision: 0, effectiveDay: null, verified: true }, response,
+    ])).getHome();
+    assert.equal(result.kind, 'ready');
+    assert.equal(result.data.featured, null);
+    assert.equal(result.data.daily.status, 'no-data');
+  }
+});
+
+test('HTTP Home rechecks reporting day after Recent responds before accepting its highlight', async () => {
+  let repository;
+  const request = fakeRequester([
+    { sessions: [] }, { minutes: null, revision: 0, effectiveDay: null, verified: true },
+    () => {
+      repository.getContext = () => ({ today: '2026-11-14', timeZone: 'Asia/Ho_Chi_Minh' });
+      return recentReport({ end: '2026-11-13' });
+    },
+  ]);
+  repository = fixedRepository(request);
+  const result = await repository.getHome();
+  assert.equal(result.kind, 'ready');
+  assert.equal(result.data.featured, null);
 });
 
 test('Sleep Goal reads a requested day and maps confirmed server history', async () => {

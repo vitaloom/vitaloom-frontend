@@ -80,7 +80,8 @@ export type WeeklySummary = {
   timeZones: string[];
   storyEligible: boolean;
 };
-export type HomeSummary = { latest: SleepSession | null; daily: DailySummary; featured: Insight | null };
+export type HomeRecentHighlight = { source: 'recent'; code: RecentSleepHighlight['code']; title: string; summary: string };
+export type HomeSummary = { latest: SleepSession | null; daily: DailySummary; featured: Insight | HomeRecentHighlight | null };
 export type AiRequest =
   | { kind: 'explanation'; insight: InsightKey & { version: string } }
   | { kind: 'story'; query: AnalyticsQuery; version: string };

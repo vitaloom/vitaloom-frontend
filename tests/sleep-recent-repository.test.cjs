@@ -156,6 +156,14 @@ test('Recent screen keeps the weekly link and renders all seven server day statu
   assert.match(route, /recent-sleep-report-screen/);
   assert.match(legacyRoute, /recent-sleep-report-screen/);
   assert.match(screen, /report\.days\.map/);
+  assert.match(screen, /accessibilityLabel=\{`\$\{sleepDay\(day\.day, locale\)\}\. \$\{status\}`\}/);
+  assert.match(screen, /day\.status === 'recorded' && day\.minutes !== null/);
+  assert.match(screen, /day\.status === 'unverified'/);
+  assert.match(screen, /onPress: \(\) => router\.push\(\{ pathname: '\/sleep\/insights\/\[code\]', params: \{ code: insight\.code \} \}\)/);
+  assert.match(screen, /insight\.status === 'READY'/);
+  assert.match(screen, /insight\.status === 'ready'/);
+  assert.match(screen, /report\.dataStatus === 'verified'[\s\S]*insight\.status === 'ready'/);
+  assert.match(screen, /theme\.sleep/);
   assert.match(screen, /recentCoverage/);
   assert.match(screen, /reportInsightsEmpty/);
   assert.match(screen, /unverifiedReport/);

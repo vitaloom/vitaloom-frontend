@@ -448,7 +448,7 @@ export class HttpSleepRepository implements SleepRepository {
     const journal = await this.getJournal();
     if (journal.kind === 'error') return journal;
     const today = this.getContext().today;
-    const goal = await this.getGoal();
+    const [goal, recent] = await Promise.all([this.getGoal(), this.getRecent()]);
     const daily = dailySummary(today, journal.data.sessions);
     daily.goal = goal.kind === 'ready' ? goal.data
       : { minutes: null, revision: 0, effectiveDay: null, verified: false };
@@ -456,7 +456,14 @@ export class HttpSleepRepository implements SleepRepository {
     const latestDay = mainSessions.reduce<string | null>((latest, session) => !latest || session.day > latest ? session.day : latest, null);
     const latestForDay = latestDay ? mainSessions.filter((session) => session.day === latestDay) : [];
     const latest = latestForDay.length === 1 ? latestForDay[0] : null;
-    return { kind: 'ready', data: { latest, daily, featured: null } };
+    const currentDay = this.getContext().today;
+    const currentReport = recent.kind === 'ready' && recent.data.dataStatus === 'verified'
+      && recent.data.period.end === currentDay;
+    const highlight = currentReport ? recent.data.highlights?.[0] : undefined;
+    const featured = highlight
+      ? { source: 'recent' as const, code: highlight.code, title: highlight.title, summary: highlight.summary }
+      : null;
+    return { kind: 'ready', data: { latest, daily, featured } };
   }
 
   async getDaily(day: Day): Promise<ReadResult<DailySummary>> {
