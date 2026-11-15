@@ -14,6 +14,7 @@ This folder documents Sleep tracking, the F1 Journal integration, the P1 Recent 
 10. [Main Sleep implementation handoff](10-main-sleep-handoff.md)
 11. [Recent Sleep Report integration](11-recent-report-integration.md)
 12. [All Insights and detail integration](12-insights-integration.md)
+13. [P5B completed trend integration](13-p5b-trend-integration.md)
 
 Open the authenticated Sleep entry at /sleep. F1 uses the backend by default. The handoff describes backend setup and the explicit development fixture mode.
 

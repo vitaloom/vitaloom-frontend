@@ -14,7 +14,14 @@ export type SleepDetailVisual =
     }[] }
   | { code: 'B04'; ratedMain: number; comparableRatedMain: number; exceptions: {
       day: string; minutes: number; goalMinutes: number;
-    }[] };
+    }[] }
+  | { code: 'A03'; baseline: { period: SleepInsightPeriod; meanMinutes: number; mainDays: number };
+      recent: { period: SleepInsightPeriod; meanMinutes: number; mainDays: number }; deltaMinutes: number }
+  | { code: 'B03'; baseline: { period: SleepInsightPeriod; ratedMain: number; mainWithoutFeeling: number;
+      categories: { key: 'comfortable' | 'normal' | 'tired'; count: number; denominator: number; percentage: number }[] };
+      recent: { period: SleepInsightPeriod; ratedMain: number; mainWithoutFeeling: number;
+      categories: { key: 'comfortable' | 'normal' | 'tired'; count: number; denominator: number; percentage: number }[] };
+      deltaPercentagePoints: Record<'comfortable' | 'normal' | 'tired', number> };
 
 type RecordValue = Record<string, unknown>;
 const isRecord = (value: unknown): value is RecordValue =>
@@ -119,6 +126,75 @@ export function readSleepDetailVisual(value: unknown): SleepDetailVisual | null 
       parsed.push({ day: item.day, minutes: Number(item.minutes), goalMinutes: Number(item.goalMinutes) });
     }
     return { code, ratedMain: rated, comparableRatedMain: comparable, exceptions: parsed };
+  }
+  if (code === 'A03' || code === 'B03') {
+    const baseline = evidence.baseline;
+    const recent = evidence.recent;
+    if (!isRecord(baseline) || !isRecord(recent) || !validPeriod(baseline.period) || !validPeriod(recent.period)
+      || recent.period.start !== value.period.start || recent.period.end !== value.period.end
+      || recent.period.timeZone !== value.period.timeZone || baseline.period.timeZone !== value.period.timeZone
+      || recent.period.timeZone !== 'Asia/Ho_Chi_Minh'
+      || shiftDay(baseline.period.end, 1) !== recent.period.start
+      || shiftDay(baseline.period.start, 6) !== baseline.period.end
+      || shiftDay(recent.period.start, 6) !== recent.period.end) return null;
+
+    if (code === 'A03') {
+      const baselineDays = sample.baselineMainDays;
+      const recentDays = sample.recentMainDays;
+      if (!isCount(baselineDays) || baselineDays < 3 || baselineDays > 7
+        || !isCount(recentDays) || recentDays < 3 || recentDays > 7
+        || !isCount(baseline.meanMinutes) || baseline.meanMinutes < 1 || baseline.meanMinutes > 1440
+        || !isCount(recent.meanMinutes) || recent.meanMinutes < 1 || recent.meanMinutes > 1440
+        || !Number.isSafeInteger(evidence.deltaMinutes)
+        || evidence.deltaMinutes !== Number(recent.meanMinutes) - Number(baseline.meanMinutes)) return null;
+      return { code, baseline: { period: baseline.period, meanMinutes: baseline.meanMinutes, mainDays: baselineDays },
+        recent: { period: recent.period, meanMinutes: recent.meanMinutes, mainDays: recentDays },
+        deltaMinutes: evidence.deltaMinutes as number };
+    }
+
+    const baselineRated = sample.baselineRatedMain;
+    const recentRated = sample.recentRatedMain;
+    const baselineMissing = sample.baselineMainWithoutFeeling;
+    const recentMissing = sample.recentMainWithoutFeeling;
+    if (!isCount(baselineRated) || baselineRated < 3 || baselineRated > 7
+      || !isCount(recentRated) || recentRated < 3 || recentRated > 7
+      || !isCount(baselineMissing) || baselineRated + baselineMissing > 7
+      || !isCount(recentMissing) || recentRated + recentMissing > 7
+      || !isRecord(evidence.deltaPercentagePoints)) return null;
+    const keys = ['comfortable', 'normal', 'tired'] as const;
+    const readCategories = (source: RecordValue, denominator: number) => {
+      const categories = [];
+      let total = 0;
+      for (const key of keys) {
+        const row = source[key];
+        if (!isRecord(row) || !isCount(row.count) || row.denominator !== denominator
+          || typeof row.percentage !== 'number' || !Number.isFinite(row.percentage)
+          || row.percentage !== Math.round(row.count * 10000 / denominator) / 100) return null;
+        total += row.count;
+        categories.push({ key, count: row.count, denominator, percentage: row.percentage });
+      }
+      return total === denominator ? categories : null;
+    };
+    const baselineCategories = readCategories(baseline, baselineRated);
+    const recentCategories = readCategories(recent, recentRated);
+    if (!baselineCategories || !recentCategories) return null;
+    const deltas = {} as Record<typeof keys[number], number>;
+    for (let index = 0; index < keys.length; index += 1) {
+      const key = keys[index];
+      const delta = evidence.deltaPercentagePoints[key];
+      const expected = Math.round((recentCategories[index].count / recentRated
+        - baselineCategories[index].count / baselineRated) * 10000) / 100;
+      if (typeof delta !== 'number' || !Number.isFinite(delta) || delta !== expected) return null;
+      deltas[key] = delta;
+    }
+    return {
+      code,
+      baseline: { period: baseline.period, ratedMain: baselineRated, mainWithoutFeeling: baselineMissing,
+        categories: baselineCategories },
+      recent: { period: recent.period, ratedMain: recentRated, mainWithoutFeeling: recentMissing,
+        categories: recentCategories },
+      deltaPercentagePoints: deltas,
+    };
   }
   return null;
 }

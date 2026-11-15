@@ -1,5 +1,6 @@
 import { ApiError, apiRequest } from '../../../lib/api/http-client';
-import { dayInZone } from '../utils/sleep-date';
+import { dayInZone, shiftDay } from '../utils/sleep-date';
+import { readSleepDetailVisual } from '../utils/sleep-detail-evidence';
 import { validateGoal, validateSession } from '../utils/sleep-validation';
 import type { SleepRepository } from './sleep-repository';
 import type {
@@ -153,9 +154,17 @@ function mapInsightItem(value: unknown, period: SleepInsightPeriod): SleepInsigh
   if ((status === 'READY' && item.locked) || (status !== 'READY' && !item.locked)) {
     throw new Error('Sleep service returned an invalid Insight publication state.');
   }
-  if (status === 'READY' && (code === 'A02' || code === 'B04')
-    && !validGoalInsightDetail(code, item.sample, item.evidence, period)) {
-    throw new Error('Sleep service returned invalid Goal insight evidence.');
+  if (status === 'READY') {
+    if (code === 'A03' || code === 'B03') {
+      const completedPeriod = {
+        start: shiftDay(period.start, -1), end: shiftDay(period.end, -1), timeZone: period.timeZone,
+      };
+      if (!readSleepDetailVisual({ code, status, period: completedPeriod, sample: item.sample, evidence: item.evidence })) {
+        throw new Error('Sleep service returned invalid Trend insight evidence.');
+      }
+    } else if ((code === 'A02' || code === 'B04') && !validGoalInsightDetail(code, item.sample, item.evidence, period)) {
+      throw new Error('Sleep service returned invalid Goal insight evidence.');
+    }
   }
   if (item.summary !== undefined && typeof item.summary !== 'string') throw new Error('Sleep service returned an invalid Insight summary.');
   return item as unknown as SleepInsightItem;
@@ -181,14 +190,20 @@ export function mapSleepInsightDetail(value: unknown, expectedCode: CatalogSleep
     throw new Error('Sleep service returned an invalid Insight detail.');
   }
   const period = mapInsightPeriod(detail.period);
-  if (detail.status === 'READY' && !validGoalInsightDetail(expectedCode, detail.sample, detail.evidence, period)) {
-    throw new Error('Sleep service returned invalid Goal insight evidence.');
+  if (detail.status === 'READY') {
+    if (expectedCode === 'A03' || expectedCode === 'B03') {
+      if (!readSleepDetailVisual({ ...detail, period })) {
+        throw new Error('Sleep service returned invalid Trend insight evidence.');
+      }
+    } else if (!validGoalInsightDetail(expectedCode, detail.sample, detail.evidence, period)) {
+      throw new Error('Sleep service returned invalid Goal insight evidence.');
+    }
   }
   return { ...detail, period } as unknown as SleepInsightDetail;
 }
 
 function isCatalogInsightCode(value: unknown): value is CatalogSleepInsightCode {
-  return value === 'A01' || value === 'A02' || value === 'B01' || value === 'B04';
+  return value === 'A01' || value === 'A02' || value === 'A03' || value === 'B01' || value === 'B03' || value === 'B04';
 }
 
 function insightCategory(code: CatalogSleepInsightCode): 'A' | 'B' {
@@ -426,9 +441,14 @@ export class HttpSleepRepository implements SleepRepository {
 
   async getAllInsights(): Promise<ReadResult<SleepInsightList>> {
     try {
-      return { kind: 'ready', data: mapSleepInsightList(
-        await this.send<unknown>('/sleep/insights?catalog=goal', { method: 'GET' }),
-      ) };
+      let response: unknown;
+      try {
+        response = await this.send<unknown>('/sleep/insights?catalog=trend', { method: 'GET' });
+      } catch (error) {
+        if (!(error instanceof ApiError) || error.status !== 400 || error.code !== 'INVALID_REQUEST') throw error;
+        response = await this.send<unknown>('/sleep/insights?catalog=goal', { method: 'GET' });
+      }
+      return { kind: 'ready', data: mapSleepInsightList(response) };
     } catch (error) {
       return { kind: 'error', message: errorMessage(error), ...(error instanceof ApiError ? { code: error.code } : {}) };
     }

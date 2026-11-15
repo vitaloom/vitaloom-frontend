@@ -12,6 +12,7 @@ require.extensions['.ts'] = (module, filename) => {
 };
 
 const { HttpSleepRepository } = require('../src/features/sleep/api/http-sleep-repository.ts');
+const { ApiError } = require('../src/lib/api/http-client.ts');
 const { sleepGoalInsightCopy } = require('../src/features/sleep/utils/sleep-goal-insight-copy.ts');
 const { readSleepDetailVisual } = require('../src/features/sleep/utils/sleep-detail-evidence.ts');
 
@@ -41,7 +42,7 @@ function repositoryFor(responses) {
   return { repository, requests };
 }
 
-test('All Insights reads the four Goal-catalog codes from the additive catalog endpoint', async () => {
+test('All Insights reads Goal-catalog-compatible entries from the expanded catalog endpoint', async () => {
   const payload = { period, items: [
     item('READY', { code: 'A01', category: 'A', locked: false }),
     item('READY', { code: 'A02', category: 'A', title: 'Goal Achievement', locked: false,
@@ -55,9 +56,26 @@ test('All Insights reads the four Goal-catalog codes from the additive catalog e
   ] };
   const { repository, requests } = repositoryFor([payload]);
   assert.deepEqual(await repository.getAllInsights(), { kind: 'ready', data: payload });
-  assert.equal(requests[0].path, '/sleep/insights?catalog=goal');
+  assert.equal(requests[0].path, '/sleep/insights?catalog=trend');
   assert.equal(requests[0].init.method, 'GET');
   assert.equal(requests[0].authenticated, true);
+});
+
+test('All Insights requests trend catalog and falls back only when an older server rejects it', async () => {
+  const payload = { period, items: [] };
+  const current = repositoryFor([payload]);
+  assert.deepEqual(await current.repository.getAllInsights(), { kind: 'ready', data: payload });
+  assert.equal(current.requests[0].path, '/sleep/insights?catalog=trend');
+
+  const legacy = repositoryFor([new ApiError(400, 'INVALID_REQUEST', 'Unsupported catalog.'), payload]);
+  assert.deepEqual(await legacy.repository.getAllInsights(), { kind: 'ready', data: payload });
+  assert.deepEqual(legacy.requests.map(({ path }) => path), [
+    '/sleep/insights?catalog=trend', '/sleep/insights?catalog=goal',
+  ]);
+
+  const otherError = repositoryFor([new ApiError(401, 'UNAUTHORIZED', 'Sign in.')]);
+  assert.equal((await otherError.repository.getAllInsights()).kind, 'error');
+  assert.equal(otherError.requests.length, 1);
 });
 
 test('All Insights preserves locked status-only entries for every non-ready status', async () => {
@@ -67,6 +85,24 @@ test('All Insights preserves locked status-only entries for every non-ready stat
   const result = await repository.getAllInsights();
   assert.deepEqual(result, { kind: 'ready', data: payload });
   assert.deepEqual(result.data.items.map(({ status }) => status), ['INSUFFICIENT_DATA', 'NO_DATA', 'UNVERIFIED_DATA']);
+});
+
+test('All Insights validates READY trend catalog ranges and sample sizes', async () => {
+  const listPeriod = { start: '2026-11-09', end: '2026-11-15', timeZone: 'Asia/Ho_Chi_Minh' };
+  const baselinePeriod = { start: '2026-11-01', end: '2026-11-07', timeZone: 'Asia/Ho_Chi_Minh' };
+  const recentPeriod = { start: '2026-11-08', end: '2026-11-14', timeZone: 'Asia/Ho_Chi_Minh' };
+  const a03 = item('READY', { code: 'A03', category: 'A', locked: false,
+    sample: { baselineMainDays: 3, recentMainDays: 4 }, evidence: {
+      baseline: { period: baselinePeriod, meanMinutes: 410 },
+      recent: { period: recentPeriod, meanMinutes: 435 }, deltaMinutes: 25,
+    } });
+  const { repository } = repositoryFor([{ period: listPeriod, items: [a03] }]);
+  assert.equal((await repository.getAllInsights()).kind, 'ready');
+
+  const malformed = repositoryFor([{ period: listPeriod, items: [{ ...a03,
+    evidence: { ...a03.evidence, recent: { ...a03.evidence.recent, meanMinutes: 430 } },
+  }] }]);
+  assert.equal((await malformed.repository.getAllInsights()).kind, 'error');
 });
 
 test('Insight Detail reads the selected existing code without query parameters and retains missing-feeling sample data', async () => {
@@ -212,6 +248,67 @@ test('Detail visual reader validates current numeric evidence and exact B04 exce
   ];
   for (const value of invalid) assert.equal(readSleepDetailVisual(value), null);
   assert.equal(readSleepDetailVisual({ ...b01, status: 'INSUFFICIENT_DATA' }), null);
+});
+
+test('A03 and B03 Detail visuals validate adjacent completed periods and sample denominators', () => {
+  const trendPeriod = (start) => {
+    const date = new Date(`${start}T00:00:00Z`);
+    date.setUTCDate(date.getUTCDate() + 6);
+    return { start, end: date.toISOString().slice(0, 10), timeZone: 'Asia/Ho_Chi_Minh' };
+  };
+  const baselinePeriod = trendPeriod('2026-11-01');
+  const recentPeriod = trendPeriod('2026-11-08');
+  const a03 = { code: 'A03', status: 'READY', period: recentPeriod,
+    sample: { baselineMainDays: 3, recentMainDays: 4 }, evidence: {
+      baseline: { period: baselinePeriod, meanMinutes: 410 },
+      recent: { period: recentPeriod, meanMinutes: 435 }, deltaMinutes: 25,
+    } };
+  const makeFeelings = (counts) => ({
+    comfortable: { count: counts[0], denominator: counts.reduce((sum, value) => sum + value, 0),
+      percentage: Math.round(counts[0] * 10000 / counts.reduce((sum, value) => sum + value, 0)) / 100 },
+    normal: { count: counts[1], denominator: counts.reduce((sum, value) => sum + value, 0),
+      percentage: Math.round(counts[1] * 10000 / counts.reduce((sum, value) => sum + value, 0)) / 100 },
+    tired: { count: counts[2], denominator: counts.reduce((sum, value) => sum + value, 0),
+      percentage: Math.round(counts[2] * 10000 / counts.reduce((sum, value) => sum + value, 0)) / 100 },
+  });
+  const b03 = { code: 'B03', status: 'READY', period: recentPeriod,
+    sample: { baselineRatedMain: 4, recentRatedMain: 4,
+      baselineMainWithoutFeeling: 1, recentMainWithoutFeeling: 2 }, evidence: {
+      baseline: { period: baselinePeriod, ...makeFeelings([1, 2, 1]) },
+      recent: { period: recentPeriod, ...makeFeelings([2, 1, 1]) },
+      deltaPercentagePoints: { comfortable: 25, normal: -25, tired: 0 },
+    } };
+  assert.deepEqual(readSleepDetailVisual(a03), {
+    code: 'A03', baseline: { period: baselinePeriod, meanMinutes: 410, mainDays: 3 },
+    recent: { period: recentPeriod, meanMinutes: 435, mainDays: 4 }, deltaMinutes: 25,
+  });
+  assert.equal(readSleepDetailVisual(b03).baseline.ratedMain, 4);
+  assert.deepEqual(readSleepDetailVisual(b03).deltaPercentagePoints,
+    { comfortable: 25, normal: -25, tired: 0 });
+  const unequalDenominators = { ...b03, sample: { baselineRatedMain: 3, recentRatedMain: 6,
+    baselineMainWithoutFeeling: 0, recentMainWithoutFeeling: 0 }, evidence: {
+    baseline: { period: baselinePeriod, ...makeFeelings([1, 1, 1]) },
+    recent: { period: recentPeriod, comfortable: { count: 1, denominator: 6, percentage: 16.67 },
+      normal: { count: 2, denominator: 6, percentage: 33.33 },
+      tired: { count: 3, denominator: 6, percentage: 50 } },
+    deltaPercentagePoints: { comfortable: -16.67, normal: 0, tired: 16.67 },
+  } };
+  assert.deepEqual(readSleepDetailVisual(unequalDenominators).deltaPercentagePoints,
+    { comfortable: -16.67, normal: 0, tired: 16.67 });
+
+  const invalid = [
+    { ...a03, evidence: { ...a03.evidence, deltaMinutes: 24 } },
+    { ...a03, sample: { ...a03.sample, baselineMainDays: 2 } },
+    { ...a03, evidence: { ...a03.evidence, recent: { ...a03.evidence.recent,
+      period: { ...recentPeriod, start: '2026-11-09', end: '2026-11-15' } } } },
+    { ...b03, evidence: { ...b03.evidence, deltaPercentagePoints: { ...b03.evidence.deltaPercentagePoints,
+      comfortable: 24 } } },
+    { ...b03, sample: { ...b03.sample, recentMainWithoutFeeling: -1 } },
+    { ...b03, evidence: { ...b03.evidence, recent: { ...b03.evidence.recent,
+      tired: { ...b03.evidence.recent.tired, denominator: 3 } } } },
+  ];
+  for (const value of invalid) assert.equal(readSleepDetailVisual(value), null);
+  assert.equal(readSleepDetailVisual({ ...a03, status: 'UNVERIFIED_DATA' }), null);
 });
 
 test('A01/A02 calendars use seven validated day states from Detail only', () => {

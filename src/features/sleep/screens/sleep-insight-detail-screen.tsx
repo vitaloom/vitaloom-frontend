@@ -16,6 +16,7 @@ import { readSleepDetailVisual, type SleepCalendarDay, type SleepDetailVisual } 
 import { startOfWeek } from '../utils/sleep-date';
 import { sleepDay, sleepDuration, sleepPeriod } from '../utils/sleep-format';
 import { sleepGoalInsightCopy } from '../utils/sleep-goal-insight-copy';
+import { sleepTrendInsightCopy } from '../utils/sleep-trend-insight-copy';
 
 type Translate = (key: keyof typeof sleepMessages.en, values?: Record<string, string | number>) => string;
 
@@ -82,6 +83,83 @@ const calendarStyles = StyleSheet.create({
 
 function DetailVisual({ visual, t, locale }: { visual: SleepDetailVisual; t: Translate; locale: string }) {
   const theme = useTheme();
+  if (visual.code === 'A03') {
+    const maximum = Math.max(visual.baseline.meanMinutes, visual.recent.meanMinutes);
+    const delta = `${visual.deltaMinutes > 0 ? '+' : ''}${new Intl.NumberFormat(locale).format(visual.deltaMinutes)}`;
+    return <>
+    <SleepCard tone="mint">
+      <ThemedText variant="metricLarge">{delta} {t('durationMinutesUnit')}</ThemedText>
+      <ThemedText variant="subhead" themeColor="textSecondary">{t('trendDurationDelta')}</ThemedText>
+    </SleepCard>
+    <SleepCard>
+      <ThemedText accessibilityRole="header" variant="bodyStrong">{t('trendDurationTitle')}</ThemedText>
+      {[visual.baseline, visual.recent].map((window, index) => <View key={window.period.start} style={{ gap: spacing.xs }}>
+        <View style={{ gap: spacing.xs }}>
+          <ThemedText variant="labelStrong">{t(index === 0 ? 'trendBaseline' : 'trendRecent')}</ThemedText>
+          <ThemedText variant="caption" themeColor="textSecondary">
+            {sleepDay(window.period.start, locale)} – {sleepDay(window.period.end, locale)} · {t('trendMainDays', { count: window.mainDays })}
+          </ThemedText>
+        </View>
+        <View accessibilityRole="image" accessibilityLabel={`${t(index === 0 ? 'trendBaseline' : 'trendRecent')}: ${sleepDuration(window.meanMinutes)}`}
+          style={{ height: 18, borderRadius: 9, overflow: 'hidden', backgroundColor: theme.backgroundSelected }}>
+          <View style={{ width: `${window.meanMinutes / maximum * 100}%`, height: '100%',
+            borderRadius: 9, backgroundColor: index === 0 ? theme.sleepTrack : theme.sleep }} />
+        </View>
+        <ThemedText variant="labelStrong" style={{ textAlign: 'right' }}>{sleepDuration(window.meanMinutes)}</ThemedText>
+      </View>)}
+      <ThemedText variant="caption" themeColor="textSecondary">{t('trendCompletedWindows')}</ThemedText>
+    </SleepCard></>;
+  }
+
+  if (visual.code === 'B03') {
+    const numberFormat = new Intl.NumberFormat(locale, { maximumFractionDigits: 2 });
+    const heroDelta = visual.deltaPercentagePoints.comfortable;
+    const signedHero = `${heroDelta > 0 ? '+' : ''}${numberFormat.format(heroDelta)}`;
+    return <>
+    <SleepCard tone="mint">
+      <ThemedText variant="metricLarge">{signedHero}</ThemedText>
+      <ThemedText variant="subhead" themeColor="textSecondary">{t('trendFeelingDelta')}</ThemedText>
+    </SleepCard>
+    <SleepCard>
+      <ThemedText accessibilityRole="header" variant="bodyStrong">{t('trendFeelingTitle')}</ThemedText>
+      {[visual.baseline, visual.recent].map((window, windowIndex) => <View key={window.period.start} style={{ gap: spacing.xs }}>
+        <View style={{ gap: spacing.xs }}>
+          <ThemedText variant="labelStrong">{t(windowIndex === 0 ? 'trendBaseline' : 'trendRecent')}</ThemedText>
+          <ThemedText variant="caption" themeColor="textSecondary">
+            {sleepDay(window.period.start, locale)} – {sleepDay(window.period.end, locale)} · {t('trendRatedDays', { count: window.ratedMain })}
+          </ThemedText>
+          <ThemedText variant="caption" themeColor="textSecondary">
+            {t('trendMissingRatings', { count: window.mainWithoutFeeling })}
+          </ThemedText>
+        </View>
+        <View accessibilityRole="image" accessibilityLabel={`${t(windowIndex === 0 ? 'trendBaseline' : 'trendRecent')}: ${window.categories
+          .map(({ key, percentage }) => `${t(key)} ${numberFormat.format(percentage)}%`).join(', ')}`}
+          style={{ flexDirection: 'row', height: 22, borderRadius: 11, overflow: 'hidden', backgroundColor: theme.sleepTrack }}>
+          {window.categories.map(({ key, count, denominator }) => count > 0 ? <View key={key} style={{
+            width: `${count / denominator * 100}%`, backgroundColor: key === 'comfortable'
+              ? theme.sleep : key === 'normal' ? theme.accent : theme.warning,
+          }} /> : null)}
+        </View>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: spacing.md, rowGap: spacing.xs }}>
+          {window.categories.map(({ key, percentage }) => <ThemedText key={key} variant="caption" themeColor="textSecondary">
+            {t(key)} {numberFormat.format(percentage)}%
+          </ThemedText>)}
+        </View>
+      </View>)}
+      <View style={{ gap: spacing.xs }}>
+        {visual.recent.categories.map(({ key }) => {
+          const change = visual.deltaPercentagePoints[key];
+          const signed = `${change > 0 ? '+' : ''}${numberFormat.format(change)}`;
+          return <View key={key} style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: spacing.sm }}>
+            <ThemedText variant="subhead">{t(key)}</ThemedText>
+            <ThemedText variant="labelStrong">{signed} {t('trendPercentagePoints')}</ThemedText>
+          </View>;
+        })}
+      </View>
+      <ThemedText variant="caption" themeColor="textSecondary">{t('trendCompletedWindows')}</ThemedText>
+    </SleepCard></>;
+  }
+
   if (visual.code === 'A01') {
     const size = 144;
     const stroke = 12;
@@ -217,22 +295,27 @@ function DetailContent({ detail, t, aiKey, locale, reload }: {
   const visual = readSleepDetailVisual(detail);
   const goalCopy = detail.code === 'A02' || detail.code === 'B04'
     ? sleepGoalInsightCopy(detail.code, detail.sample, detail.evidence, t) : null;
+  const trendCopy = detail.code === 'A03' || detail.code === 'B03'
+    ? sleepTrendInsightCopy(detail.code, detail.sample, detail.evidence, t) : null;
   if (detail.status !== 'READY') {
     return <SleepNotice title={statusMessage(detail.status, t)} />;
   }
-  const sourceRefs = detail.code === 'A01' || !Array.isArray(detail.sourceRefs)
+  const sourceRefs = trendCopy || detail.code === 'A01' || !Array.isArray(detail.sourceRefs)
     ? [] : detail.sourceRefs.filter((ref): ref is string => typeof ref === 'string');
-  const title = goalCopy?.title ?? detail.title;
-  const summary = goalCopy ? goalCopy.summary : detail.summary;
+  const title = goalCopy?.title ?? trendCopy?.title ?? detail.title;
+  const summary = goalCopy ? goalCopy.summary : trendCopy?.summary ?? detail.summary;
   return <>
     <SleepCard tone="mint">
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-        <Image source={detail.code === 'A01' ? sleepArt.moon : detail.code === 'A02' ? sleepArt.bed
-          : detail.code === 'B01' ? sleepArt.bars : sleepArt.tired}
+        <Image source={detail.code === 'A03' ? sleepArt.trend
+          : detail.code === 'A01' ? sleepArt.moon : detail.code === 'A02' ? sleepArt.bed
+          : detail.code === 'B01' || detail.code === 'B03' ? sleepArt.bars : sleepArt.tired}
           accessible={false} resizeMode="contain" style={{ width: 54, height: 54 }} />
         <View style={{ flex: 1, gap: 4 }}>
           <ThemedText variant="labelStrong" themeColor="accent">{detail.code} · {title}</ThemedText>
-          <ThemedText variant="caption" themeColor="textSecondary">{sleepPeriod(detail.period.start, detail.period.end)}</ThemedText>
+          {trendCopy ? null : <ThemedText variant="caption" themeColor="textSecondary">
+            {sleepPeriod(detail.period.start, detail.period.end)}
+          </ThemedText>}
         </View>
       </View>
       {summary ? <ThemedText variant="subhead">{summary}</ThemedText> : null}
@@ -257,7 +340,8 @@ export default function SleepInsightDetailScreen() {
   const repository = useSleepRepository();
   const t = useTranslations(sleepMessages);
   const { locale } = useI18n();
-  const insightCode = code === 'A01' || code === 'A02' || code === 'B01' || code === 'B04' ? code : null;
+  const insightCode = code === 'A01' || code === 'A02' || code === 'A03' || code === 'B01'
+    || code === 'B03' || code === 'B04' ? code : null;
   const { state, reload } = useSleepRead(
     () => insightCode ? repository.getInsightDetail(insightCode) : Promise.resolve({ kind: 'error' as const, message: 'Unsupported insight.' }),
     `sleep-insight-detail:${insightCode ?? 'unsupported'}`,

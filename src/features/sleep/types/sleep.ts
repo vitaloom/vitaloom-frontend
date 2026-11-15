@@ -118,7 +118,7 @@ export type ReadResult<T> =
 export type SleepInsightStatus = 'READY' | 'INSUFFICIENT_DATA' | 'NO_DATA' | 'UNVERIFIED_DATA';
 export type SleepInsightCategory = 'A' | 'B';
 export type GoalInsightCode = 'A02' | 'B04';
-export type CatalogSleepInsightCode = 'A01' | 'A02' | 'B01' | 'B04';
+export type CatalogSleepInsightCode = 'A01' | 'A02' | 'A03' | 'B01' | 'B03' | 'B04';
 export type SleepInsightItem = {
   code: CatalogSleepInsightCode; category: SleepInsightCategory; status: SleepInsightStatus;
   title: string; highlight?: unknown; locked: boolean; summary?: string; sample?: unknown;
