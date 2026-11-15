@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
 import { useTranslations } from '@/i18n';
 import { sleepMessages } from '../messages';
 import { ThemedText } from '@/components/themed-text';
@@ -10,7 +11,11 @@ export function SleepAiSection({ request, requestKey, onStale }: { request: AiRe
   const repository = useSleepRepository();
   const t = useTranslations(sleepMessages);
   const consent = useSleepRead(() => repository.getAiConsent(), 'ai-consent');
-  const [requested, setRequested] = useState<{ key: string; repository: typeof repository }>();
+  const [requested, setRequested] = useState<{
+    key: string; repository: typeof repository; response: ReturnType<typeof repository.getAi>;
+  }>();
+  useFocusEffect(useCallback(() => () => setRequested(undefined), []));
+  const requestPreview = () => setRequested({ key: requestKey, repository, response: repository.getAi(request) });
   const mutation = useSleepMutation(() => consent.reload(), 'ai-consent');
   const title = request.kind === 'story' ? 'Optional story preview' : undefined;
   if (consent.state.kind === 'loading') return null;
@@ -24,9 +29,10 @@ export function SleepAiSection({ request, requestKey, onStale }: { request: AiRe
     {title ? <ThemedText accessibilityRole="header" variant="bodyStrong">{title}</ThemedText> : null}
     {enabled ? <>
       {requested?.repository === repository && requested.key === requestKey ? <AiFixture request={request}
-        requestKey={requestKey} onStale={onStale} onConsentRequired={() => { setRequested(undefined); consent.reload(); }} /> : <>
+        requestKey={requestKey} response={requested.response} onRetry={requestPreview}
+        onStale={onStale} onConsentRequired={() => { setRequested(undefined); consent.reload(); }} /> : <>
         <SleepButton label={request.kind === 'story' ? 'Preview demo story' : t('explainWithAi')}
-          onPress={() => setRequested({ key: requestKey, repository })} variant="secondary" disabled={unknown || mutation.busy} />
+          onPress={requestPreview} variant="secondary" disabled={unknown || mutation.busy} />
       </>}
       <SleepButton label="Turn off AI previews" onPress={() => {
         setRequested(undefined);
@@ -44,11 +50,17 @@ export function SleepAiSection({ request, requestKey, onStale }: { request: AiRe
   </SleepCard>;
 }
 
-function AiFixture({ request, requestKey, onStale, onConsentRequired }: {
+function AiFixture({ request, requestKey, response, onRetry, onStale, onConsentRequired }: {
   request: AiRequest; requestKey: string; onStale?: () => void; onConsentRequired: () => void;
+  response: ReturnType<ReturnType<typeof useSleepRepository>['getAi']>; onRetry: () => void;
 }) {
-  const repository = useSleepRepository();
-  const { state, reload } = useSleepRead(() => repository.getAi(request), requestKey, false, true, request.kind !== 'explanation');
+  const [snapshot, setSnapshot] = useState<{ response: typeof response; state: Awaited<typeof response> }>();
+  useEffect(() => {
+    let active = true;
+    void response.then((state) => { if (active) setSnapshot({ response, state }); });
+    return () => { active = false; };
+  }, [response, requestKey]);
+  const state = snapshot?.response === response ? snapshot.state : { kind: 'loading' as const };
   const status = state.kind === 'ready' ? state.data.status : undefined;
   const versionMismatch = state.kind === 'ready' && request.kind === 'explanation'
     && (state.data.status === 'explanation' || state.data.status === 'fallback')
@@ -60,7 +72,7 @@ function AiFixture({ request, requestKey, onStale, onConsentRequired }: {
   if (versionMismatch) return null;
   if (state.kind === 'loading') return <ThemedText accessibilityLiveRegion="polite" variant="subhead">Loading preview…</ThemedText>;
   if (state.kind === 'error' || state.data.status === 'unavailable') {
-    return <SleepNotice title="AI preview unavailable" actionLabel="Retry" onAction={reload} />;
+    return <SleepNotice title="AI preview unavailable" actionLabel="Retry" onAction={onRetry} />;
   }
   const result = state.data;
   if (result.status === 'stale') return <ThemedText variant="subhead">The evidence changed. Refresh the insight or report.</ThemedText>;

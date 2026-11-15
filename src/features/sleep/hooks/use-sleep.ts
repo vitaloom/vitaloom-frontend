@@ -14,8 +14,7 @@ export function useSleepRepository(): SleepRepository {
 
 type LoadState<T> = ReadResult<T> | { kind: 'loading' };
 
-export function useSleepRead<T>(read: () => Promise<ReadResult<T>>, key: string, keepPrevious = false, clearOnBlur = false,
-  subscribeToChanges = true) {
+export function useSleepRead<T>(read: () => Promise<ReadResult<T>>, key: string, keepPrevious = false, clearOnBlur = false) {
   const repository = useSleepRepository();
   const reader = useRef(read);
   const [refresh, setRefresh] = useState(0);
@@ -34,13 +33,13 @@ export function useSleepRead<T>(read: () => Promise<ReadResult<T>>, key: string,
       }));
       if (active && id === request) setSnapshot({ repository, key, refresh, state: current });
     };
-    const unsubscribe = subscribeToChanges ? repository.subscribe(() => {
+    const unsubscribe = repository.subscribe(() => {
       if (!keepPrevious) setSnapshot(undefined);
       void load();
-    }) : () => {};
+    });
     void load();
     return () => { active = false; unsubscribe(); if (clearOnBlur) setSnapshot(undefined); };
-  }, [repository, key, refresh, keepPrevious, clearOnBlur, subscribeToChanges]));
+  }, [repository, key, refresh, keepPrevious, clearOnBlur]));
 
   const state: LoadState<T> = snapshot?.repository === repository && snapshot.key === key && snapshot.refresh === refresh
     ? snapshot.state
