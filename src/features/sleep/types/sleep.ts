@@ -86,6 +86,7 @@ export type AiRequest =
   | { kind: 'story'; query: AnalyticsQuery; version: string };
 export type AiResponse =
   | { status: 'fixture'; version: string; headline: string; observations: string[]; limitations: string; sources: InsightCode[] }
+  | { status: 'explanation' | 'fallback'; observation: string; evidenceBasis: string; limitations: string; evidenceFingerprint: string }
   | { status: 'ineligible' | 'consent-required' | 'unavailable' | 'stale' };
 export type AiConsent = { enabled: boolean; available: boolean };
 export type RecentStoryObservation = {

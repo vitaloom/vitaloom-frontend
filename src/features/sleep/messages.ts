@@ -37,6 +37,8 @@ export const sleepMessages = {
     recentStoryTitle: 'Recent Sleep Story', recentStoryLoading: 'Loading your story', recentStoryUnavailable: 'Story unavailable', aiPreferenceLoading: 'Loading Sleep Story preference',
     recentStoryFallback: 'Evidence summary · not AI generated',
     openStoryInsight: 'Open {code} insight detail',
+    explainWithAi: 'Explain with AI',
+    aiExplanationConsent: 'Sleep AI previews are optional. This development preview uses verified sleep summaries and sends no data to an external AI provider.',
   },
   vi: {
     title: 'Theo dõi giấc ngủ', subtitle: 'Ghi lại giấc ngủ và khám phá các xu hướng.',
@@ -76,5 +78,7 @@ export const sleepMessages = {
     recentStoryTitle: 'Câu chuyện giấc ngủ gần đây', recentStoryLoading: 'Đang tải câu chuyện', recentStoryUnavailable: 'Không thể tải câu chuyện', aiPreferenceLoading: 'Đang tải tùy chọn câu chuyện giấc ngủ',
     recentStoryFallback: 'Tóm tắt bằng chứng · không do AI tạo',
     openStoryInsight: 'Mở chi tiết thông tin {code}',
+    explainWithAi: 'Giải thích bằng AI',
+    aiExplanationConsent: 'Bạn có thể chọn dùng bản xem trước AI cho giấc ngủ. Bản phát triển dùng tóm tắt dữ liệu đã xác minh và không gửi dữ liệu cho nhà cung cấp AI bên ngoài.',
   },
 } as const;

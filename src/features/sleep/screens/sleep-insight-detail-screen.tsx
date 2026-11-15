@@ -26,8 +26,9 @@ function EvidenceValue({ label, value }: { label: string; value: unknown }) {
   return <ThemedText variant="subhead" themeColor="textSecondary">{label}: {displayValue(value)}</ThemedText>;
 }
 
-function DetailContent({ detail, t, aiKey }: {
+function DetailContent({ detail, t, aiKey, reload }: {
   detail: SleepInsightDetail; t: (key: keyof typeof sleepMessages.en) => string; aiKey: InsightKey & { version: string };
+  reload: () => void;
 }) {
   if (detail.status !== 'READY') return <SleepNotice title={statusMessage(detail.status, t)} />;
   const sourceRefs = Array.isArray(detail.sourceRefs)
@@ -55,7 +56,8 @@ function DetailContent({ detail, t, aiKey }: {
       <EvidenceValue label={t('insightPolicy')} value={detail.policyVersion} />
       <EvidenceValue label={t('insightEvidenceVersion')} value={detail.evidenceVersion} />
     </SleepCard>
-    <SleepAiSection request={{ kind: 'explanation', insight: aiKey }} requestKey={`explanation:${JSON.stringify(aiKey)}`} />
+    <SleepAiSection key={JSON.stringify(detail.period) + detail.evidenceVersion}
+      request={{ kind: 'explanation', insight: aiKey }} requestKey={`explanation:${JSON.stringify(aiKey)}`} onStale={reload} />
     {sourceRefs.length > 0 ?
       <SleepButton variant="secondary" label={`${t('insightSources')} (${sourceRefs.length})`}
         onPress={() => router.push({ pathname: '/sleep/journal', params: {
@@ -72,6 +74,7 @@ export default function SleepInsightDetailScreen() {
   const { state, reload } = useSleepRead(
     () => insightCode ? repository.getInsightDetail(insightCode) : Promise.resolve({ kind: 'error' as const, message: 'Unsupported insight.' }),
     `sleep-insight-detail:${insightCode ?? 'unsupported'}`,
+    false, true,
   );
   const aiKey = state.kind === 'ready' ? {
     code: state.data.code, week: startOfWeek(repository.getContext().today), version: state.data.evidenceVersion,
@@ -81,6 +84,6 @@ export default function SleepInsightDetailScreen() {
     {state.kind === 'loading' ? <SleepNotice title={t('loadingInsight')} loading /> : null}
     {state.kind === 'error' ? <SleepNotice title={t('insightUnavailable')} message={state.message} error
       actionLabel={t('insightRetry')} onAction={reload} /> : null}
-    {state.kind === 'ready' && aiKey ? <DetailContent detail={state.data} t={t} aiKey={aiKey} /> : null}
+    {state.kind === 'ready' && aiKey ? <DetailContent detail={state.data} t={t} aiKey={aiKey} reload={reload} /> : null}
   </SleepPage>;
 }

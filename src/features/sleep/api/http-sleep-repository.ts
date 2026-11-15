@@ -398,7 +398,34 @@ export class HttpSleepRepository implements SleepRepository {
       return { kind: 'error', message: errorMessage(error), ...(error instanceof ApiError ? { code: error.code } : {}) };
     }
   }
-  async getAi(_request: AiRequest): Promise<ReadResult<AiResponse>> { return unavailable('Sleep AI explanations'); }
+  async getAi(request: AiRequest): Promise<ReadResult<AiResponse>> {
+    try {
+      if (request.kind !== 'explanation') return unavailable('Sleep AI story');
+      const value = await this.send<unknown>('/sleep/ai/explanations', {
+        method: 'POST', headers: new Headers({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ insightCode: request.insight.code, evidenceVersion: request.insight.version }),
+      });
+      if (!value || typeof value !== 'object') throw new Error('Sleep service returned an invalid AI explanation.');
+      const result = value as Record<string, unknown>;
+      if (result.status === 'CONSENT_REQUIRED' || result.status === 'INELIGIBLE' || result.status === 'DISABLED' || result.status === 'STALE') {
+        const status = result.status === 'CONSENT_REQUIRED' ? 'consent-required'
+          : result.status === 'INELIGIBLE' ? 'ineligible' : result.status === 'STALE' ? 'stale' : 'unavailable';
+        return { kind: 'ready', data: { status } };
+      }
+      if ((result.status !== 'EXPLANATION' && result.status !== 'FALLBACK')
+        || [result.observation, result.evidenceBasis, result.limitations, result.evidenceFingerprint]
+          .some((field) => typeof field !== 'string' || !field.trim())) {
+        throw new Error('Sleep service returned an invalid AI explanation.');
+      }
+      return { kind: 'ready', data: {
+        status: result.status === 'EXPLANATION' ? 'explanation' : 'fallback',
+        observation: result.observation as string, evidenceBasis: result.evidenceBasis as string,
+        limitations: result.limitations as string, evidenceFingerprint: result.evidenceFingerprint as string,
+      } };
+    } catch (error) {
+      return { kind: 'error', message: errorMessage(error), ...(error instanceof ApiError ? { code: error.code } : {}) };
+    }
+  }
 
   async getRecentStory(): Promise<ReadResult<RecentStory>> {
     try {

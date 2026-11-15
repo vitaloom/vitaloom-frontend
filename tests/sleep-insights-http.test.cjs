@@ -117,3 +117,17 @@ test('AI consent writes confirm the state returned by the server', async () => {
   const outcome = await repository.mutate('consent-1', { kind: 'set-ai-consent', enabled: true });
   assert.equal(outcome.kind, 'rejected');
 });
+
+test('Detail reads do not request explanations and explicit requests use authenticated POST', async () => {
+  const fields = { observation: 'Quan sát', evidenceBasis: 'Bằng chứng', limitations: 'Giới hạn', evidenceFingerprint: 'fp' };
+  const { repository, requests } = repositoryFor([detail(), { status: 'FALLBACK', ...fields }, { status: 'STALE' }]);
+  await repository.getInsightDetail('B01');
+  assert.deepEqual(requests.map(({ path }) => path), ['/sleep/insights/B01']);
+  const query = { kind: 'explanation', insight: { code: 'B01', version: 'fp' } };
+  assert.deepEqual(await repository.getAi(query), { kind: 'ready', data: { status: 'fallback', ...fields } });
+  assert.deepEqual(await repository.getAi(query), { kind: 'ready', data: { status: 'stale' } });
+  assert.equal(requests[1].path, '/sleep/ai/explanations');
+  assert.equal(requests[1].authenticated, true);
+  assert.equal(requests[1].init.method, 'POST');
+  assert.deepEqual(JSON.parse(requests[1].init.body), { insightCode: 'B01', evidenceVersion: 'fp' });
+});
