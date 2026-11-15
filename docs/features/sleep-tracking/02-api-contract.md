@@ -28,6 +28,10 @@ Saving sends `PUT /api/sleep/goal` with the confirmed revision and total minutes
 
 Sleep Home and Daily read the Goal effective on the requested day. A failed Goal read leaves the Journal view available with Goal marked unverified, and Mobile does not calculate Goal progress in this integration slice. See the [P5A Goal integration report](11-recent-report-integration.md#p5a-sleep-goal) for adapter verification.
 
+## P5A A02 and B04 Goal insights
+
+All Insights requests the additive `GET /api/sleep/insights?catalog=goal` catalog. The adapter accepts A01, A02, B01 and B04 while preserving the existing Recent highlight payload. A02 and B04 use the existing authenticated detail paths. Detail validation checks eligible day counts and each B04 exception's historical Goal and sleep duration before display. B04 displays the applicable day, duration and historical target. The AI explanation control remains limited to the existing A01 and B01 routes. See the [Goal insight integration report](11-recent-report-integration.md#p5a-a02-and-b04-goal-insights).
+
 ## P1 Recent Report integration
 
 The adapter uses authenticated `GET /api/sleep/recent` through the shared client. Mobile displays the server's seven dates, recorded-day metrics and READY A01 highlight. `NO_DATA` offers Main Sleep recording, `UNVERIFIED_DATA` shows only verified individual records and uncertain dates, and request failures show an error with retry. The Mobile screen route `/sleep/weekly` is an alias for `/sleep/recent`. [Backend contract](../../../../vitaloom-backend/docs/features/sleep-report/api-contract.md) · [Recent integration report](11-recent-report-integration.md)

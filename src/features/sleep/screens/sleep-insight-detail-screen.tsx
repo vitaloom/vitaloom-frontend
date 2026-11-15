@@ -1,13 +1,13 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { ThemedText } from '@/components/themed-text';
-import { useTranslations } from '@/i18n';
+import { useI18n, useTranslations } from '@/i18n';
 import { SleepAiSection } from '../components/sleep-ai-section';
 import { SleepButton, SleepCard, SleepNotice, SleepPage } from '../components/sleep-ui';
 import { useSleepRead, useSleepRepository } from '../hooks/use-sleep';
 import { sleepMessages } from '../messages';
-import type { InsightKey, SleepInsightDetail, SleepInsightStatus } from '../types/sleep';
+import type { CatalogSleepInsightCode, InsightKey, SleepInsightDetail, SleepInsightStatus } from '../types/sleep';
 import { startOfWeek } from '../utils/sleep-date';
-import { sleepPeriod } from '../utils/sleep-format';
+import { sleepDay, sleepDuration, sleepPeriod } from '../utils/sleep-format';
 
 function displayValue(value: unknown): string {
   if (typeof value === 'string') return value;
@@ -26,8 +26,45 @@ function EvidenceValue({ label, value }: { label: string; value: unknown }) {
   return <ThemedText variant="subhead" themeColor="textSecondary">{label}: {displayValue(value)}</ThemedText>;
 }
 
-function DetailContent({ detail, t, aiKey, reload }: {
-  detail: SleepInsightDetail; t: (key: keyof typeof sleepMessages.en) => string; aiKey: InsightKey & { version: string };
+function GoalEvidence({ detail, t, locale }: {
+  detail: SleepInsightDetail; t: (key: keyof typeof sleepMessages.en, values?: Record<string, string | number>) => string;
+  locale: string;
+}) {
+  if (!detail.sample || typeof detail.sample !== 'object' || Array.isArray(detail.sample)
+    || !detail.evidence || typeof detail.evidence !== 'object' || Array.isArray(detail.evidence)) return null;
+  const sample = detail.sample as Record<string, unknown>;
+  const evidence = detail.evidence as Record<string, unknown>;
+  if (detail.code === 'A02') {
+    return <SleepCard>
+      <ThemedText accessibilityRole="header" variant="heading">{t('insightEvidence')}</ThemedText>
+      <EvidenceValue label={t('goalInsightEligibleDays')} value={sample.eligibleMainDays} />
+      <EvidenceValue label={t('goalInsightMetDays')} value={evidence.metGoalDays} />
+    </SleepCard>;
+  }
+  if (detail.code !== 'B04' || !Array.isArray(evidence.exceptions)) return null;
+  return <SleepCard>
+    <ThemedText accessibilityRole="header" variant="heading">{t('goalInsightExceptions')}</ThemedText>
+    <EvidenceValue label={t('goalInsightRatedDays')} value={sample.ratedMain} />
+    <EvidenceValue label={t('goalInsightComparableDays')} value={sample.comparableRatedMain} />
+    <EvidenceValue label={t('goalInsightExceptions')} value={evidence.exceptionCount} />
+    {evidence.exceptions.map((value, index) => {
+      if (!value || typeof value !== 'object') return null;
+      const row = value as Record<string, unknown>;
+      if (typeof row.day !== 'string' || typeof row.minutes !== 'number' || typeof row.goalMinutes !== 'number') return null;
+      return <ThemedText key={row.day + index} variant="subhead" themeColor="textSecondary">
+        {t('goalInsightException', {
+          day: sleepDay(row.day, locale),
+          duration: sleepDuration(row.minutes),
+          goal: sleepDuration(row.goalMinutes),
+        })}
+      </ThemedText>;
+    })}
+  </SleepCard>;
+}
+
+function DetailContent({ detail, t, aiKey, locale, reload }: {
+  detail: SleepInsightDetail; t: (key: keyof typeof sleepMessages.en, values?: Record<string, string | number>) => string;
+  aiKey: (InsightKey & { version: string }) | null; locale: string;
   reload: () => void;
 }) {
   if (detail.status !== 'READY') return <SleepNotice title={statusMessage(detail.status, t)} />;
@@ -39,11 +76,13 @@ function DetailContent({ detail, t, aiKey, reload }: {
       <ThemedText variant="subhead" themeColor="textSecondary">{sleepPeriod(detail.period.start, detail.period.end)}</ThemedText>
       {detail.summary ? <ThemedText variant="heading">{detail.summary}</ThemedText> : null}
     </SleepCard>
-    {detail.sample !== undefined ? <SleepCard>
+    {detail.code === 'A02' || detail.code === 'B04'
+      ? <GoalEvidence detail={detail} t={t} locale={locale} />
+      : detail.sample !== undefined ? <SleepCard>
       <ThemedText accessibilityRole="header" variant="bodyStrong">{t('insightSample')}</ThemedText>
       <EvidenceValue label={t('insightSample')} value={detail.sample} />
     </SleepCard> : null}
-    {detail.evidence !== undefined ? <SleepCard>
+    {detail.code !== 'A02' && detail.code !== 'B04' && detail.evidence !== undefined ? <SleepCard>
       <ThemedText accessibilityRole="header" variant="heading">{t('insightEvidence')}</ThemedText>
       {detail.evidence && typeof detail.evidence === 'object' && !Array.isArray(detail.evidence)
         ? Object.entries(detail.evidence as Record<string, unknown>).map(([label, value]) => <EvidenceValue key={label} label={label} value={value} />)
@@ -56,8 +95,9 @@ function DetailContent({ detail, t, aiKey, reload }: {
       <EvidenceValue label={t('insightPolicy')} value={detail.policyVersion} />
       <EvidenceValue label={t('insightEvidenceVersion')} value={detail.evidenceVersion} />
     </SleepCard>
-    <SleepAiSection key={JSON.stringify(detail.period) + detail.evidenceVersion}
-      request={{ kind: 'explanation', insight: aiKey }} requestKey={`explanation:${JSON.stringify(aiKey)}`} onStale={reload} />
+    {aiKey ? <SleepAiSection key={JSON.stringify(detail.period) + detail.evidenceVersion}
+      request={{ kind: 'explanation', insight: aiKey }}
+      requestKey={'explanation:' + JSON.stringify(aiKey)} onStale={reload} /> : null}
     {sourceRefs.length > 0 ?
       <SleepButton variant="secondary" label={`${t('insightSources')} (${sourceRefs.length})`}
         onPress={() => router.push({ pathname: '/sleep/journal', params: {
@@ -70,13 +110,15 @@ export default function SleepInsightDetailScreen() {
   const { code } = useLocalSearchParams<{ code: string }>();
   const repository = useSleepRepository();
   const t = useTranslations(sleepMessages);
-  const insightCode = code === 'A01' || code === 'B01' ? code : null;
+  const { locale } = useI18n();
+  const insightCode: CatalogSleepInsightCode | null =
+    code === 'A01' || code === 'A02' || code === 'B01' || code === 'B04' ? code : null;
   const { state, reload } = useSleepRead(
     () => insightCode ? repository.getInsightDetail(insightCode) : Promise.resolve({ kind: 'error' as const, message: 'Unsupported insight.' }),
     `sleep-insight-detail:${insightCode ?? 'unsupported'}`,
     false, true,
   );
-  const aiKey = state.kind === 'ready' ? {
+  const aiKey = state.kind === 'ready' && (state.data.code === 'A01' || state.data.code === 'B01') ? {
     code: state.data.code, week: startOfWeek(repository.getContext().today), version: state.data.evidenceVersion,
   } : null;
 
@@ -84,6 +126,6 @@ export default function SleepInsightDetailScreen() {
     {state.kind === 'loading' ? <SleepNotice title={t('loadingInsight')} loading /> : null}
     {state.kind === 'error' ? <SleepNotice title={t('insightUnavailable')} message={state.message} error
       actionLabel={t('insightRetry')} onAction={reload} /> : null}
-    {state.kind === 'ready' && aiKey ? <DetailContent detail={state.data} t={t} aiKey={aiKey} reload={reload} /> : null}
+    {state.kind === 'ready' ? <DetailContent detail={state.data} t={t} locale={locale} aiKey={aiKey} reload={reload} /> : null}
   </SleepPage>;
 }

@@ -12,6 +12,12 @@ Sleep Home and Daily compose a Goal read for the matching day. A Goal read failu
 
 **Trace** OW-01–04, OW-44–47, OW-54, BR-F2.1–3/.10–11/.18–19/.22/.38–39, SLT-UC-009, ADR-001 and VAL-REC-01–06/21 plus the Sleep-specific part of VAL-REC-38. [P1 plan](../../../../vitaloom-business-docs-and-tools/docs/technical/sleep-recent-handoff/P1-PLAN.md) · [Backend API contract](../../../../vitaloom-backend/docs/features/sleep-report/api-contract.md)
 
+## P5A A02 and B04 Goal insights
+
+All Insights requests the Goal catalog and accepts A01/A02/B01/B04. A02 displays its eligible Main Sleep days and the number meeting their effective historical Goals. B04 displays the rated and goal-comparable sample counts plus each tired exception's date, sleep duration and Goal effective for that date. Dates and durations use the active locale. These Goal-dependent insight details do not show the AI explanation controls.
+
+**Mobile verification.** `node --test tests/sleep-insights-http.test.cjs` passed 11 tests. `node --test tests/sleep-*.test.cjs` passed 75 tests. `tsc.cmd --noEmit` and `npm.cmd run lint` exited 0. The adapter checks the catalog query, both Detail routes, and rejection of contradictory evidence. Authenticated Android opened both READY details from All Insights without AI controls. After removing today's Goal, A02 became insufficient while B04 retained the historical exception. See the [A02/B04 task record](../../../../vitaloom-business-docs-and-tools/docs/development-workflow/tasks/sleep-p5a-goal-insights.md) for isolated runtime evidence.
+
 ## Runtime behavior
 
 - The Sleep entry opens `/sleep/recent`. The existing `/sleep/weekly` route points to the same report. Legacy week and timezone parameters have no effect on the server request. The root navigator waits for session restoration before evaluating the incoming protected route. In Statistics, the Sleep entry is available in daily mode.

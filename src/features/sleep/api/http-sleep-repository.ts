@@ -6,7 +6,7 @@ import type {
   AiRequest, AiResponse, AnalyticsQuery, DailySummary, Day, Feeling, GoalState, HomeSummary, Insight,
   InsightKey, InsightList, JournalPage, JournalQuery, Mutation, ReadResult, SleepContext, SleepSession,
   RecentSleepDay, RecentSleepHighlight, RecentSleepInsight, RecentSleepReport, WeeklySummary, WriteResult,
-  SleepInsightDetail, SleepInsightItem, SleepInsightList, SleepInsightPeriod, SleepInsightStatus,
+  CatalogSleepInsightCode, SleepInsightDetail, SleepInsightItem, SleepInsightList, SleepInsightPeriod, SleepInsightStatus,
   AiConsent, RecentStory,
 } from '../types/sleep';
 
@@ -144,7 +144,7 @@ function mapInsightItem(value: unknown): SleepInsightItem {
   const item = value as Record<string, unknown>;
   const category = item.category;
   const code = item.code;
-  if ((code !== 'A01' && code !== 'B01') || category !== (code === 'A01' ? 'A' : 'B')
+  if (!isCatalogInsightCode(code) || category !== insightCategory(code)
     || !insightStatuses.includes(item.status as SleepInsightStatus) || typeof item.title !== 'string' || !item.title
     || typeof item.locked !== 'boolean') {
     throw new Error('Sleep service returned an invalid Insight.');
@@ -164,18 +164,72 @@ export function mapSleepInsightList(value: unknown): SleepInsightList {
   return { period: mapInsightPeriod(response.period), items: response.items.map(mapInsightItem) };
 }
 
-export function mapSleepInsightDetail(value: unknown, expectedCode: 'A01' | 'B01'): SleepInsightDetail {
+export function mapSleepInsightDetail(value: unknown, expectedCode: CatalogSleepInsightCode): SleepInsightDetail {
   if (!value || typeof value !== 'object') throw new Error('Sleep service returned an invalid Insight detail.');
   const detail = value as Record<string, unknown>;
   const code = detail.code;
-  if (code !== expectedCode || detail.category !== (code === 'A01' ? 'A' : 'B')
+  if (code !== expectedCode || detail.category !== insightCategory(expectedCode)
     || !insightStatuses.includes(detail.status as SleepInsightStatus) || typeof detail.title !== 'string' || !detail.title
     || detail.sourceRefs === undefined || detail.limitations === undefined
     || typeof detail.policyVersion !== 'string' || typeof detail.evidenceVersion !== 'string'
     || (detail.summary !== undefined && typeof detail.summary !== 'string')) {
     throw new Error('Sleep service returned an invalid Insight detail.');
   }
-  return { ...detail, period: mapInsightPeriod(detail.period) } as unknown as SleepInsightDetail;
+  const period = mapInsightPeriod(detail.period);
+  if (detail.status === 'READY' && !validGoalInsightDetail(expectedCode, detail.sample, detail.evidence, period)) {
+    throw new Error('Sleep service returned invalid Goal insight evidence.');
+  }
+  return { ...detail, period } as unknown as SleepInsightDetail;
+}
+
+function isCatalogInsightCode(value: unknown): value is CatalogSleepInsightCode {
+  return value === 'A01' || value === 'A02' || value === 'B01' || value === 'B04';
+}
+
+function insightCategory(code: CatalogSleepInsightCode): 'A' | 'B' {
+  return code.startsWith('A') ? 'A' : 'B';
+}
+
+function isNonNegativeInteger(value: unknown): value is number {
+  return Number.isSafeInteger(value) && Number(value) >= 0;
+}
+
+function validGoalInsightDetail(
+  code: CatalogSleepInsightCode, sample: unknown, evidence: unknown, period: SleepInsightPeriod,
+): boolean {
+  if (!sample || typeof sample !== 'object' || Array.isArray(sample)
+    || !evidence || typeof evidence !== 'object' || Array.isArray(evidence)) return code !== 'A02' && code !== 'B04';
+  const sampleValues = sample as Record<string, unknown>;
+  const evidenceValues = evidence as Record<string, unknown>;
+  if (code === 'A02') {
+    return isNonNegativeInteger(sampleValues.eligibleMainDays) && sampleValues.eligibleMainDays >= 3
+      && isNonNegativeInteger(evidenceValues.metGoalDays)
+      && evidenceValues.metGoalDays <= sampleValues.eligibleMainDays
+      && evidenceValues.eligibleMainDays === sampleValues.eligibleMainDays;
+  }
+  if (code === 'B04') {
+    return isNonNegativeInteger(sampleValues.ratedMain)
+      && sampleValues.ratedMain >= 3
+      && isNonNegativeInteger(sampleValues.comparableRatedMain)
+      && sampleValues.comparableRatedMain <= sampleValues.ratedMain
+      && isNonNegativeInteger(evidenceValues.exceptionCount)
+      && evidenceValues.exceptionCount >= 1
+      && isNonNegativeInteger(evidenceValues.ratedMain)
+      && evidenceValues.ratedMain === sampleValues.ratedMain
+      && Array.isArray(evidenceValues.exceptions)
+      && evidenceValues.exceptions.length === evidenceValues.exceptionCount
+      && evidenceValues.exceptionCount <= sampleValues.comparableRatedMain
+      && evidenceValues.exceptions.every((value) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+        const row = value as Record<string, unknown>;
+        return isCivilDay(row.day) && row.day >= period.start && row.day <= period.end
+          && Number.isInteger(row.minutes) && Number(row.minutes) >= 1
+          && Number(row.minutes) <= 1440 && Number.isInteger(row.goalMinutes)
+          && Number(row.goalMinutes) >= 60 && Number(row.goalMinutes) <= 1440
+          && Number(row.goalMinutes) % 15 === 0 && Number(row.minutes) >= Number(row.goalMinutes);
+      });
+  }
+  return true;
 }
 
 export function mapRecentSleepReport(value: unknown): RecentSleepReport {
@@ -367,13 +421,15 @@ export class HttpSleepRepository implements SleepRepository {
 
   async getAllInsights(): Promise<ReadResult<SleepInsightList>> {
     try {
-      return { kind: 'ready', data: mapSleepInsightList(await this.send<unknown>('/sleep/insights', { method: 'GET' })) };
+      return { kind: 'ready', data: mapSleepInsightList(
+        await this.send<unknown>('/sleep/insights?catalog=goal', { method: 'GET' }),
+      ) };
     } catch (error) {
       return { kind: 'error', message: errorMessage(error), ...(error instanceof ApiError ? { code: error.code } : {}) };
     }
   }
 
-  async getInsightDetail(code: 'A01' | 'B01'): Promise<ReadResult<SleepInsightDetail>> {
+  async getInsightDetail(code: CatalogSleepInsightCode): Promise<ReadResult<SleepInsightDetail>> {
     try {
       return { kind: 'ready', data: mapSleepInsightDetail(
         await this.send<unknown>(`/sleep/insights/${encodeURIComponent(code)}`, { method: 'GET' }), code,

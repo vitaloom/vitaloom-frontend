@@ -142,7 +142,7 @@ export class MockSleepRepository implements SleepRepository {
     return { kind: 'ready', data: { period: { start: shiftDay(context.today, -6), end: context.today, timeZone: context.timeZone }, items } };
   }
 
-  async getInsightDetail(code: 'A01' | 'B01'): Promise<ReadResult<SleepInsightDetail>> {
+  async getInsightDetail(code: 'A01' | 'A02' | 'B01' | 'B04'): Promise<ReadResult<SleepInsightDetail>> {
     const context = this.getContext();
     const legacy = await this.getInsight({ code, week: startOfWeek(context.today) });
     if (legacy.kind === 'error') return legacy;
@@ -152,7 +152,7 @@ export class MockSleepRepository implements SleepRepository {
       : insight.status === 'no-data' ? 'NO_DATA'
         : insight.status === 'unverified' || insight.status === 'stale' ? 'UNVERIFIED_DATA' : 'INSUFFICIENT_DATA';
     return { kind: 'ready', data: {
-      code, category: code === 'A01' ? 'A' : 'B', status,
+      code, category: code.startsWith('A') ? 'A' : 'B', status,
       period: { start: shiftDay(context.today, -6), end: context.today, timeZone: context.timeZone },
       title: insight.title,
       ...(status === 'READY' ? {

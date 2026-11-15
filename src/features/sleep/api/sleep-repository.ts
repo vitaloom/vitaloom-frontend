@@ -2,7 +2,7 @@ import type {
   AiRequest, AiResponse, AnalyticsQuery, DailySummary, Day, GoalState, HomeSummary, Insight,
   InsightKey, InsightList, JournalPage, JournalQuery, Mutation, ReadResult, RecentSleepReport, SleepContext, SleepSession,
   WeeklySummary, WriteResult, AiConsent, RecentStory,
-  SleepInsightDetail, SleepInsightList,
+  CatalogSleepInsightCode, SleepInsightDetail, SleepInsightList,
 } from '../types/sleep';
 
 export interface SleepRepository {
@@ -18,7 +18,7 @@ export interface SleepRepository {
   getInsights(query: AnalyticsQuery): Promise<ReadResult<InsightList>>;
   getInsight(key: InsightKey): Promise<ReadResult<Insight | null>>;
   getAllInsights(): Promise<ReadResult<SleepInsightList>>;
-  getInsightDetail(code: 'A01' | 'B01'): Promise<ReadResult<SleepInsightDetail>>;
+  getInsightDetail(code: CatalogSleepInsightCode): Promise<ReadResult<SleepInsightDetail>>;
   getAiConsent(): Promise<ReadResult<AiConsent>>;
   getAi(request: AiRequest): Promise<ReadResult<AiResponse>>;
   getRecentStory(): Promise<ReadResult<RecentStory>>;

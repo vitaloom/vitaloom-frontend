@@ -116,15 +116,17 @@ export type ReadResult<T> =
 
 export type SleepInsightStatus = 'READY' | 'INSUFFICIENT_DATA' | 'NO_DATA' | 'UNVERIFIED_DATA';
 export type SleepInsightCategory = 'A' | 'B';
+export type GoalInsightCode = 'A02' | 'B04';
+export type CatalogSleepInsightCode = 'A01' | 'A02' | 'B01' | 'B04';
 export type SleepInsightItem = {
-  code: 'A01' | 'B01'; category: SleepInsightCategory; status: SleepInsightStatus;
+  code: CatalogSleepInsightCode; category: SleepInsightCategory; status: SleepInsightStatus;
   title: string; highlight?: unknown; locked: boolean; summary?: string; sample?: unknown;
   evidence?: unknown; sourceRefs?: unknown; limitations?: unknown; policyVersion?: string; evidenceVersion?: string;
 };
 export type SleepInsightPeriod = { start: Day; end: Day; timeZone: string };
 export type SleepInsightList = { period: SleepInsightPeriod; items: SleepInsightItem[] };
 export type SleepInsightDetail = {
-  code: 'A01' | 'B01'; category: SleepInsightCategory; status: SleepInsightStatus;
+  code: CatalogSleepInsightCode; category: SleepInsightCategory; status: SleepInsightStatus;
   period: SleepInsightPeriod; title: string; summary?: string; sample?: unknown; evidence?: unknown;
   sourceRefs: unknown; limitations: unknown; policyVersion: string; evidenceVersion: string;
 };

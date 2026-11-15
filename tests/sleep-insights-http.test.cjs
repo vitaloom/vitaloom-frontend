@@ -39,11 +39,16 @@ function repositoryFor(responses) {
   return { repository, requests };
 }
 
-test('All Insights reads supported A/B items from the parameterless endpoint', async () => {
-  const payload = { period, items: [item('READY', { code: 'A01', category: 'A', locked: false }), item('INSUFFICIENT_DATA')] };
+test('All Insights reads the four Goal-catalog codes from the additive catalog endpoint', async () => {
+  const payload = { period, items: [
+    item('READY', { code: 'A01', category: 'A', locked: false }),
+    item('READY', { code: 'A02', category: 'A', title: 'Goal Achievement', locked: false }),
+    item('INSUFFICIENT_DATA'),
+    item('READY', { code: 'B04', title: 'Tired sessions at goal', locked: false }),
+  ] };
   const { repository, requests } = repositoryFor([payload]);
   assert.deepEqual(await repository.getAllInsights(), { kind: 'ready', data: payload });
-  assert.equal(requests[0].path, '/sleep/insights');
+  assert.equal(requests[0].path, '/sleep/insights?catalog=goal');
   assert.equal(requests[0].init.method, 'GET');
   assert.equal(requests[0].authenticated, true);
 });
@@ -57,13 +62,54 @@ test('All Insights preserves locked status-only entries for every non-ready stat
   assert.deepEqual(result.data.items.map(({ status }) => status), ['INSUFFICIENT_DATA', 'NO_DATA', 'UNVERIFIED_DATA']);
 });
 
-test('Insight Detail reads the selected code without query parameters and retains missing-feeling sample data', async () => {
+test('Insight Detail reads the selected existing code without query parameters and retains missing-feeling sample data', async () => {
   const payload = detail();
   const { repository, requests } = repositoryFor([payload]);
   assert.deepEqual(await repository.getInsightDetail('B01'), { kind: 'ready', data: payload });
   assert.equal(requests[0].path, '/sleep/insights/B01');
   assert.equal(requests[0].authenticated, true);
   assert.equal(payload.sample.mainWithoutFeeling, 1);
+});
+
+test('Goal insight details read A02 and B04 with historical evidence on their existing detail routes', async () => {
+  const a02 = {
+    code: 'A02', category: 'A', status: 'READY', period, title: 'Goal Achievement',
+    summary: 'Three eligible days met the goal twice.', sample: { eligibleMainDays: 3 },
+    evidence: { metGoalDays: 2, eligibleMainDays: 3 }, sourceRefs: ['main-1', 'main-2', 'main-3'],
+    limitations: ['Descriptive only.'], policyVersion: 'policy-1', evidenceVersion: 'a02-v1',
+  };
+  const b04 = {
+    code: 'B04', category: 'B', status: 'READY', period, title: 'Tired sessions at goal',
+    summary: 'One tired session met its historical goal.',
+    sample: { ratedMain: 3, comparableRatedMain: 2 },
+    evidence: { exceptionCount: 1, ratedMain: 3, exceptions: [
+      { day: '2026-11-13', minutes: 480, goalMinutes: 465 },
+    ] },
+    sourceRefs: ['main-3'], limitations: ['Descriptive only.'], policyVersion: 'policy-1', evidenceVersion: 'b04-v1',
+  };
+  const { repository, requests } = repositoryFor([a02, b04]);
+  assert.deepEqual(await repository.getInsightDetail('A02'), { kind: 'ready', data: a02 });
+  assert.deepEqual(await repository.getInsightDetail('B04'), { kind: 'ready', data: b04 });
+  assert.deepEqual(requests.map(({ path }) => path), ['/sleep/insights/A02', '/sleep/insights/B04']);
+});
+
+test('Goal insight details reject malformed historical evidence', async () => {
+  const a02 = {
+    code: 'A02', category: 'A', status: 'READY', period, title: 'Goal Achievement',
+    sample: { eligibleMainDays: 2 }, evidence: { metGoalDays: 3, eligibleMainDays: 2 },
+    sourceRefs: [], limitations: [], policyVersion: 'policy-1', evidenceVersion: 'a02-v1',
+  };
+  const b04 = {
+    code: 'B04', category: 'B', status: 'READY', period, title: 'Tired sessions at goal',
+    sample: { ratedMain: 3, comparableRatedMain: 2 },
+    evidence: { exceptionCount: 1, ratedMain: 3, exceptions: [
+      { day: '2026-11-15', minutes: 480, goalMinutes: 465 },
+    ] },
+    sourceRefs: [], limitations: [], policyVersion: 'policy-1', evidenceVersion: 'b04-v1',
+  };
+  const { repository } = repositoryFor([a02, b04]);
+  assert.equal((await repository.getInsightDetail('A02')).kind, 'error');
+  assert.equal((await repository.getInsightDetail('B04')).kind, 'error');
 });
 
 test('a fresh detail read observes the latest server evidence for the same code', async () => {
