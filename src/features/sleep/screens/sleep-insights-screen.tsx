@@ -1,47 +1,50 @@
-import { useState } from 'react';
-import { SleepInsightCard } from '../components/sleep-insight-card';
-import { SleepInsightsFallback } from '../components/sleep-insights-fallback';
-import { SleepTimeZoneChoices } from '../components/sleep-time-zone-choices';
-import { SleepNotice, SleepPage, SleepSegments } from '../components/sleep-ui';
-import { SleepWeekPicker } from '../components/sleep-week-picker';
+import { router } from 'expo-router';
+import { ThemedText } from '@/components/themed-text';
+import { useTranslations } from '@/i18n';
+import { SleepCard, SleepNotice, SleepPage } from '../components/sleep-ui';
 import { useSleepRead, useSleepRepository } from '../hooks/use-sleep';
-import type { InsightCategory } from '../types/sleep';
-import { shiftDay, startOfWeek } from '../utils/sleep-date';
-import { distinctInsights, insightFallback } from '../utils/sleep-insights';
+import { sleepMessages } from '../messages';
+import type { SleepInsightItem, SleepInsightStatus } from '../types/sleep';
 
-const filters = [
-  { value: 'all', label: 'All' },
-  { value: 'patterns', label: 'Patterns' },
-  { value: 'feelings', label: 'Feelings' },
-  { value: 'discoveries', label: 'Discoveries' },
-] as const;
+function statusMessage(status: SleepInsightStatus, t: (key: keyof typeof sleepMessages.en) => string) {
+  if (status === 'READY') return t('insightStatusReady');
+  if (status === 'INSUFFICIENT_DATA') return t('insightStatusInsufficient');
+  if (status === 'NO_DATA') return t('insightStatusNoData');
+  return t('insightStatusUnverified');
+}
+
+function InsightRow({ item, t }: { item: SleepInsightItem; t: (key: keyof typeof sleepMessages.en) => string }) {
+  return <SleepCard onPress={() => router.push({ pathname: '/sleep/insights/[code]', params: { code: item.code } })}
+    label={`${item.title}. ${item.locked ? statusMessage(item.status, t) : item.summary ?? ''}`}>
+    <ThemedText variant="labelStrong">{item.code} · {item.title}</ThemedText>
+    {item.locked
+      ? <ThemedText variant="subhead" themeColor="textSecondary">{statusMessage(item.status, t)}</ThemedText>
+      : <>
+        {item.summary ? <ThemedText variant="subhead" themeColor="textSecondary">{item.summary}</ThemedText> : null}
+      </>}
+  </SleepCard>;
+}
+
 export default function SleepInsightsScreen() {
   const repository = useSleepRepository();
-  const { today } = repository.getContext();
-  const [week, setWeek] = useState(() => shiftDay(startOfWeek(today), -7));
-  const [category, setCategory] = useState<InsightCategory | 'all'>('all');
-  const [timeZone, setTimeZone] = useState('');
-  const query = { week, timeZone: timeZone || undefined };
-  const queryKey = `insights:${week}:${timeZone}`;
-  const { state, reload } = useSleepRead(() => repository.getInsights(query), queryKey);
-  const list = state.kind === 'ready' ? state.data : null;
-  const candidates = list?.items.filter((item) => category === 'all' || item.category === category) ?? [];
-  const items = distinctInsights(candidates);
-  const fallback = list ? insightFallback(list, category) : null;
-  const changeWeek = (next: string) => { setTimeZone(''); setWeek(next); };
+  const { state, reload } = useSleepRead(() => repository.getAllInsights(), 'sleep-insights:all');
+  const t = useTranslations(sleepMessages);
+  const items = state.kind === 'ready' ? state.data.items : [];
+  const patterns = items.filter(({ category }) => category === 'A');
+  const feelings = items.filter(({ category }) => category === 'B');
 
-  return <SleepPage title="Sleep Insights" subtitle={items.length ? 'Explore patterns in recorded sleep and feelings.' : undefined}
-    hero={true} wellness={items.length === 0}>
-    <SleepSegments options={filters} value={category} onChange={setCategory} />
-    <SleepWeekPicker week={week} today={today} onChange={changeWeek} />
-    {(category === 'patterns' || category === 'all') && list?.status === 'ready'
-      ? <SleepTimeZoneChoices options={list.timeZones} value={timeZone} onChange={setTimeZone} /> : null}
-    {state.kind === 'loading' ? <SleepNotice title="Loading insights" loading /> : null}
-    {state.kind === 'error' ? <SleepNotice title="Could not load insights" message={state.message} error actionLabel="Retry" onAction={reload} /> : null}
-    {list?.status === 'unverified' ? <SleepNotice title="History is unverified" message="Sleep history could not be fully verified." actionLabel="Retry" onAction={reload} /> : null}
-    {list?.status === 'stale' ? <SleepNotice title="Evidence changed" message="Refresh to check for current insights." actionLabel="Refresh" onAction={reload} /> : null}
-    {fallback && (list?.status === 'ready' || list?.status === 'no-data') ?
-      <SleepInsightsFallback key={`${queryKey}:${category}`} state={fallback} onRetry={reload} /> : null}
-    {items.map((item) => <SleepInsightCard key={item.key.code} insight={item} />)}
+  return <SleepPage title={t('insightsTitle')} subtitle={t('insightsSubtitle')} hero wellness={items.length === 0}>
+    {state.kind === 'loading' ? <SleepNotice title={t('loadingInsights')} loading /> : null}
+    {state.kind === 'error' ? <SleepNotice title={t('failedInsights')} message={state.message} error
+      actionLabel={t('insightRetry')} onAction={reload} /> : null}
+    {state.kind === 'ready' && items.length === 0 ? <SleepNotice title={t('insightsEmpty')} /> : null}
+    {patterns.length ? <>
+      <ThemedText accessibilityRole="header" variant="heading">{t('insightGroupA')}</ThemedText>
+      {patterns.map((item) => <InsightRow key={item.code} item={item} t={t} />)}
+    </> : null}
+    {feelings.length ? <>
+      <ThemedText accessibilityRole="header" variant="heading">{t('insightGroupB')}</ThemedText>
+      {feelings.map((item) => <InsightRow key={item.code} item={item} t={t} />)}
+    </> : null}
   </SleepPage>;
 }

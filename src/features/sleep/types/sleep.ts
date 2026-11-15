@@ -102,3 +102,18 @@ export type WriteResult =
 export type ReadResult<T> =
   | { kind: 'ready'; data: T }
   | { kind: 'error'; message: string; code?: string };
+
+export type SleepInsightStatus = 'READY' | 'INSUFFICIENT_DATA' | 'NO_DATA' | 'UNVERIFIED_DATA';
+export type SleepInsightCategory = 'A' | 'B';
+export type SleepInsightItem = {
+  code: 'A01' | 'B01'; category: SleepInsightCategory; status: SleepInsightStatus;
+  title: string; highlight?: unknown; locked: boolean; summary?: string; sample?: unknown;
+  evidence?: unknown; sourceRefs?: unknown; limitations?: unknown; policyVersion?: string; evidenceVersion?: string;
+};
+export type SleepInsightPeriod = { start: Day; end: Day; timeZone: string };
+export type SleepInsightList = { period: SleepInsightPeriod; items: SleepInsightItem[] };
+export type SleepInsightDetail = {
+  code: 'A01' | 'B01'; category: SleepInsightCategory; status: SleepInsightStatus;
+  period: SleepInsightPeriod; title: string; summary?: string; sample?: unknown; evidence?: unknown;
+  sourceRefs: unknown; limitations: unknown; policyVersion: string; evidenceVersion: string;
+};

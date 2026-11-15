@@ -6,6 +6,7 @@ import type {
   AiRequest, AiResponse, AnalyticsQuery, DailySummary, Day, Feeling, GoalState, HomeSummary, Insight,
   InsightKey, InsightList, JournalPage, JournalQuery, Mutation, ReadResult, SleepContext, SleepSession,
   RecentSleepDay, RecentSleepInsight, RecentSleepReport, WeeklySummary, WriteResult,
+  SleepInsightDetail, SleepInsightItem, SleepInsightList, SleepInsightPeriod, SleepInsightStatus,
 } from '../types/sleep';
 
 const apiBase = '/sleep/v2';
@@ -97,6 +98,56 @@ function isCivilDay(value: unknown): value is string {
 
 function invalidRecentReport(): never {
   throw new Error('Sleep service returned an invalid Recent report.');
+}
+
+const insightStatuses: readonly SleepInsightStatus[] = ['READY', 'INSUFFICIENT_DATA', 'NO_DATA', 'UNVERIFIED_DATA'];
+
+function mapInsightPeriod(value: unknown): SleepInsightPeriod {
+  if (!value || typeof value !== 'object') throw new Error('Sleep service returned an invalid Insight period.');
+  const period = value as Record<string, unknown>;
+  if (!isCivilDay(period.start) || !isCivilDay(period.end) || typeof period.timeZone !== 'string' || !period.timeZone) {
+    throw new Error('Sleep service returned an invalid Insight period.');
+  }
+  return { start: period.start, end: period.end, timeZone: period.timeZone };
+}
+
+function mapInsightItem(value: unknown): SleepInsightItem {
+  if (!value || typeof value !== 'object') throw new Error('Sleep service returned an invalid Insight.');
+  const item = value as Record<string, unknown>;
+  const category = item.category;
+  const code = item.code;
+  if ((code !== 'A01' && code !== 'B01') || category !== (code === 'A01' ? 'A' : 'B')
+    || !insightStatuses.includes(item.status as SleepInsightStatus) || typeof item.title !== 'string' || !item.title
+    || typeof item.locked !== 'boolean') {
+    throw new Error('Sleep service returned an invalid Insight.');
+  }
+  const status = item.status as SleepInsightStatus;
+  if ((status === 'READY' && item.locked) || (status !== 'READY' && !item.locked)) {
+    throw new Error('Sleep service returned an invalid Insight publication state.');
+  }
+  if (item.summary !== undefined && typeof item.summary !== 'string') throw new Error('Sleep service returned an invalid Insight summary.');
+  return item as unknown as SleepInsightItem;
+}
+
+export function mapSleepInsightList(value: unknown): SleepInsightList {
+  if (!value || typeof value !== 'object') throw new Error('Sleep service returned an invalid Insights list.');
+  const response = value as Record<string, unknown>;
+  if (!Array.isArray(response.items)) throw new Error('Sleep service returned an invalid Insights list.');
+  return { period: mapInsightPeriod(response.period), items: response.items.map(mapInsightItem) };
+}
+
+export function mapSleepInsightDetail(value: unknown, expectedCode: 'A01' | 'B01'): SleepInsightDetail {
+  if (!value || typeof value !== 'object') throw new Error('Sleep service returned an invalid Insight detail.');
+  const detail = value as Record<string, unknown>;
+  const code = detail.code;
+  if (code !== expectedCode || detail.category !== (code === 'A01' ? 'A' : 'B')
+    || !insightStatuses.includes(detail.status as SleepInsightStatus) || typeof detail.title !== 'string' || !detail.title
+    || detail.sourceRefs === undefined || detail.limitations === undefined
+    || typeof detail.policyVersion !== 'string' || typeof detail.evidenceVersion !== 'string'
+    || (detail.summary !== undefined && typeof detail.summary !== 'string')) {
+    throw new Error('Sleep service returned an invalid Insight detail.');
+  }
+  return { ...detail, period: mapInsightPeriod(detail.period) } as unknown as SleepInsightDetail;
 }
 
 export function mapRecentSleepReport(value: unknown): RecentSleepReport {
@@ -269,6 +320,24 @@ export class HttpSleepRepository implements SleepRepository {
         kind: 'error', message: errorMessage(error),
         ...(error instanceof ApiError ? { code: error.code } : {}),
       };
+    }
+  }
+
+  async getAllInsights(): Promise<ReadResult<SleepInsightList>> {
+    try {
+      return { kind: 'ready', data: mapSleepInsightList(await this.send<unknown>('/sleep/insights', { method: 'GET' })) };
+    } catch (error) {
+      return { kind: 'error', message: errorMessage(error), ...(error instanceof ApiError ? { code: error.code } : {}) };
+    }
+  }
+
+  async getInsightDetail(code: 'A01' | 'B01'): Promise<ReadResult<SleepInsightDetail>> {
+    try {
+      return { kind: 'ready', data: mapSleepInsightDetail(
+        await this.send<unknown>(`/sleep/insights/${encodeURIComponent(code)}`, { method: 'GET' }), code,
+      ) };
+    } catch (error) {
+      return { kind: 'error', message: errorMessage(error), ...(error instanceof ApiError ? { code: error.code } : {}) };
     }
   }
 
