@@ -14,9 +14,9 @@ Sleep Home and Daily compose a Goal read for the matching day. A Goal read failu
 
 ## P5A A02 and B04 Goal insights
 
-All Insights requests the Goal catalog and accepts A01/A02/B01/B04. A02 displays its eligible Main Sleep days and the number meeting their effective historical Goals. B04 displays the rated and goal-comparable sample counts plus each tired exception's date, sleep duration and Goal effective for that date. Dates and durations use the active locale. These Goal-dependent insight details do not show the AI explanation controls.
+All Insights requests the Goal catalog and accepts A01/A02/B01/B04. A02 displays its eligible Main Sleep days and the number meeting their effective historical Goals. B04 displays the rated and goal-comparable sample counts plus each tired exception's date, sleep duration and Goal effective for that date. Titles, count summaries, dates and durations use the active locale. These Goal-dependent insight details do not show the AI explanation controls.
 
-**Mobile verification.** `node --test tests/sleep-insights-http.test.cjs` passed 11 tests. `node --test tests/sleep-*.test.cjs` passed 75 tests. `tsc.cmd --noEmit` and `npm.cmd run lint` exited 0. The adapter checks the catalog query, both Detail routes, and rejection of contradictory evidence. Authenticated Android opened both READY details from All Insights without AI controls. After removing today's Goal, A02 became insufficient while B04 retained the historical exception. See the [A02/B04 task record](../../../../vitaloom-business-docs-and-tools/docs/development-workflow/tasks/sleep-p5a-goal-insights.md) for isolated runtime evidence.
+**Mobile verification.** `node --test tests/sleep-insights-http.test.cjs` passed 13 tests. `node --test tests/sleep-*.test.cjs` passed 77 tests. `tsc.cmd --noEmit` and `npm.cmd run lint` exited 0. The adapter checks the catalog query, both Detail routes, and rejection of contradictory evidence. Authenticated Android opened both READY details from All Insights without AI controls. After removing today's Goal, A02 became insufficient while B04 retained the historical exception. See the [A02/B04 task record](../../../../vitaloom-business-docs-and-tools/docs/development-workflow/tasks/sleep-p5a-goal-insights.md) for isolated runtime evidence.
 
 ## Runtime behavior
 

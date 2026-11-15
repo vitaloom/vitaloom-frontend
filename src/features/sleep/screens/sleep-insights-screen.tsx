@@ -5,6 +5,7 @@ import { SleepCard, SleepNotice, SleepPage } from '../components/sleep-ui';
 import { useSleepRead, useSleepRepository } from '../hooks/use-sleep';
 import { sleepMessages } from '../messages';
 import type { SleepInsightItem, SleepInsightStatus } from '../types/sleep';
+import { sleepGoalInsightCopy } from '../utils/sleep-goal-insight-copy';
 
 function statusMessage(status: SleepInsightStatus, t: (key: keyof typeof sleepMessages.en) => string) {
   if (status === 'READY') return t('insightStatusReady');
@@ -13,14 +14,21 @@ function statusMessage(status: SleepInsightStatus, t: (key: keyof typeof sleepMe
   return t('insightStatusUnverified');
 }
 
-function InsightRow({ item, t }: { item: SleepInsightItem; t: (key: keyof typeof sleepMessages.en) => string }) {
+function InsightRow({ item, t }: {
+  item: SleepInsightItem;
+  t: (key: keyof typeof sleepMessages.en, values?: Record<string, string | number>) => string;
+}) {
+  const goalCopy = item.code === 'A02' || item.code === 'B04'
+    ? sleepGoalInsightCopy(item.code, item.sample, item.evidence, t) : null;
+  const title = goalCopy?.title ?? item.title;
+  const summary = goalCopy ? goalCopy.summary : item.summary;
   return <SleepCard onPress={() => router.push({ pathname: '/sleep/insights/[code]', params: { code: item.code } })}
-    label={`${item.title}. ${item.locked ? statusMessage(item.status, t) : item.summary ?? ''}`}>
-    <ThemedText variant="labelStrong">{item.code} · {item.title}</ThemedText>
+    label={`${title}. ${item.locked ? statusMessage(item.status, t) : summary ?? ''}`}>
+    <ThemedText variant="labelStrong">{item.code} · {title}</ThemedText>
     {item.locked
       ? <ThemedText variant="subhead" themeColor="textSecondary">{statusMessage(item.status, t)}</ThemedText>
       : <>
-        {item.summary ? <ThemedText variant="subhead" themeColor="textSecondary">{item.summary}</ThemedText> : null}
+        {summary ? <ThemedText variant="subhead" themeColor="textSecondary">{summary}</ThemedText> : null}
       </>}
   </SleepCard>;
 }

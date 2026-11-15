@@ -8,6 +8,7 @@ import { sleepMessages } from '../messages';
 import type { CatalogSleepInsightCode, InsightKey, SleepInsightDetail, SleepInsightStatus } from '../types/sleep';
 import { startOfWeek } from '../utils/sleep-date';
 import { sleepDay, sleepDuration, sleepPeriod } from '../utils/sleep-format';
+import { sleepGoalInsightCopy } from '../utils/sleep-goal-insight-copy';
 
 function displayValue(value: unknown): string {
   if (typeof value === 'string') return value;
@@ -67,14 +68,26 @@ function DetailContent({ detail, t, aiKey, locale, reload }: {
   aiKey: (InsightKey & { version: string }) | null; locale: string;
   reload: () => void;
 }) {
-  if (detail.status !== 'READY') return <SleepNotice title={statusMessage(detail.status, t)} />;
+  const goalCopy = detail.code === 'A02' || detail.code === 'B04'
+    ? sleepGoalInsightCopy(detail.code, detail.sample, detail.evidence, t) : null;
+  if (detail.status !== 'READY') {
+    return goalCopy ? <>
+      <SleepCard tone="mint">
+        <ThemedText variant="labelStrong" themeColor="accent">{detail.code} · {goalCopy.title}</ThemedText>
+        <ThemedText variant="subhead" themeColor="textSecondary">{sleepPeriod(detail.period.start, detail.period.end)}</ThemedText>
+      </SleepCard>
+      <SleepNotice title={statusMessage(detail.status, t)} />
+    </> : <SleepNotice title={statusMessage(detail.status, t)} />;
+  }
   const sourceRefs = Array.isArray(detail.sourceRefs)
     ? detail.sourceRefs.filter((ref): ref is string => typeof ref === 'string') : [];
+  const title = goalCopy?.title ?? detail.title;
+  const summary = goalCopy ? goalCopy.summary : detail.summary;
   return <>
     <SleepCard tone="mint">
-      <ThemedText variant="labelStrong" themeColor="accent">{detail.code} · {detail.title}</ThemedText>
+      <ThemedText variant="labelStrong" themeColor="accent">{detail.code} · {title}</ThemedText>
       <ThemedText variant="subhead" themeColor="textSecondary">{sleepPeriod(detail.period.start, detail.period.end)}</ThemedText>
-      {detail.summary ? <ThemedText variant="heading">{detail.summary}</ThemedText> : null}
+      {summary ? <ThemedText variant="heading">{summary}</ThemedText> : null}
     </SleepCard>
     {detail.code === 'A02' || detail.code === 'B04'
       ? <GoalEvidence detail={detail} t={t} locale={locale} />

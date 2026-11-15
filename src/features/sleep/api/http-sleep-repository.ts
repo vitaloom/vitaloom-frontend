@@ -139,7 +139,7 @@ function mapInsightPeriod(value: unknown): SleepInsightPeriod {
   return { start: period.start, end: period.end, timeZone: period.timeZone };
 }
 
-function mapInsightItem(value: unknown): SleepInsightItem {
+function mapInsightItem(value: unknown, period: SleepInsightPeriod): SleepInsightItem {
   if (!value || typeof value !== 'object') throw new Error('Sleep service returned an invalid Insight.');
   const item = value as Record<string, unknown>;
   const category = item.category;
@@ -153,6 +153,10 @@ function mapInsightItem(value: unknown): SleepInsightItem {
   if ((status === 'READY' && item.locked) || (status !== 'READY' && !item.locked)) {
     throw new Error('Sleep service returned an invalid Insight publication state.');
   }
+  if (status === 'READY' && (code === 'A02' || code === 'B04')
+    && !validGoalInsightDetail(code, item.sample, item.evidence, period)) {
+    throw new Error('Sleep service returned invalid Goal insight evidence.');
+  }
   if (item.summary !== undefined && typeof item.summary !== 'string') throw new Error('Sleep service returned an invalid Insight summary.');
   return item as unknown as SleepInsightItem;
 }
@@ -161,7 +165,8 @@ export function mapSleepInsightList(value: unknown): SleepInsightList {
   if (!value || typeof value !== 'object') throw new Error('Sleep service returned an invalid Insights list.');
   const response = value as Record<string, unknown>;
   if (!Array.isArray(response.items)) throw new Error('Sleep service returned an invalid Insights list.');
-  return { period: mapInsightPeriod(response.period), items: response.items.map(mapInsightItem) };
+  const period = mapInsightPeriod(response.period);
+  return { period, items: response.items.map((item) => mapInsightItem(item, period)) };
 }
 
 export function mapSleepInsightDetail(value: unknown, expectedCode: CatalogSleepInsightCode): SleepInsightDetail {

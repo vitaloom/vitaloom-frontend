@@ -12,6 +12,7 @@ require.extensions['.ts'] = (module, filename) => {
 };
 
 const { HttpSleepRepository } = require('../src/features/sleep/api/http-sleep-repository.ts');
+const { sleepGoalInsightCopy } = require('../src/features/sleep/utils/sleep-goal-insight-copy.ts');
 
 const period = { start: '2026-11-08', end: '2026-11-14', timeZone: 'Asia/Ho_Chi_Minh' };
 const item = (status, overrides = {}) => ({
@@ -42,9 +43,14 @@ function repositoryFor(responses) {
 test('All Insights reads the four Goal-catalog codes from the additive catalog endpoint', async () => {
   const payload = { period, items: [
     item('READY', { code: 'A01', category: 'A', locked: false }),
-    item('READY', { code: 'A02', category: 'A', title: 'Goal Achievement', locked: false }),
+    item('READY', { code: 'A02', category: 'A', title: 'Goal Achievement', locked: false,
+      sample: { eligibleMainDays: 3 }, evidence: { metGoalDays: 2, eligibleMainDays: 3 } }),
     item('INSUFFICIENT_DATA'),
-    item('READY', { code: 'B04', title: 'Tired sessions at goal', locked: false }),
+    item('READY', { code: 'B04', title: 'Tired sessions at goal', locked: false,
+      sample: { ratedMain: 3, comparableRatedMain: 2 },
+      evidence: { exceptionCount: 1, ratedMain: 3, exceptions: [
+        { day: '2026-11-13', minutes: 480, goalMinutes: 465 },
+      ] } }),
   ] };
   const { repository, requests } = repositoryFor([payload]);
   assert.deepEqual(await repository.getAllInsights(), { kind: 'ready', data: payload });
@@ -110,6 +116,55 @@ test('Goal insight details reject malformed historical evidence', async () => {
   const { repository } = repositoryFor([a02, b04]);
   assert.equal((await repository.getInsightDetail('A02')).kind, 'error');
   assert.equal((await repository.getInsightDetail('B04')).kind, 'error');
+});
+
+test('A02 and B04 display the same server-count summaries in English and Vietnamese', () => {
+  const dictionaries = {
+    en: {
+      goalInsightA02Title: 'Goal Achievement',
+      goalInsightA02Summary: 'Goal met on {met} of {eligible} eligible days.',
+      goalInsightB04Title: 'Tired despite meeting Goal',
+      goalInsightB04Summary: 'Reported tired despite meeting the historical Goal on {exceptions} of {rated} rated Main Sleep days.',
+    },
+    vi: {
+      goalInsightA02Title: 'Đạt mục tiêu giấc ngủ',
+      goalInsightA02Summary: 'Đạt mục tiêu trong {met}/{eligible} ngày hợp lệ.',
+      goalInsightB04Title: 'Mệt mỏi dù đạt mục tiêu',
+      goalInsightB04Summary: 'Có {exceptions}/{rated} ngày ngủ chính được đánh giá là mệt mỏi dù vẫn đạt mục tiêu lịch sử.',
+    },
+  };
+  const translate = (language) => (key, values = {}) =>
+    dictionaries[language][key].replace(/\{(\w+)\}/g, (_, name) => String(values[name]));
+  const a02 = { sample: { eligibleMainDays: 3 }, evidence: { metGoalDays: 2, eligibleMainDays: 3 } };
+  const b04 = {
+    sample: { ratedMain: 3, comparableRatedMain: 2 },
+    evidence: { exceptionCount: 1, ratedMain: 3, exceptions: [{ day: '2026-11-13', minutes: 480, goalMinutes: 465 }] },
+  };
+
+  assert.deepEqual(sleepGoalInsightCopy('A02', a02.sample, a02.evidence, translate('en')), {
+    title: 'Goal Achievement', summary: 'Goal met on 2 of 3 eligible days.',
+  });
+  assert.deepEqual(sleepGoalInsightCopy('A02', a02.sample, a02.evidence, translate('vi')), {
+    title: 'Đạt mục tiêu giấc ngủ', summary: 'Đạt mục tiêu trong 2/3 ngày hợp lệ.',
+  });
+  assert.deepEqual(sleepGoalInsightCopy('B04', b04.sample, b04.evidence, translate('en')), {
+    title: 'Tired despite meeting Goal',
+    summary: 'Reported tired despite meeting the historical Goal on 1 of 3 rated Main Sleep days.',
+  });
+  assert.deepEqual(sleepGoalInsightCopy('B04', b04.sample, b04.evidence, translate('vi')), {
+    title: 'Mệt mỏi dù đạt mục tiêu',
+    summary: 'Có 1/3 ngày ngủ chính được đánh giá là mệt mỏi dù vẫn đạt mục tiêu lịch sử.',
+  });
+});
+
+test('Goal insight copy withholds its summary when server counts disagree', () => {
+  const translate = (key, values) => values ? key + ':' + JSON.stringify(values) : key;
+  assert.deepEqual(sleepGoalInsightCopy('A02', { eligibleMainDays: 3 }, {
+    metGoalDays: 4, eligibleMainDays: 3,
+  }, translate), { title: 'goalInsightA02Title' });
+  assert.deepEqual(sleepGoalInsightCopy('B04', { ratedMain: 3, comparableRatedMain: 2 }, {
+    exceptionCount: 2, ratedMain: 3, exceptions: [{}],
+  }, translate), { title: 'goalInsightB04Title' });
 });
 
 test('a fresh detail read observes the latest server evidence for the same code', async () => {
