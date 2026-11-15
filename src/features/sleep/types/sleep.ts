@@ -26,7 +26,7 @@ export type JournalQuery = { from?: Day; to?: Day; cursor?: string; limit?: numb
 export type JournalPage = { sessions: SleepSession[]; verified: boolean; nextCursor: string | null; version: string };
 export type RecentSleepDay = { day: Day; status: 'recorded' | 'not-recorded' | 'unverified'; minutes: number | null };
 export type RecentSleepInsight = { code: 'A01'; status: 'ready'; sampleDays: number; denominatorDays: 7 };
-export type RecentSleepHighlight = { code: 'A01' | 'B01'; status: 'READY'; title: string; summary: string };
+export type RecentSleepHighlight = { code: CatalogSleepInsightCode; status: 'READY'; title: string; summary: string };
 export type RecentSleepReport = {
   period: { start: Day; end: Day; timeZone: 'Asia/Ho_Chi_Minh' };
   dataStatus: 'no-data' | 'verified' | 'unverified-data';
@@ -118,14 +118,14 @@ export type ReadResult<T> =
 export type SleepInsightStatus = 'READY' | 'INSUFFICIENT_DATA' | 'NO_DATA' | 'UNVERIFIED_DATA';
 export type SleepInsightCategory = 'A' | 'B';
 export type GoalInsightCode = 'A02' | 'B04';
-export type CatalogSleepInsightCode = 'A01' | 'A02' | 'A03' | 'B01' | 'B03' | 'B04';
+export type CatalogSleepInsightCode = 'A01' | 'A02' | 'A03' | 'A04' | 'A05' | 'B01' | 'B02' | 'B03' | 'B04';
 export type SleepInsightItem = {
   code: CatalogSleepInsightCode; category: SleepInsightCategory; status: SleepInsightStatus;
   title: string; highlight?: unknown; locked: boolean; summary?: string; sample?: unknown;
   evidence?: unknown; sourceRefs?: unknown; limitations?: unknown; policyVersion?: string; evidenceVersion?: string;
 };
 export type SleepInsightPeriod = { start: Day; end: Day; timeZone: string };
-export type SleepInsightList = { period: SleepInsightPeriod; items: SleepInsightItem[] };
+export type SleepInsightList = { period: SleepInsightPeriod; items: SleepInsightItem[]; timeZones: string[] };
 export type SleepInsightDetail = {
   code: CatalogSleepInsightCode; category: SleepInsightCategory; status: SleepInsightStatus;
   period: SleepInsightPeriod; title: string; summary?: string; sample?: unknown; evidence?: unknown;

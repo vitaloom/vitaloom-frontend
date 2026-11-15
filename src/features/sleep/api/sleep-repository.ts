@@ -18,6 +18,8 @@ export interface SleepRepository {
   getInsights(query: AnalyticsQuery): Promise<ReadResult<InsightList>>;
   getInsight(key: InsightKey): Promise<ReadResult<Insight | null>>;
   getAllInsights(): Promise<ReadResult<SleepInsightList>>;
+  getReferenceTimeZone(): string | null;
+  setReferenceTimeZone(timeZone: string | null): void;
   getInsightDetail(code: CatalogSleepInsightCode): Promise<ReadResult<SleepInsightDetail>>;
   getAiConsent(): Promise<ReadResult<AiConsent>>;
   getAi(request: AiRequest): Promise<ReadResult<AiResponse>>;

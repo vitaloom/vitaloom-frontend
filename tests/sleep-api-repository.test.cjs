@@ -146,7 +146,8 @@ test('HTTP Home uses the first verified current Recent highlight and preserves s
   assert.deepEqual(result.data.featured, {
     source: 'recent', code: 'B01', title: 'Feeling', summary: 'Server-ranked first',
   });
-  assert.deepEqual(request.requests.map(({ path }) => path), ['/sleep/v2/sessions', '/sleep/goal', '/sleep/recent']);
+  assert.deepEqual(request.requests.map(({ path }) => path),
+    ['/sleep/v2/sessions', '/sleep/goal', '/sleep/recent?catalog=full']);
 });
 
 test('HTTP Home hides stale, unverified, and failed Recent highlights without failing Home', async () => {

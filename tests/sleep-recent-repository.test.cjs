@@ -77,6 +77,14 @@ test('maps READY A/B highlights in server order and caps the list at three', () 
   assert.deepEqual(mapRecentSleepReport(payload).highlights, payload.highlights);
 });
 
+test('Recent accepts READY highlights from the expanded A/B insight catalog', () => {
+  const value = report();
+  value.highlights = ['A04', 'A05', 'B02'].map((code) => ({
+    code, status: 'READY', title: `${code} title`, summary: `${code} summary`,
+  }));
+  assert.deepEqual(mapRecentSleepReport(value).highlights.map(({ code }) => code), ['A04', 'A05', 'B02']);
+});
+
 test('keeps the legacy A01 adapter unchanged and falls back only when highlights is absent', () => {
   const legacy = report();
   delete legacy.highlights;
@@ -141,7 +149,7 @@ test('GET Recent uses the authenticated Sleep API and exposes transport errors',
   };
   const repository = new HttpSleepRepository(request);
   assert.equal((await repository.getRecent()).kind, 'ready');
-  assert.equal(requests[0].path, '/sleep/recent');
+  assert.equal(requests[0].path, '/sleep/recent?catalog=full');
   assert.equal(requests[0].init.method, 'GET');
   assert.equal(requests[0].authenticated, true);
   assert.deepEqual(await repository.getRecent(), { kind: 'error', message: 'Sign in again', code: 'UNAUTHORIZED' });

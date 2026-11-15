@@ -15,6 +15,10 @@ export type SleepDetailVisual =
   | { code: 'B04'; ratedMain: number; comparableRatedMain: number; exceptions: {
       day: string; minutes: number; goalMinutes: number;
     }[] }
+  | { code: 'A05'; weekday: { days: number; meanMinutes: number }; weekend: { days: number; meanMinutes: number }; deltaMinutes: number }
+  | { code: 'B02'; comfortable: { days: number; meanMinutes: number }; tired: { days: number; meanMinutes: number }; deltaMinutes: number }
+  | { code: 'A04'; timeZone: string; eligibleRangeDays: number; bedtime: { minMinute: number; maxMinute: number; spanMinutes: number };
+      wake: { minMinute: number; maxMinute: number; spanMinutes: number } }
   | { code: 'A03'; baseline: { period: SleepInsightPeriod; meanMinutes: number; mainDays: number };
       recent: { period: SleepInsightPeriod; meanMinutes: number; mainDays: number }; deltaMinutes: number }
   | { code: 'B03'; baseline: { period: SleepInsightPeriod; ratedMain: number; mainWithoutFeeling: number;
@@ -65,6 +69,39 @@ export function readSleepDetailVisual(value: unknown): SleepDetailVisual | null 
   const code = value.code as CatalogSleepInsightCode;
   const sample = value.sample;
   const evidence = value.evidence;
+
+  if (code === 'A05' || code === 'B02') {
+    const firstKey = code === 'A05' ? 'weekday' : 'comfortable';
+    const secondKey = code === 'A05' ? 'weekend' : 'tired';
+    const firstMin = code === 'A05' ? 3 : 3;
+    const secondMin = code === 'A05' ? 2 : 3;
+    const first = evidence[firstKey];
+    const second = evidence[secondKey];
+    if (!isRecord(first) || !isRecord(second) || !isCount(first.days) || first.days < firstMin || first.days > 5
+      || !isCount(second.days) || second.days < secondMin || second.days > (code === 'A05' ? 2 : 7)
+      || !isCount(first.meanMinutes) || first.meanMinutes < 1 || first.meanMinutes > 1440
+      || !isCount(second.meanMinutes) || second.meanMinutes < 1 || second.meanMinutes > 1440
+      || !Number.isSafeInteger(evidence.deltaMinutes)
+      || evidence.deltaMinutes !== Number(first.meanMinutes) - Number(second.meanMinutes)) return null;
+    return code === 'A05'
+      ? { code, weekday: { days: first.days, meanMinutes: first.meanMinutes }, weekend: { days: second.days, meanMinutes: second.meanMinutes }, deltaMinutes: evidence.deltaMinutes as number }
+      : { code, comfortable: { days: first.days, meanMinutes: first.meanMinutes }, tired: { days: second.days, meanMinutes: second.meanMinutes }, deltaMinutes: evidence.deltaMinutes as number };
+  }
+
+  if (code === 'A04') {
+    const range = (entry: unknown) => {
+      if (!isRecord(entry) || !Number.isSafeInteger(entry.minMinute) || !Number.isSafeInteger(entry.maxMinute)
+        || !Number.isSafeInteger(entry.spanMinutes) || Number(entry.maxMinute) < Number(entry.minMinute)
+        || Number(entry.spanMinutes) !== Number(entry.maxMinute) - Number(entry.minMinute)
+        || Number(entry.minMinute) < -1440 || Number(entry.maxMinute) > 2879) return null;
+      return { minMinute: Number(entry.minMinute), maxMinute: Number(entry.maxMinute), spanMinutes: Number(entry.spanMinutes) };
+    };
+    const bedtime = range(evidence.bedtime);
+    const wake = range(evidence.wake);
+    if (typeof evidence.timeZone !== 'string' || !evidence.timeZone || !isCount(sample.eligibleRangeDays)
+      || sample.eligibleRangeDays < 3 || sample.eligibleRangeDays > 7 || !bedtime || !wake) return null;
+    return { code, timeZone: evidence.timeZone, eligibleRangeDays: sample.eligibleRangeDays, bedtime, wake };
+  }
 
   if (code === 'A01') {
     const recorded = sample.recordedMainDays;

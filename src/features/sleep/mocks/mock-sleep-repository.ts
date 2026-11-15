@@ -21,6 +21,7 @@ export class MockSleepRepository implements SleepRepository {
   private versionNumber = 1;
   private confirmedCounter: number;
   private consent = false;
+  private referenceTimeZone: string | null = null;
   private listeners = new Set<() => void>();
   private receipts = new Map<string, PendingWrite>();
   private nextFault: SleepMockFault | null = null;
@@ -43,6 +44,13 @@ export class MockSleepRepository implements SleepRepository {
     this.revision = this.sessions.length;
     this.confirmedCounter = this.sessions.length;
     if (this.scenario === 'unverified') this.readFault = 'read-error';
+  }
+
+  getReferenceTimeZone(): string | null { return this.referenceTimeZone; }
+
+  setReferenceTimeZone(timeZone: string | null): void {
+    this.referenceTimeZone = timeZone;
+    this.listeners.forEach((listener) => listener());
   }
 
   getContext(): SleepContext {
@@ -139,7 +147,7 @@ export class MockSleepRepository implements SleepRepository {
         policyVersion: 'fixture', evidenceVersion: insight.key.version,
       } : base;
     });
-    return { kind: 'ready', data: { period: { start: shiftDay(context.today, -6), end: context.today, timeZone: context.timeZone }, items } };
+    return { kind: 'ready', data: { period: { start: shiftDay(context.today, -6), end: context.today, timeZone: context.timeZone }, items, timeZones: [] } };
   }
 
   async getInsightDetail(code: 'A01' | 'A02' | 'B01' | 'B04'): Promise<ReadResult<SleepInsightDetail>> {

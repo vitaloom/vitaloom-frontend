@@ -83,6 +83,63 @@ const calendarStyles = StyleSheet.create({
 
 function DetailVisual({ visual, t, locale }: { visual: SleepDetailVisual; t: Translate; locale: string }) {
   const theme = useTheme();
+  if (visual.code === 'A05' || visual.code === 'B02') {
+    const first = visual.code === 'A05' ? visual.weekday : visual.comfortable;
+    const second = visual.code === 'A05' ? visual.weekend : visual.tired;
+    const firstLabel = t(visual.code === 'A05' ? 'insightWeekday' : 'insightComfortable');
+    const secondLabel = t(visual.code === 'A05' ? 'insightWeekend' : 'insightTired');
+    const maximum = Math.max(first.meanMinutes, second.meanMinutes);
+    const number = new Intl.NumberFormat(locale);
+    const delta = `${visual.deltaMinutes > 0 ? '+' : ''}${number.format(visual.deltaMinutes)}`;
+    return <>
+      <SleepCard tone="mint">
+        <ThemedText variant="metricLarge">{delta} {t('durationMinutesUnit')}</ThemedText>
+        <ThemedText variant="subhead" themeColor="textSecondary">
+          {t(visual.code === 'A05' ? 'insightWeekdayDelta' : 'insightFeelingDelta')}
+        </ThemedText>
+      </SleepCard>
+      <SleepCard>
+        {[{ label: firstLabel, value: first }, { label: secondLabel, value: second }].map(({ label, value }, index) => <View key={label} style={{ gap: spacing.xs }}>
+          <ThemedText variant="labelStrong">{label} · {t('insightSampleDays', { count: value.days })}</ThemedText>
+          <View accessibilityRole="image" accessibilityLabel={`${label}: ${sleepDuration(value.meanMinutes)}, ${t('insightSampleDays', { count: value.days })}`}
+            style={{ height: 18, borderRadius: 9, overflow: 'hidden', backgroundColor: theme.backgroundSelected }}>
+            <View style={{ width: `${value.meanMinutes / maximum * 100}%`, height: '100%', borderRadius: 9,
+              backgroundColor: index === 0 ? theme.sleep : theme.accent }} />
+          </View>
+          <ThemedText variant="labelStrong" style={{ textAlign: 'right' }}>{sleepDuration(value.meanMinutes)}</ThemedText>
+        </View>)}
+      </SleepCard>
+    </>;
+  }
+
+  if (visual.code === 'A04') {
+    const number = new Intl.NumberFormat(locale, { minimumIntegerDigits: 2 });
+    const time = (minute: number) => {
+      const day = Math.floor(minute / 1440);
+      const dayMinute = ((minute % 1440) + 1440) % 1440;
+      const label = `${number.format(Math.floor(dayMinute / 60))}:${number.format(dayMinute % 60)}`;
+      return day < 0 ? `${label} (${t('insightPreviousDay')})` : day > 0 ? `${label} (${t('insightNextDay')})` : label;
+    };
+    return <SleepCard>
+      <ThemedText accessibilityRole="header" variant="bodyStrong">{visual.timeZone}</ThemedText>
+      <ThemedText variant="caption" themeColor="textSecondary">{t('insightSampleDays', { count: visual.eligibleRangeDays })}</ThemedText>
+      {[
+        { label: t('insightBedtimeRange'), value: visual.bedtime },
+        { label: t('insightWakeRange'), value: visual.wake },
+      ].map(({ label, value }) => <View key={label} style={{ gap: spacing.xs }}>
+        <ThemedText variant="labelStrong">{label}</ThemedText>
+        <View style={{ height: 18, borderRadius: 9, overflow: 'hidden', backgroundColor: theme.backgroundSelected }}>
+          <View accessibilityRole="image" accessibilityLabel={`${label}: ${time(value.minMinute)} – ${time(value.maxMinute)}`}
+            style={{ position: 'absolute', left: `${((value.minMinute + 1440) / 4320) * 100}%`,
+              width: `${Math.max(2, value.spanMinutes / 4320 * 100)}%`, height: '100%', borderRadius: 9,
+              backgroundColor: theme.sleep }} />
+        </View>
+        <ThemedText variant="caption" themeColor="textSecondary">
+          {t('insightClockRange', { start: time(value.minMinute), end: time(value.maxMinute), span: value.spanMinutes })}
+        </ThemedText>
+      </View>)}
+    </SleepCard>;
+  }
   if (visual.code === 'A03') {
     const maximum = Math.max(visual.baseline.meanMinutes, visual.recent.meanMinutes);
     const delta = `${visual.deltaMinutes > 0 ? '+' : ''}${new Intl.NumberFormat(locale).format(visual.deltaMinutes)}`;
@@ -263,6 +320,22 @@ function EvidenceDisclosure({ detail, visual, t, locale }: {
           <EvidenceValue label={t('goalInsightMetDays')} value={visual.metGoalDays} />
           <EvidenceValue label={t('goalInsightEligibleDays')} value={visual.eligibleMainDays} />
         </> : null}
+        {visual.code === 'A05' ? <>
+          <EvidenceValue label={t('insightWeekday')} value={visual.weekday.days} />
+          <EvidenceValue label={t('insightWeekend')} value={visual.weekend.days} />
+          <EvidenceValue label={t('insightWeekdayDelta')} value={visual.deltaMinutes} />
+        </> : null}
+        {visual.code === 'B02' ? <>
+          <EvidenceValue label={t('insightComfortable')} value={visual.comfortable.days} />
+          <EvidenceValue label={t('insightTired')} value={visual.tired.days} />
+          <EvidenceValue label={t('insightFeelingDelta')} value={visual.deltaMinutes} />
+        </> : null}
+        {visual.code === 'A04' ? <>
+          <EvidenceValue label={t('referenceTimeZoneTitle')} value={visual.timeZone} />
+          <EvidenceValue label={t('insightSampleDays', { count: visual.eligibleRangeDays })} value={visual.eligibleRangeDays} />
+          <EvidenceValue label={t('insightBedtimeRange')} value={`${visual.bedtime.minMinute}–${visual.bedtime.maxMinute}`} />
+          <EvidenceValue label={t('insightWakeRange')} value={`${visual.wake.minMinute}–${visual.wake.maxMinute}`} />
+        </> : null}
         {visual.code === 'B01' ? <>
           <EvidenceValue label={t('goalInsightRatedDays')} value={visual.ratedMain} />
           {visual.categories.map(({ key, count, denominator, percentage }) => <EvidenceValue key={key}
@@ -298,18 +371,29 @@ function DetailContent({ detail, t, aiKey, locale, reload }: {
   const trendCopy = detail.code === 'A03' || detail.code === 'B03'
     ? sleepTrendInsightCopy(detail.code, detail.sample, detail.evidence, t) : null;
   if (detail.status !== 'READY') {
-    return <SleepNotice title={statusMessage(detail.status, t)} />;
+    return <>
+      <SleepNotice title={statusMessage(detail.status, t)} />
+      {detail.code === 'A04' && !aiKey ? <SleepButton variant="secondary" label={t('referenceTimeZoneTitle')}
+        onPress={() => router.push('/sleep/insights')} /> : null}
+    </>;
   }
   const sourceRefs = trendCopy || detail.code === 'A01' || !Array.isArray(detail.sourceRefs)
     ? [] : detail.sourceRefs.filter((ref): ref is string => typeof ref === 'string');
-  const title = goalCopy?.title ?? trendCopy?.title ?? detail.title;
-  const summary = goalCopy ? goalCopy.summary : trendCopy?.summary ?? detail.summary;
+  const title = goalCopy?.title ?? trendCopy?.title ?? (detail.code === 'A04' ? t('insightA04Title')
+    : detail.code === 'A05' ? t('insightA05Title') : detail.code === 'B02' ? t('insightB02Title') : detail.title);
+  const catalogSummary = visual?.code === 'A05'
+    ? t('insightA05Summary')
+    : visual?.code === 'B02'
+      ? t('insightB02Summary')
+      : visual?.code === 'A04' ? t('insightA04Summary') : detail.summary;
+  const summary = goalCopy ? goalCopy.summary : trendCopy?.summary ?? catalogSummary;
   return <>
     <SleepCard tone="mint">
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
         <Image source={detail.code === 'A03' ? sleepArt.trend
-          : detail.code === 'A01' ? sleepArt.moon : detail.code === 'A02' ? sleepArt.bed
-          : detail.code === 'B01' || detail.code === 'B03' ? sleepArt.bars : sleepArt.tired}
+          : detail.code === 'A01' || detail.code === 'A04' ? sleepArt.moon : detail.code === 'A02' ? sleepArt.bed
+          : detail.code === 'B02' ? sleepArt.comfortable
+          : detail.code === 'B01' || detail.code === 'B03' || detail.code === 'A05' ? sleepArt.bars : sleepArt.tired}
           accessible={false} resizeMode="contain" style={{ width: 54, height: 54 }} />
         <View style={{ flex: 1, gap: 4 }}>
           <ThemedText variant="labelStrong" themeColor="accent">{detail.code} · {title}</ThemedText>
@@ -340,8 +424,8 @@ export default function SleepInsightDetailScreen() {
   const repository = useSleepRepository();
   const t = useTranslations(sleepMessages);
   const { locale } = useI18n();
-  const insightCode = code === 'A01' || code === 'A02' || code === 'A03' || code === 'B01'
-    || code === 'B03' || code === 'B04' ? code : null;
+  const insightCode = code === 'A01' || code === 'A02' || code === 'A03' || code === 'A04' || code === 'A05'
+    || code === 'B01' || code === 'B02' || code === 'B03' || code === 'B04' ? code : null;
   const { state, reload } = useSleepRead(
     () => insightCode ? repository.getInsightDetail(insightCode) : Promise.resolve({ kind: 'error' as const, message: 'Unsupported insight.' }),
     `sleep-insight-detail:${insightCode ?? 'unsupported'}`,
