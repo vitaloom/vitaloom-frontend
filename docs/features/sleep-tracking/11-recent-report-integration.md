@@ -2,6 +2,14 @@
 
 **Baseline** 2026-11-14. Mobile `a5d48e2` and Backend `3ea7f3c` on local `feat/sleep-recent-p1` branches, Business `41b534e`. This report supersedes the fixed-week Sleep report behavior described in older design notes.
 
+## P5A Sleep Goal
+
+The authenticated Goal screen reads the server's current effective day. Its optional historical read remains available to day-scoped consumers. The HTTP adapter verifies Goal values and effective dates, sends explicit set and remove requests with the last confirmed revision, and refreshes subscribed reads only after a matching server confirmation. A stale revision asks the user to reload. A rejected or unconfirmed write blocks another edit until the user reloads the confirmed Goal. No Goal mutation is retried automatically.
+
+Sleep Home and Daily compose a Goal read for the matching day. A Goal read failure does not hide verified Journal data and leaves Goal unverified. Daily progress calculation remains outside this integration.
+
+**Mobile verification.** The focused adapter suite passed 16 tests and the Sleep suite passed 73. `node_modules/.bin/tsc.cmd --noEmit` and `npm.cmd run lint` exited 0. On Android API 35 with Expo Go and disposable MongoDB, the authenticated Goal screen left the 8-hour suggestion inactive until Save, saved 8h 15m after a wheel change, kept the Goal on cancellation, and removed it on confirmation. The server rejected an invalid duration and unauthenticated requests, and a second signed-in account had empty history. The [P5A task record](../../../../vitaloom-business-docs-and-tools/docs/development-workflow/tasks/sleep-p5a-goal.md) links the local smoke evidence.
+
 **Trace** OW-01–04, OW-44–47, OW-54, BR-F2.1–3/.10–11/.18–19/.22/.38–39, SLT-UC-009, ADR-001 and VAL-REC-01–06/21 plus the Sleep-specific part of VAL-REC-38. [P1 plan](../../../../vitaloom-business-docs-and-tools/docs/technical/sleep-recent-handoff/P1-PLAN.md) · [Backend API contract](../../../../vitaloom-backend/docs/features/sleep-report/api-contract.md)
 
 ## Runtime behavior

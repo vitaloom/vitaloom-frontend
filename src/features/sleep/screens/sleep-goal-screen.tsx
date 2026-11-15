@@ -15,7 +15,7 @@ type GoalDraft = { hours: string; minutes: string; revision: number };
 export default function SleepGoalScreen() {
   const repository = useSleepRepository();
   const { today } = repository.getContext();
-  const { state, reload } = useSleepRead(() => repository.getGoal(today), `sleep-goal:${today}`, true);
+  const { state, reload } = useSleepRead(() => repository.getGoal(), `sleep-goal:${today}`, true);
   const [draft, setDraft] = useState<GoalDraft>();
   const [submitted, setSubmitted] = useState(false);
   const [confirmationRevision, setConfirmationRevision] = useState<number | null>(null);
@@ -32,6 +32,7 @@ export default function SleepGoalScreen() {
   const check = validateGoal(fields.hours, fields.minutes);
   const stale = (draft && current?.revision !== draft.revision) || save.result?.kind === 'conflict';
   const unknown = save.result?.kind === 'unknown';
+  const requiresReload = unknown || save.result?.kind === 'rejected';
 
   function reloadGoal() {
     setDraft(undefined);
@@ -66,7 +67,7 @@ export default function SleepGoalScreen() {
           onMinutesChange={(minutes) => setDraft({ ...fields, minutes })} />
         <ThemedText variant="caption" themeColor="textSecondary">Hours range from 1 to 24. Minutes use 00, 15, 30 or 45. At 24 hours, minutes must be 00.</ThemedText>
         {submitted && check.kind === 'validation' ? <ThemedText accessibilityRole="alert" variant="label" themeColor="danger">{check.message}</ThemedText> : null}
-        <SleepButton label="Save Goal" disabled={Boolean(stale || unknown)} busy={save.busy} onPress={() => {
+        <SleepButton label="Save Goal" disabled={Boolean(stale || requiresReload)} busy={save.busy} onPress={() => {
           setSubmitted(true);
           if (check.kind === 'valid') save.run({ kind: 'set-goal', ...fields });
         }} />
@@ -74,7 +75,7 @@ export default function SleepGoalScreen() {
       {stale && !save.result ? <SleepNotice title="This goal changed" message="Reload to start a new edit."
         actionLabel="Reload confirmed goal" onAction={reloadGoal} /> : null}
       {current.minutes !== null ? <SleepButton label="Remove Goal" onPress={() => setConfirmationRevision(current.revision)}
-        variant="danger" disabled={Boolean(stale || unknown || save.busy)} /> : null}
+        variant="danger" disabled={Boolean(stale || requiresReload || save.busy)} /> : null}
     </> : null}
     {confirmationRevision !== null ? <SleepConfirmation title="Remove this goal?"
       message="The goal will end on the confirmed effective day. Earlier days keep their historical goals."

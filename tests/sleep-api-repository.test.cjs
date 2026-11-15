@@ -89,19 +89,100 @@ test('Detail maps only the server missing-record error to verified absence', asy
   assert.equal((await fixedRepository(fakeRequester([auth])).getSession('private')).kind, 'error');
 });
 
-test('Home keeps unavailable totals and goals unverified', async () => {
+test('Home and Daily display confirmed Goal history while unavailable Goal reads keep Journal usable', async () => {
   const recordedMain = durationDto({ sleepType: 'MAIN', editable: true });
-  const repository = fixedRepository(fakeRequester([{ sessions: [recordedMain] }, { sessions: [recordedMain] }]));
+  const goal = { minutes: 480, revision: 2, effectiveDay: '2026-11-10', verified: true };
+  const repository = fixedRepository(fakeRequester([
+    { sessions: [recordedMain] }, goal, new ApiError(503, 'SLEEP_UNAVAILABLE', 'down'),
+    { sessions: [recordedMain] }, goal,
+  ]));
   const result = await repository.getHome();
   assert.equal(result.kind, 'ready');
   assert.equal(result.data.latest.id, 'session-1');
   assert.equal(result.data.latest.editable, true);
   assert.equal(result.data.daily.status, 'no-data');
   assert.equal(result.data.daily.minutes, null);
-  assert.equal(result.data.daily.goal.verified, false);
+  assert.equal(result.data.daily.goal.verified, true);
+  assert.equal(result.data.daily.goal.minutes, 480);
   assert.equal(result.data.featured, null);
   assert.equal((await repository.getGoal()).kind, 'error');
-  assert.equal((await repository.getDaily('2026-11-12')).data.status, 'recorded');
+  const daily = await repository.getDaily('2026-11-12');
+  assert.equal(daily.data.status, 'recorded');
+  assert.equal(daily.data.goal.minutes, 480);
+
+  const unavailableGoalHome = await fixedRepository(fakeRequester([
+    { sessions: [recordedMain] }, new ApiError(503, 'SLEEP_UNAVAILABLE', 'down'),
+  ])).getHome();
+  assert.equal(unavailableGoalHome.kind, 'ready');
+  assert.equal(unavailableGoalHome.data.daily.goal.verified, false);
+});
+
+test('Sleep Goal reads a requested day and maps confirmed server history', async () => {
+  const request = fakeRequester([{ minutes: 510, revision: 3, effectiveDay: '2026-11-10', verified: true }]);
+  const result = await fixedRepository(request).getGoal('2026-11-12');
+  assert.deepEqual(result, { kind: 'ready', data: {
+    minutes: 510, revision: 3, effectiveDay: '2026-11-10', verified: true,
+  } });
+  assert.equal(request.requests[0].path, '/sleep/goal?day=2026-11-12');
+  assert.equal(request.requests[0].authenticated, true);
+});
+
+test('Sleep Goal current read leaves the effective day to the server', async () => {
+  const request = fakeRequester([{ minutes: null, revision: 0, effectiveDay: null, verified: true }]);
+  assert.deepEqual(await fixedRepository(request).getGoal(), { kind: 'ready', data: {
+    minutes: null, revision: 0, effectiveDay: null, verified: true,
+  } });
+  assert.equal(request.requests[0].path, '/sleep/goal');
+});
+
+test('Sleep Goal rejects invalid or unverified history responses', async () => {
+  for (const value of [
+    { minutes: 59, revision: 1, effectiveDay: '2026-11-10', verified: true },
+    { minutes: 480, revision: 1.5, effectiveDay: '2026-11-10', verified: true },
+    { minutes: null, revision: 0, effectiveDay: 'not-a-day', verified: true },
+    { minutes: null, revision: 0, effectiveDay: null, verified: false },
+  ]) {
+    assert.equal((await fixedRepository(fakeRequester([value])).getGoal()).kind, 'error');
+  }
+  assert.equal((await fixedRepository(fakeRequester([new ApiError(503, 'SLEEP_UNAVAILABLE', 'down')])).getGoal()).kind, 'error');
+});
+
+test('Sleep Goal mutation converts picker values, confirms returned history, and notifies readers', async () => {
+  const request = fakeRequester([
+    { minutes: 510, revision: 4, effectiveDay: '2026-11-13', verified: true },
+    { minutes: null, revision: 5, effectiveDay: '2026-11-13', verified: true },
+  ]);
+  const repository = fixedRepository(request);
+  let notifications = 0;
+  repository.subscribe(() => notifications++);
+  const set = await repository.mutate('set', { kind: 'set-goal', revision: 3, hours: '8', minutes: '30' });
+  const remove = await repository.mutate('remove', { kind: 'remove-goal', revision: 4 });
+  assert.deepEqual(set, { kind: 'confirmed', version: '4', effectiveDay: '2026-11-13' });
+  assert.deepEqual(remove, { kind: 'confirmed', version: '5', effectiveDay: '2026-11-13' });
+  assert.deepEqual(request.requests.map(({ path, init }) => [path, init.method, init.body]), [
+    ['/sleep/goal', 'PUT', JSON.stringify({ minutes: 510, revision: 3 })],
+    ['/sleep/goal?revision=4', 'DELETE', undefined],
+  ]);
+  assert.ok(request.requests.every(({ authenticated }) => authenticated));
+  assert.equal(notifications, 2);
+});
+
+test('Sleep Goal invalid edits do not send and stale or uncertain writes require confirmation', async () => {
+  const request = fakeRequester([
+    new ApiError(409, 'SLEEP_GOAL_STALE', 'Reload the goal.'),
+    new ApiError(503, 'SLEEP_UNAVAILABLE', 'down'),
+  ]);
+  const repository = fixedRepository(request);
+  assert.equal((await repository.mutate('invalid', {
+    kind: 'set-goal', revision: 0, hours: '1', minutes: '01',
+  })).kind, 'validation');
+  assert.deepEqual(await repository.mutate('stale', {
+    kind: 'set-goal', revision: 1, hours: '8', minutes: '00',
+  }), { kind: 'conflict', reason: 'stale', message: 'Reload the goal.' });
+  assert.deepEqual(await repository.mutate('uncertain', { kind: 'remove-goal', revision: 1 }), {
+    kind: 'rejected', message: 'Could not confirm the change. Reload your goal before trying again.',
+  });
+  assert.equal(request.requests.length, 2);
 });
 
 test('POST and PUT send validated DTOs and publish only returned sessions', async () => {

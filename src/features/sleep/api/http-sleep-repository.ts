@@ -1,6 +1,6 @@
 import { ApiError, apiRequest } from '../../../lib/api/http-client';
 import { dayInZone } from '../utils/sleep-date';
-import { validateSession } from '../utils/sleep-validation';
+import { validateGoal, validateSession } from '../utils/sleep-validation';
 import type { SleepRepository } from './sleep-repository';
 import type {
   AiRequest, AiResponse, AnalyticsQuery, DailySummary, Day, Feeling, GoalState, HomeSummary, Insight,
@@ -107,6 +107,25 @@ function readAiConsent(value: unknown): AiConsent {
 
 function invalidRecentReport(): never {
   throw new Error('Sleep service returned an invalid Recent report.');
+}
+
+function mapGoalState(value: unknown, requestedDay?: Day): GoalState {
+  if (!value || typeof value !== 'object') throw new Error('Sleep service returned an invalid Goal history.');
+  const goal = value as Record<string, unknown>;
+  if (goal.verified !== true || !Number.isSafeInteger(goal.revision) || (goal.revision as number) < 0
+    || (goal.minutes !== null && (!Number.isInteger(goal.minutes) || (goal.minutes as number) < 60
+      || (goal.minutes as number) > 1440 || (goal.minutes as number) % 15 !== 0))
+    || (goal.effectiveDay !== null && (!isCivilDay(goal.effectiveDay)
+      || (requestedDay !== undefined && goal.effectiveDay > requestedDay)))
+    || (goal.minutes !== null && goal.effectiveDay === null)) {
+    throw new Error('Sleep service returned an invalid Goal history.');
+  }
+  return {
+    minutes: goal.minutes as number | null,
+    revision: goal.revision as number,
+    effectiveDay: goal.effectiveDay as Day | null,
+    verified: true,
+  };
 }
 
 const insightStatuses: readonly SleepInsightStatus[] = ['READY', 'INSUFFICIENT_DATA', 'NO_DATA', 'UNVERIFIED_DATA'];
@@ -368,7 +387,10 @@ export class HttpSleepRepository implements SleepRepository {
     const journal = await this.getJournal();
     if (journal.kind === 'error') return journal;
     const today = this.getContext().today;
+    const goal = await this.getGoal();
     const daily = dailySummary(today, journal.data.sessions);
+    daily.goal = goal.kind === 'ready' ? goal.data
+      : { minutes: null, revision: 0, effectiveDay: null, verified: false };
     const mainSessions = journal.data.sessions.filter((session) => session.sleepType === 'main');
     const latestDay = mainSessions.reduce<string | null>((latest, session) => !latest || session.day > latest ? session.day : latest, null);
     const latestForDay = latestDay ? mainSessions.filter((session) => session.day === latestDay) : [];
@@ -383,10 +405,27 @@ export class HttpSleepRepository implements SleepRepository {
     }
     const journal = await this.getJournal({ from: day, to: day });
     if (journal.kind === 'error') return journal;
-    if (!journal.data.verified) return { kind: 'ready', data: { ...dailySummary(day, []), status: 'unverified' } };
-    return { kind: 'ready', data: dailySummary(day, journal.data.sessions) };
+    const goal = await this.getGoal(day);
+    const daily = !journal.data.verified
+      ? { ...dailySummary(day, []), status: 'unverified' as const }
+      : dailySummary(day, journal.data.sessions);
+    daily.goal = goal.kind === 'ready' ? goal.data
+      : { minutes: null, revision: 0, effectiveDay: null, verified: false };
+    return { kind: 'ready', data: daily };
   }
-  async getGoal(_day?: Day): Promise<ReadResult<GoalState>> { return unavailable('Sleep Goals'); }
+  async getGoal(day?: Day): Promise<ReadResult<GoalState>> {
+    const requestedDay = day ?? this.getContext().today;
+    if (!isCivilDay(requestedDay) || requestedDay > this.getContext().today) {
+      return { kind: 'error', message: 'Choose a valid Sleep Goal day.' };
+    }
+    try {
+      const path = day === undefined ? '/sleep/goal' : `/sleep/goal?day=${encodeURIComponent(day)}`;
+      const value = await this.send<unknown>(path, { method: 'GET' });
+      return { kind: 'ready', data: mapGoalState(value, day) };
+    } catch (error) {
+      return { kind: 'error', message: errorMessage(error), ...(error instanceof ApiError ? { code: error.code } : {}) };
+    }
+  }
   async getWeekly(_query: AnalyticsQuery): Promise<ReadResult<WeeklySummary>> { return unavailable('Weekly analytics'); }
   async getInsights(_query: AnalyticsQuery): Promise<ReadResult<InsightList>> { return unavailable('Sleep Insights'); }
   async getInsight(_key: InsightKey): Promise<ReadResult<Insight | null>> { return unavailable('Sleep Insights'); }
@@ -455,7 +494,38 @@ export class HttpSleepRepository implements SleepRepository {
 
   async mutate(_attemptId: string, mutation: Mutation): Promise<WriteResult> {
     if (mutation.kind === 'set-goal' || mutation.kind === 'remove-goal') {
-      return { kind: 'rejected', message: 'This operation is not available from the Sleep Journal service.' };
+      if (!Number.isSafeInteger(mutation.revision) || mutation.revision < 0) {
+        return { kind: 'validation', field: 'revision', message: 'Reload the confirmed Sleep Goal before changing it.' };
+      }
+      const goal = mutation.kind === 'set-goal' ? validateGoal(mutation.hours, mutation.minutes) : undefined;
+      if (goal?.kind === 'validation') return goal;
+      try {
+        const result = mutation.kind === 'set-goal'
+          ? await this.send<unknown>('/sleep/goal', {
+            method: 'PUT', headers: new Headers({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ minutes: goal?.minutes, revision: mutation.revision }),
+          })
+          : await this.send<unknown>(`/sleep/goal?revision=${mutation.revision}`, { method: 'DELETE' });
+        const confirmed = mapGoalState(result);
+        if ((mutation.kind === 'set-goal' && confirmed.minutes !== goal?.minutes)
+          || (mutation.kind === 'remove-goal' && confirmed.minutes !== null)
+          || confirmed.effectiveDay === null || confirmed.revision !== mutation.revision + 1) {
+          throw new Error('Sleep service could not confirm the Sleep Goal change.');
+        }
+        for (const listener of this.listeners) listener();
+        return { kind: 'confirmed', version: String(confirmed.revision), effectiveDay: confirmed.effectiveDay ?? undefined };
+      } catch (error) {
+        if (error instanceof ApiError && (error.status === 409 || error.status === 412)) {
+          return { kind: 'conflict', reason: 'stale', message: error.message };
+        }
+        if (error instanceof ApiError && (error.status === 400 || error.status === 422)) {
+          return { kind: 'validation', field: error.field ?? 'goal', message: error.message };
+        }
+        if (error instanceof ApiError && (error.status === 0 || error.status >= 500)) {
+          return { kind: 'rejected', message: 'Could not confirm the change. Reload your goal before trying again.' };
+        }
+        return { kind: 'rejected', message: errorMessage(error) };
+      }
     }
     if (mutation.kind === 'set-ai-consent') {
       try {
