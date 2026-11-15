@@ -15,6 +15,26 @@ const { HttpSleepRepository } = require('../src/features/sleep/api/http-sleep-re
 const { ApiError } = require('../src/lib/api/http-client.ts');
 const { sleepGoalInsightCopy } = require('../src/features/sleep/utils/sleep-goal-insight-copy.ts');
 const { readSleepDetailVisual } = require('../src/features/sleep/utils/sleep-detail-evidence.ts');
+const { formatSignedSleepMinutes, sleepTrendInsightCopy } = require('../src/features/sleep/utils/sleep-trend-insight-copy.ts');
+const { sleepMessages } = require('../src/features/sleep/messages.ts');
+
+test('A03 summary and metric use signed whole minutes with a localized unit', () => {
+  for (const [language, locale, delta, expected] of [
+    ['en', 'en-US', 1, '+1 minute'],
+    ['vi', 'vi-VN', -75, '-75 phút'],
+    ['en', 'en-US', 0, '0 minutes'],
+  ]) {
+    const t = (key, values = {}) => sleepMessages[language][key]
+      .replace(/\{(\w+)\}/g, (_, name) => String(values[name]));
+    const sample = { baselineMainDays: 3, recentMainDays: 4 };
+    const evidence = { baseline: { meanMinutes: 450 }, recent: { meanMinutes: 450 + delta }, deltaMinutes: delta };
+
+    assert.equal(formatSignedSleepMinutes(delta, locale), expected);
+    assert.ok(sleepTrendInsightCopy('A03', sample, evidence, t, locale).summary.includes(expected));
+    assert.equal(sleepTrendInsightCopy('A03', sample, { ...evidence, deltaMinutes: delta + 1 }, t, locale).summary,
+      t('trendA03Generic'));
+  }
+});
 
 const period = { start: '2026-11-08', end: '2026-11-14', timeZone: 'Asia/Ho_Chi_Minh' };
 const item = (status, overrides = {}) => ({

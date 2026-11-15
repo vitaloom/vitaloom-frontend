@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { Image, StyleSheet, View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { translate, useI18n, useTranslations } from '@/i18n';
-import { useTheme } from '@/hooks/use-theme';
+import { SleepSevenDayChart } from '../components/sleep-seven-day-chart';
 import { spacing } from '@/theme';
 import { sleepFixturesEnabled } from '../api/get-sleep-repository';
 import { sleepArt } from '../assets/sleep-art';
@@ -31,12 +31,8 @@ export default function RecentSleepReportScreen() {
 function RecentReport({ report, locale }: { report: RecentSleepReport; locale: string }) {
   const t = useTranslations(sleepMessages);
   const { language } = useI18n();
-  const theme = useTheme();
   const a01Coverage = report.insights.find((insight) => insight.code === 'A01');
   const highlights = report.dataStatus === 'verified' ? (report.highlights ?? report.insights) : [];
-  const maxRecordedMinutes = Math.max(1, ...report.days
-    .filter((day) => day.status === 'recorded' && day.minutes !== null)
-    .map((day) => day.minutes ?? 0));
   return <>
     <ThemedText variant="subhead" themeColor="textSecondary">
       {t('recentRange', { start: sleepDay(report.period.start, locale), end: sleepDay(report.period.end, locale) })}
@@ -47,7 +43,7 @@ function RecentReport({ report, locale }: { report: RecentSleepReport; locale: s
       <View style={styles.metricsRow}>
         <View style={styles.metricsCopy}>
           {report.averageMinutesPerRecordedDay !== null ? <>
-            <ThemedText variant="subhead" themeColor="textSecondary">{t('recentAverage')}</ThemedText>
+            <ThemedText variant="subhead" themeColor="textSecondary">{t('recentAverageShort')}</ThemedText>
             <ThemedText variant="display">{formatDuration(report.averageMinutesPerRecordedDay, locale, language)}</ThemedText>
           </> : null}
           <ThemedText variant="bodyStrong">{t('recentCoverage')}: {report.recordedDays}/{report.coverageDenominator}</ThemedText>
@@ -59,34 +55,17 @@ function RecentReport({ report, locale }: { report: RecentSleepReport; locale: s
       <ThemedText variant="body">{t('recentCoverage')}: {report.recordedDays}/{report.coverageDenominator}</ThemedText>
     </SleepCard> : null}
     <SleepCard>
-      <ThemedText accessibilityRole="header" variant="heading">{t('reportMetrics')}</ThemedText>
-      <View style={styles.chart}>
-        {report.days.map((day) => {
-          const recorded = day.status === 'recorded' && day.minutes !== null;
-          const minutes = recorded ? day.minutes : null;
-          const barHeight = minutes === null ? 0 : Math.max(1, (minutes / maxRecordedMinutes) * 72);
-          const status = minutes !== null ? formatDuration(minutes, locale, language)
-            : day.status === 'unverified' ? t('dayUnverified') : t('notRecorded');
-          return <View key={day.day} accessible accessibilityLabel={`${sleepDay(day.day, locale)}. ${status}`} style={styles.chartDay}>
-            <View style={[styles.barTrack, { height: 76 }]}>
-              {recorded
-                ? <View style={[styles.recordedBar, { height: barHeight, backgroundColor: theme.sleep }]} />
-                : <View style={[styles.emptyBar, { backgroundColor: day.status === 'unverified' ? 'transparent' : theme.border,
-                  borderColor: day.status === 'unverified' ? theme.textSecondary : 'transparent' }]} />}
-            </View>
-            <ThemedText variant="label">{new Intl.NumberFormat(locale).format(Number(day.day.slice(-2)))}</ThemedText>
-          </View>;
-        })}
-      </View>
-      <View style={styles.dayValues} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-        {report.days.map((day) => <View key={day.day} style={styles.dayValue}>
-          <ThemedText variant="labelStrong">{sleepDay(day.day, locale)}</ThemedText>
-          <ThemedText variant="caption" themeColor="textSecondary">
-            {day.status === 'recorded' && day.minutes !== null ? formatDuration(day.minutes, locale, language)
-              : day.status === 'unverified' ? t('dayUnverified') : t('notRecorded')}
-          </ThemedText>
-        </View>)}
-      </View>
+      <ThemedText accessibilityRole="header" variant="heading">{t('reportMetricsShort')}</ThemedText>
+      <SleepSevenDayChart locale={locale}
+        labels={{ recorded: t('calendarRecorded'), missing: t('notRecorded'), unverified: t('dayUnverified') }}
+        days={report.days.map((day) => {
+          if (day.status === 'recorded' && day.minutes !== null) {
+            return { date: day.day, state: 'recorded', duration: {
+              minutes: day.minutes, label: formatDuration(day.minutes, locale, language),
+            } };
+          }
+          return { date: day.day, state: day.status === 'not-recorded' ? 'missing' : 'unverified' };
+        })} />
     </SleepCard>
     <RecentSleepStory report={report} />
     {report.dataStatus === 'verified' && highlights.length === 0
@@ -128,11 +107,4 @@ const styles = StyleSheet.create({
   metricsRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   metricsCopy: { flex: 1, gap: spacing.xs },
   metricsArt: { width: '27%', height: 100, maxWidth: 135 },
-  chart: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: spacing.xs },
-  chartDay: { flex: 1, minWidth: 0, alignItems: 'center', gap: spacing.xs },
-  barTrack: { width: '100%', justifyContent: 'flex-end', alignItems: 'center' },
-  recordedBar: { width: '70%', minWidth: 8, maxWidth: 28, borderRadius: 8 },
-  emptyBar: { width: '70%', minWidth: 8, maxWidth: 28, height: 8, borderRadius: 4, borderWidth: 1, borderStyle: 'dashed' },
-  dayValues: { gap: spacing.xs, marginTop: spacing.md },
-  dayValue: { flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: spacing.sm },
 });

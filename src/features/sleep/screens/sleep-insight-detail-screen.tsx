@@ -7,7 +7,8 @@ import { useTheme } from '@/hooks/use-theme';
 import { useI18n, useTranslations } from '@/i18n';
 import { radius, spacing } from '@/theme';
 import { SleepAiSection } from '../components/sleep-ai-section';
-import { SleepButton, SleepCard, SleepNotice, SleepPage } from '../components/sleep-ui';
+import { SleepSevenDayChart } from '../components/sleep-seven-day-chart';
+import { SemanticInfoCard, SleepButton, SleepCard, SleepNotice, SleepPage } from '../components/sleep-ui';
 import { sleepArt } from '../assets/sleep-art';
 import { useSleepRead, useSleepRepository } from '../hooks/use-sleep';
 import { sleepMessages } from '../messages';
@@ -16,7 +17,7 @@ import { readSleepDetailVisual, type SleepCalendarDay, type SleepDetailVisual } 
 import { startOfWeek } from '../utils/sleep-date';
 import { sleepDay, sleepDuration, sleepPeriod } from '../utils/sleep-format';
 import { sleepGoalInsightCopy } from '../utils/sleep-goal-insight-copy';
-import { sleepTrendInsightCopy } from '../utils/sleep-trend-insight-copy';
+import { formatSignedSleepMinutes, sleepTrendInsightCopy } from '../utils/sleep-trend-insight-copy';
 
 type Translate = (key: keyof typeof sleepMessages.en, values?: Record<string, string | number>) => string;
 
@@ -81,83 +82,82 @@ const calendarStyles = StyleSheet.create({
   legend: { flexDirection: 'row', flexWrap: 'wrap', columnGap: spacing.md, rowGap: spacing.xs },
 });
 
+const trendStyles = StyleSheet.create({
+  chart: { gap: spacing.md, marginTop: spacing.sm },
+  durationTrack: { height: spacing.md, borderRadius: radius.full, overflow: 'hidden' },
+  durationBar: { height: '100%', borderRadius: radius.full },
+  feelingLegendItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  feelingSwatch: { width: spacing.sm, height: spacing.sm, borderRadius: radius.full },
+});
+
 function DetailVisual({ visual, t, locale }: { visual: SleepDetailVisual; t: Translate; locale: string }) {
   const theme = useTheme();
   if (visual.code === 'A03') {
     const maximum = Math.max(visual.baseline.meanMinutes, visual.recent.meanMinutes);
-    const delta = `${visual.deltaMinutes > 0 ? '+' : ''}${new Intl.NumberFormat(locale).format(visual.deltaMinutes)}`;
-    return <>
-    <SleepCard tone="mint">
-      <ThemedText variant="metricLarge">{delta} {t('durationMinutesUnit')}</ThemedText>
+    const meanFormat = new Intl.NumberFormat(locale, { style: 'unit', unit: 'minute', unitDisplay: 'short' });
+    return <SemanticInfoCard tone="mint" artwork={sleepArt.trend} title={t('trendDurationTitle')}>
+      <ThemedText variant="metricLarge">{formatSignedSleepMinutes(visual.deltaMinutes, locale)}</ThemedText>
       <ThemedText variant="subhead" themeColor="textSecondary">{t('trendDurationDelta')}</ThemedText>
-    </SleepCard>
-    <SleepCard>
-      <ThemedText accessibilityRole="header" variant="bodyStrong">{t('trendDurationTitle')}</ThemedText>
-      {[visual.baseline, visual.recent].map((window, index) => <View key={window.period.start} style={{ gap: spacing.xs }}>
-        <View style={{ gap: spacing.xs }}>
-          <ThemedText variant="labelStrong">{t(index === 0 ? 'trendBaseline' : 'trendRecent')}</ThemedText>
-          <ThemedText variant="caption" themeColor="textSecondary">
-            {sleepDay(window.period.start, locale)} – {sleepDay(window.period.end, locale)} · {t('trendMainDays', { count: window.mainDays })}
-          </ThemedText>
-        </View>
-        <View accessibilityRole="image" accessibilityLabel={`${t(index === 0 ? 'trendBaseline' : 'trendRecent')}: ${sleepDuration(window.meanMinutes)}`}
-          style={{ height: 18, borderRadius: 9, overflow: 'hidden', backgroundColor: theme.backgroundSelected }}>
-          <View style={{ width: `${window.meanMinutes / maximum * 100}%`, height: '100%',
-            borderRadius: 9, backgroundColor: index === 0 ? theme.sleepTrack : theme.sleep }} />
-        </View>
-        <ThemedText variant="labelStrong" style={{ textAlign: 'right' }}>{sleepDuration(window.meanMinutes)}</ThemedText>
-      </View>)}
-      <ThemedText variant="caption" themeColor="textSecondary">{t('trendCompletedWindows')}</ThemedText>
-    </SleepCard></>;
+      <View style={trendStyles.chart}>
+        {[visual.baseline, visual.recent].map((window, index) => <View key={window.period.start} style={{ gap: spacing.xs }}>
+          <View style={{ gap: spacing.xs }}>
+            <ThemedText variant="labelStrong">{t(index === 0 ? 'trendBaseline' : 'trendRecent')}</ThemedText>
+            <ThemedText variant="caption" themeColor="textSecondary">
+              {sleepDay(window.period.start, locale)} – {sleepDay(window.period.end, locale)} · {t('trendMainDays', { count: window.mainDays })}
+            </ThemedText>
+          </View>
+          <View accessible={false} style={[trendStyles.durationTrack, { backgroundColor: theme.backgroundElement }]}>
+            <View style={[trendStyles.durationBar, { width: `${window.meanMinutes / maximum * 100}%`, backgroundColor: theme.accent }]} />
+          </View>
+          <ThemedText variant="labelStrong" style={{ textAlign: 'right' }}>{meanFormat.format(window.meanMinutes)}</ThemedText>
+        </View>)}
+        <ThemedText variant="caption" themeColor="textSecondary">{t('trendCompletedWindows')}</ThemedText>
+      </View>
+    </SemanticInfoCard>;
   }
 
   if (visual.code === 'B03') {
     const numberFormat = new Intl.NumberFormat(locale, { maximumFractionDigits: 2 });
-    const heroDelta = visual.deltaPercentagePoints.comfortable;
-    const signedHero = `${heroDelta > 0 ? '+' : ''}${numberFormat.format(heroDelta)}`;
-    return <>
-    <SleepCard tone="mint">
-      <ThemedText variant="metricLarge">{signedHero}</ThemedText>
-      <ThemedText variant="subhead" themeColor="textSecondary">{t('trendFeelingDelta')}</ThemedText>
-    </SleepCard>
-    <SleepCard>
-      <ThemedText accessibilityRole="header" variant="bodyStrong">{t('trendFeelingTitle')}</ThemedText>
-      {[visual.baseline, visual.recent].map((window, windowIndex) => <View key={window.period.start} style={{ gap: spacing.xs }}>
+    const signedFormat = new Intl.NumberFormat(locale, { maximumFractionDigits: 2, signDisplay: 'exceptZero' });
+    const feelingColors = { comfortable: theme.sleep, normal: theme.accent, tired: theme.warning };
+    return <SemanticInfoCard tone="mint" artwork={sleepArt.normal} title={t('trendFeelingTitle')}>
+      <View style={trendStyles.chart}>
+        {[visual.baseline, visual.recent].map((window, windowIndex) => <View key={window.period.start} style={{ gap: spacing.xs }}>
+          <View style={{ gap: spacing.xs }}>
+            <ThemedText variant="labelStrong">{t(windowIndex === 0 ? 'trendBaseline' : 'trendRecent')}</ThemedText>
+            <ThemedText variant="caption" themeColor="textSecondary">
+              {sleepDay(window.period.start, locale)} – {sleepDay(window.period.end, locale)} · {t('trendRatedDays', { count: window.ratedMain })}
+            </ThemedText>
+            <ThemedText variant="caption" themeColor="textSecondary">
+              {t('trendMissingRatings', { count: window.mainWithoutFeeling })}
+            </ThemedText>
+          </View>
+          <View accessibilityRole="image" accessibilityLabel={`${t(windowIndex === 0 ? 'trendBaseline' : 'trendRecent')}: ${window.categories
+            .map(({ key, percentage }) => `${t(key)} ${numberFormat.format(percentage)}%`).join(', ')}`}
+            style={{ flexDirection: 'row', height: 22, borderRadius: 11, overflow: 'hidden', backgroundColor: theme.sleepTrack }}>
+            {window.categories.map(({ key, count, denominator }) => count > 0 ? <View key={key} style={{
+              width: `${count / denominator * 100}%`, backgroundColor: feelingColors[key],
+            }} /> : null)}
+          </View>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: spacing.md, rowGap: spacing.xs }}>
+            {window.categories.map(({ key, percentage }) => <View key={key} style={trendStyles.feelingLegendItem}>
+              <View style={[trendStyles.feelingSwatch, { backgroundColor: feelingColors[key] }]} />
+              <ThemedText variant="caption" themeColor="textSecondary">{t(key)} {numberFormat.format(percentage)}%</ThemedText>
+            </View>)}
+          </View>
+        </View>)}
         <View style={{ gap: spacing.xs }}>
-          <ThemedText variant="labelStrong">{t(windowIndex === 0 ? 'trendBaseline' : 'trendRecent')}</ThemedText>
-          <ThemedText variant="caption" themeColor="textSecondary">
-            {sleepDay(window.period.start, locale)} – {sleepDay(window.period.end, locale)} · {t('trendRatedDays', { count: window.ratedMain })}
-          </ThemedText>
-          <ThemedText variant="caption" themeColor="textSecondary">
-            {t('trendMissingRatings', { count: window.mainWithoutFeeling })}
-          </ThemedText>
+          <ThemedText variant="caption" themeColor="textSecondary">{t('trendFeelingDelta')}</ThemedText>
+          {visual.recent.categories.map(({ key }) => (
+            <View key={key} style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: spacing.sm }}>
+              <ThemedText variant="subhead">{t(key)}</ThemedText>
+              <ThemedText variant="labelStrong">{signedFormat.format(visual.deltaPercentagePoints[key])} {t('trendPercentagePoints')}</ThemedText>
+            </View>
+          ))}
         </View>
-        <View accessibilityRole="image" accessibilityLabel={`${t(windowIndex === 0 ? 'trendBaseline' : 'trendRecent')}: ${window.categories
-          .map(({ key, percentage }) => `${t(key)} ${numberFormat.format(percentage)}%`).join(', ')}`}
-          style={{ flexDirection: 'row', height: 22, borderRadius: 11, overflow: 'hidden', backgroundColor: theme.sleepTrack }}>
-          {window.categories.map(({ key, count, denominator }) => count > 0 ? <View key={key} style={{
-            width: `${count / denominator * 100}%`, backgroundColor: key === 'comfortable'
-              ? theme.sleep : key === 'normal' ? theme.accent : theme.warning,
-          }} /> : null)}
-        </View>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: spacing.md, rowGap: spacing.xs }}>
-          {window.categories.map(({ key, percentage }) => <ThemedText key={key} variant="caption" themeColor="textSecondary">
-            {t(key)} {numberFormat.format(percentage)}%
-          </ThemedText>)}
-        </View>
-      </View>)}
-      <View style={{ gap: spacing.xs }}>
-        {visual.recent.categories.map(({ key }) => {
-          const change = visual.deltaPercentagePoints[key];
-          const signed = `${change > 0 ? '+' : ''}${numberFormat.format(change)}`;
-          return <View key={key} style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: spacing.sm }}>
-            <ThemedText variant="subhead">{t(key)}</ThemedText>
-            <ThemedText variant="labelStrong">{signed} {t('trendPercentagePoints')}</ThemedText>
-          </View>;
-        })}
+        <ThemedText variant="caption" themeColor="textSecondary">{t('trendCompletedWindows')}</ThemedText>
       </View>
-      <ThemedText variant="caption" themeColor="textSecondary">{t('trendCompletedWindows')}</ThemedText>
-    </SleepCard></>;
+    </SemanticInfoCard>;
   }
 
   if (visual.code === 'A01') {
@@ -167,8 +167,14 @@ function DetailVisual({ visual, t, locale }: { visual: SleepDetailVisual; t: Tra
     const circumference = 2 * Math.PI * radius;
     const progress = circumference * visual.recordedMainDays / visual.denominator;
     return <>
-      <SleepCard>
-        <ThemedText accessibilityRole="header" variant="bodyStrong">{t('a01Coverage')}</ThemedText>
+      <SleepCard tone="mint">
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+          <Image source={sleepArt.moon} accessible={false} resizeMode="contain" style={{ width: 58, height: 58 }} />
+          <View style={{ flex: 1, gap: 2 }}>
+            <ThemedText accessibilityRole="header" variant="heading">{t('a01RecordingDays')}</ThemedText>
+            <ThemedText variant="caption" themeColor="textSecondary">{t('insightCoverageDenominator')}</ThemedText>
+          </View>
+        </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 20 }}>
           <View accessibilityRole="image" accessibilityLabel={`${t('insightCoverageRecorded')}: ${visual.recordedMainDays} / ${visual.denominator}`}
             style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
@@ -182,11 +188,18 @@ function DetailVisual({ visual, t, locale }: { visual: SleepDetailVisual; t: Tra
           </View>
           <View style={{ flex: 1, gap: 4 }}>
             <ThemedText variant="bodyStrong">{t('insightCoverageRecorded')}</ThemedText>
-            <ThemedText variant="subhead" themeColor="textSecondary">{t('insightCoverageDenominator')}</ThemedText>
+            <ThemedText variant="subhead" themeColor="textSecondary">{t('insightCalendarTitle')}</ThemedText>
           </View>
         </View>
       </SleepCard>
-      <DetailCalendar days={visual.days} t={t} locale={locale} />
+      {visual.days ? <SleepCard>
+        <ThemedText accessibilityRole="header" variant="bodyStrong">{t('insightCalendarTitle')}</ThemedText>
+        <SleepSevenDayChart locale={locale}
+          labels={{ recorded: t('calendarRecorded'), missing: t('notRecorded'), unverified: t('dayUnverified') }}
+          days={visual.days.map(({ day, status }) => ({
+            date: day, state: status === 'RECORDED' ? 'recorded' : 'missing',
+          }))} />
+      </SleepCard> : <SleepNotice title={t('insightCalendarUnavailable')} />}
     </>;
   }
 
@@ -296,7 +309,7 @@ function DetailContent({ detail, t, aiKey, locale, reload }: {
   const goalCopy = detail.code === 'A02' || detail.code === 'B04'
     ? sleepGoalInsightCopy(detail.code, detail.sample, detail.evidence, t) : null;
   const trendCopy = detail.code === 'A03' || detail.code === 'B03'
-    ? sleepTrendInsightCopy(detail.code, detail.sample, detail.evidence, t) : null;
+    ? sleepTrendInsightCopy(detail.code, detail.sample, detail.evidence, t, locale) : null;
   if (detail.status !== 'READY') {
     return <SleepNotice title={statusMessage(detail.status, t)} />;
   }
@@ -305,7 +318,7 @@ function DetailContent({ detail, t, aiKey, locale, reload }: {
   const title = goalCopy?.title ?? trendCopy?.title ?? detail.title;
   const summary = goalCopy ? goalCopy.summary : trendCopy?.summary ?? detail.summary;
   return <>
-    <SleepCard tone="mint">
+    {trendCopy && visual ? null : <SleepCard tone="mint">
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
         <Image source={detail.code === 'A03' ? sleepArt.trend
           : detail.code === 'A01' ? sleepArt.moon : detail.code === 'A02' ? sleepArt.bed
@@ -319,7 +332,7 @@ function DetailContent({ detail, t, aiKey, locale, reload }: {
         </View>
       </View>
       {summary ? <ThemedText variant="subhead">{summary}</ThemedText> : null}
-    </SleepCard>
+    </SleepCard>}
     {visual ? <DetailVisual visual={visual} t={t} locale={locale} />
       : <SleepNotice title={t('insightVisualUnavailable')} />}
     <EvidenceDisclosure detail={detail} visual={visual} t={t} locale={locale} />

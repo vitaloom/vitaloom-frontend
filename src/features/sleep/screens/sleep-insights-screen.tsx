@@ -1,14 +1,15 @@
 import { router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, type ImageSourcePropType } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
-import { useTranslations } from '@/i18n';
+import { useI18n, useTranslations } from '@/i18n';
 import { radius, sizing, spacing } from '@/theme';
-import { SleepCard, SleepNotice, SleepPage } from '../components/sleep-ui';
+import { SemanticInfoCard, SleepNotice, SleepPage } from '../components/sleep-ui';
 import { useSleepRead, useSleepRepository } from '../hooks/use-sleep';
 import { sleepMessages } from '../messages';
 import type { SleepInsightItem, SleepInsightStatus } from '../types/sleep';
+import { sleepArt } from '../assets/sleep-art';
 import { sleepGoalInsightCopy } from '../utils/sleep-goal-insight-copy';
 import { sleepTrendInsightCopy } from '../utils/sleep-trend-insight-copy';
 
@@ -19,37 +20,45 @@ function statusMessage(status: SleepInsightStatus, t: (key: keyof typeof sleepMe
   return t('insightStatusUnverified');
 }
 
+function insightArtwork(code: string): ImageSourcePropType {
+  switch (code) {
+    case 'A01': return sleepArt.moon;
+    case 'A02': return sleepArt.bed;
+    case 'A03': return sleepArt.trend;
+    case 'A04': return sleepArt.moon;
+    case 'A05': return sleepArt.bars;
+    case 'B01': return sleepArt.comfortable;
+    case 'B02': return sleepArt.tired;
+    case 'B03': return sleepArt.normal;
+    case 'B04': return sleepArt.tired;
+    default: return sleepArt.moon;
+  }
+}
+
 function InsightRow({ item, t }: {
   item: SleepInsightItem;
   t: (key: keyof typeof sleepMessages.en, values?: Record<string, string | number>) => string;
 }) {
+  const { locale } = useI18n();
   const goalCopy = item.code === 'A02' || item.code === 'B04'
     ? sleepGoalInsightCopy(item.code, item.sample, item.evidence, t) : null;
   const trendCopy = item.code === 'A03' || item.code === 'B03'
-    ? sleepTrendInsightCopy(item.code, item.sample, item.evidence, t) : null;
+    ? sleepTrendInsightCopy(item.code, item.sample, item.evidence, t, locale) : null;
   const theme = useTheme();
   const title = goalCopy?.title ?? trendCopy?.title ?? item.title;
   const summary = goalCopy ? goalCopy.summary : trendCopy?.summary ?? item.summary;
-  return <SleepCard onPress={item.locked ? undefined
+  return <SemanticInfoCard artwork={insightArtwork(item.code)} title={title} tone={item.locked ? 'default' : item.category === 'B' ? 'warm' : 'mint'} muted={item.locked}
+    onPress={item.locked ? undefined
     : () => router.push({ pathname: '/sleep/insights/[code]', params: { code: item.code } })}
     label={`${title}. ${item.locked ? statusMessage(item.status, t) : summary ?? ''}`}>
     <View style={styles.row}>
-      <View style={[styles.icon, { backgroundColor: item.locked ? theme.backgroundSelected : theme.sleepSoft }]}
-        accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-        <SymbolView size={sizing.iconMd} tintColor={item.locked ? theme.textSecondary : theme.accent}
-          name={item.locked ? { ios: 'lock.fill', android: 'lock', web: 'lock' }
-            : item.category === 'A' ? { ios: 'chart.bar.fill', android: 'bar_chart', web: 'bar_chart' }
-              : { ios: 'face.smiling', android: 'mood', web: 'mood' }} />
-      </View>
-      <View style={styles.copy}>
-        <ThemedText variant="bodyStrong">{title}</ThemedText>
-        <ThemedText variant="subhead" themeColor="textSecondary">
-          {item.locked ? statusMessage(item.status, t) : summary || t('insightStatusReady')}
-        </ThemedText>
-      </View>
-      {!item.locked ? <ThemedText accessible={false} variant="heading" themeColor="accent">›</ThemedText> : null}
+      <ThemedText variant="subhead" themeColor="textSecondary">
+        {item.locked ? statusMessage(item.status, t) : summary || t('insightStatusReady')}
+      </ThemedText>
+      {item.locked ? <SymbolView size={sizing.iconSm} tintColor={theme.textSecondary}
+        name={{ ios: 'lock.fill', android: 'lock', web: 'lock' }} /> : <ThemedText accessible={false} variant="heading" themeColor="accent">›</ThemedText>}
     </View>
-  </SleepCard>;
+  </SemanticInfoCard>;
 }
 
 export default function SleepInsightsScreen() {

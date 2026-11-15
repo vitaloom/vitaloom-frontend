@@ -85,6 +85,19 @@ export function SleepCard({ children, tone = 'default', onPress, label }: {
     : <View style={style}>{children}</View>;
 }
 
+export function SemanticInfoCard({ artwork, title, children, tone = 'default', onPress, label, muted = false }: {
+  artwork: ImageSourcePropType; title: string; children?: ReactNode; muted?: boolean;
+  tone?: 'default' | 'mint' | 'lilac' | 'warm'; onPress?: () => void; label?: string;
+}) {
+  return <SleepCard tone={tone} onPress={onPress} label={label}>
+    <View style={styles.semanticHeader}>
+      <Image source={artwork} accessible={false} resizeMode="contain" style={[styles.semanticIcon, muted && styles.semanticIconMuted]} />
+      <ThemedText variant="bodyStrong" style={styles.semanticTitle}>{title}</ThemedText>
+    </View>
+    {children ? <View style={styles.semanticBody}>{children}</View> : null}
+  </SleepCard>;
+}
+
 export function SleepButton({ label, onPress, variant = 'primary', disabled, busy }: {
   label: string; onPress: () => void; variant?: 'primary' | 'secondary' | 'quiet' | 'danger'; disabled?: boolean; busy?: boolean;
 }) {
@@ -177,4 +190,9 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', borderRadius: radius.full },
   segmentArt: { width: sizing.iconMd, height: sizing.iconMd },
   centerText: { textAlign: 'center' },
+  semanticHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  semanticIcon: { width: 44, height: 44 },
+  semanticIconMuted: { opacity: 0.55 },
+  semanticTitle: { flex: 1 },
+  semanticBody: { gap: spacing.xs },
 });
