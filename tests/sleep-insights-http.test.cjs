@@ -63,7 +63,7 @@ function repositoryFor(responses) {
 }
 
 test('All Insights reads Goal-catalog-compatible entries from the expanded catalog endpoint', async () => {
-  const payload = { period, items: [
+  const payload = { period, timeZones: ['America/New_York'], items: [
     item('READY', { code: 'A01', category: 'A', locked: false }),
     item('READY', { code: 'A02', category: 'A', title: 'Goal Achievement', locked: false,
       sample: { eligibleMainDays: 3 }, evidence: { metGoalDays: 2, eligibleMainDays: 3 } }),
@@ -76,21 +76,30 @@ test('All Insights reads Goal-catalog-compatible entries from the expanded catal
   ] };
   const { repository, requests } = repositoryFor([payload]);
   assert.deepEqual(await repository.getAllInsights(), { kind: 'ready', data: payload });
-  assert.equal(requests[0].path, '/sleep/insights?catalog=trend');
+  assert.equal(requests[0].path, '/sleep/insights?catalog=full');
   assert.equal(requests[0].init.method, 'GET');
   assert.equal(requests[0].authenticated, true);
 });
 
-test('All Insights requests trend catalog and falls back only when an older server rejects it', async () => {
-  const payload = { period, items: [] };
+test('All Insights requests the complete catalog and falls back only when an older server rejects it', async () => {
+  const payload = { period, timeZones: [], items: [] };
   const current = repositoryFor([payload]);
   assert.deepEqual(await current.repository.getAllInsights(), { kind: 'ready', data: payload });
-  assert.equal(current.requests[0].path, '/sleep/insights?catalog=trend');
+  assert.equal(current.requests[0].path, '/sleep/insights?catalog=full');
 
   const legacy = repositoryFor([new ApiError(400, 'INVALID_REQUEST', 'Unsupported catalog.'), payload]);
   assert.deepEqual(await legacy.repository.getAllInsights(), { kind: 'ready', data: payload });
   assert.deepEqual(legacy.requests.map(({ path }) => path), [
-    '/sleep/insights?catalog=trend', '/sleep/insights?catalog=goal',
+    '/sleep/insights?catalog=full', '/sleep/insights?catalog=trend',
+  ]);
+
+  const older = repositoryFor([
+    new ApiError(400, 'INVALID_REQUEST', 'Unsupported full catalog.'),
+    new ApiError(400, 'INVALID_REQUEST', 'Unsupported trend catalog.'), payload,
+  ]);
+  assert.deepEqual(await older.repository.getAllInsights(), { kind: 'ready', data: payload });
+  assert.deepEqual(older.requests.map(({ path }) => path), [
+    '/sleep/insights?catalog=full', '/sleep/insights?catalog=trend', '/sleep/insights?catalog=goal',
   ]);
 
   const otherError = repositoryFor([new ApiError(401, 'UNAUTHORIZED', 'Sign in.')]);
@@ -98,8 +107,30 @@ test('All Insights requests trend catalog and falls back only when an older serv
   assert.equal(otherError.requests.length, 1);
 });
 
+test('selected reference time zone is carried through list, Recent and A04 Detail requests', async () => {
+  const payload = { period, timeZones: ['America/New_York'], items: [] };
+  const report = { period, dataStatus: 'NO_DATA', days: Array.from({ length: 7 }, (_, index) => ({
+    day: `2026-11-${String(8 + index).padStart(2, '0')}`, status: 'NOT_RECORDED', minutes: null,
+  })), coverageDenominator: 7, recordedDays: 0, averageMinutesPerRecordedDay: null, insights: [], highlights: [] };
+  const locked = { code: 'A04', category: 'A', status: 'INSUFFICIENT_DATA', period, title: 'Sleep and wake time range',
+    sourceRefs: [], limitations: [], policyVersion: 'p', evidenceVersion: '' };
+  const { repository, requests } = repositoryFor([payload, report, locked]);
+  repository.setReferenceTimeZone('America/New_York');
+  assert.equal(repository.getReferenceTimeZone(), 'America/New_York');
+  await repository.getAllInsights();
+  await repository.getRecent();
+  await repository.getInsightDetail('A04');
+  assert.deepEqual(requests.map(({ path }) => path), [
+    '/sleep/insights?catalog=full&timeZone=America%2FNew_York',
+    '/sleep/recent?catalog=full&timeZone=America%2FNew_York',
+    '/sleep/insights/A04?timeZone=America%2FNew_York',
+  ]);
+  repository.setReferenceTimeZone(null);
+  assert.equal(repository.getReferenceTimeZone(), null);
+});
+
 test('All Insights preserves locked status-only entries for every non-ready status', async () => {
-  const payload = { period, items: ['INSUFFICIENT_DATA', 'NO_DATA', 'UNVERIFIED_DATA'].map((status) =>
+  const payload = { period, timeZones: [], items: ['INSUFFICIENT_DATA', 'NO_DATA', 'UNVERIFIED_DATA'].map((status) =>
     item(status, { locked: true, summary: undefined, sample: undefined, evidence: undefined, sourceRefs: undefined })) };
   const { repository } = repositoryFor([payload]);
   const result = await repository.getAllInsights();
@@ -329,6 +360,26 @@ test('A03 and B03 Detail visuals validate adjacent completed periods and sample 
   ];
   for (const value of invalid) assert.equal(readSleepDetailVisual(value), null);
   assert.equal(readSleepDetailVisual({ ...a03, status: 'UNVERIFIED_DATA' }), null);
+});
+
+test('A04, A05 and B02 visuals require verified evidence and preserve the requested denominators', () => {
+  const a05 = { code: 'A05', status: 'READY', period, sample: {}, evidence: {
+    weekday: { days: 3, meanMinutes: 420 }, weekend: { days: 2, meanMinutes: 450 }, deltaMinutes: -30,
+  } };
+  const b02 = { code: 'B02', status: 'READY', period, sample: {}, evidence: {
+    comfortable: { days: 3, meanMinutes: 440 }, tired: { days: 3, meanMinutes: 400 }, deltaMinutes: 40,
+  } };
+  const a04 = { code: 'A04', status: 'READY', period, sample: { eligibleRangeDays: 3 }, evidence: {
+    timeZone: 'America/New_York', bedtime: { minMinute: -240, maxMinute: 30, spanMinutes: 270 },
+    wake: { minMinute: 360, maxMinute: 480, spanMinutes: 120 },
+  } };
+  assert.deepEqual(readSleepDetailVisual(a05), { code: 'A05', weekday: a05.evidence.weekday, weekend: a05.evidence.weekend, deltaMinutes: -30 });
+  assert.deepEqual(readSleepDetailVisual(b02), { code: 'B02', comfortable: b02.evidence.comfortable, tired: b02.evidence.tired, deltaMinutes: 40 });
+  assert.equal(readSleepDetailVisual(a04).timeZone, 'America/New_York');
+  assert.equal(readSleepDetailVisual({ ...a05, evidence: { ...a05.evidence, weekend: { days: 1, meanMinutes: 450 } } }), null);
+  assert.equal(readSleepDetailVisual({ ...b02, evidence: { ...b02.evidence, deltaMinutes: -40 } }), null);
+  assert.equal(readSleepDetailVisual({ ...a04, evidence: { ...a04.evidence, bedtime: { ...a04.evidence.bedtime, spanMinutes: 5 } } }), null);
+  assert.equal(readSleepDetailVisual({ ...a04, sample: { eligibleRangeDays: 2 } }), null);
 });
 
 test('A01/A02 calendars use seven validated day states from Detail only', () => {

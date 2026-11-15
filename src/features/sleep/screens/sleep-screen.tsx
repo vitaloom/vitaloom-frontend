@@ -13,6 +13,7 @@ import { sleepMessages } from '../messages';
 import type { DailySummary, SleepSession } from '../types/sleep';
 import { sleepDay } from '../utils/sleep-format';
 import { insightHref } from '../utils/sleep-navigation';
+import { sleepCatalogInsightCopy } from '../utils/sleep-catalog-insight-copy';
 
 const destinations = [
   { key: 'journal', path: '/sleep/journal', icon: { ios: 'calendar', android: 'calendar_month', web: 'calendar_month' } },
@@ -35,6 +36,7 @@ export default function SleepScreen() {
   const { state, reload } = useSleepRead(() => repository.getHome(), 'sleep-home', false, true);
   const summary = state.kind === 'ready' ? state.data : null;
   const featured = summary?.featured;
+  const featuredCopy = featured && 'source' in featured ? sleepCatalogInsightCopy(featured.code, t) : null;
 
   const fixtures = sleepFixturesEnabled();
 
@@ -68,8 +70,8 @@ export default function SleepScreen() {
       <View style={styles.row}>
         <View style={styles.fill}>
           <ThemedText variant="labelStrong" themeColor="accent">{t('featuredInsight')}</ThemedText>
-          <ThemedText variant="body">{'source' in featured ? featured.title : featured.summary}</ThemedText>
-          {'source' in featured ? <ThemedText variant="subhead">{featured.summary}</ThemedText> : null}
+          <ThemedText variant="body">{'source' in featured ? featuredCopy?.title ?? featured.title : featured.summary}</ThemedText>
+          {'source' in featured ? <ThemedText variant="subhead">{featuredCopy?.summary ?? featured.summary}</ThemedText> : null}
         </View>
         <Image source={sleepArt.pillow} resizeMode="contain" style={styles.pillow} accessible={false} />
       </View>

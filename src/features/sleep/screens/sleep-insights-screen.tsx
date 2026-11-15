@@ -1,17 +1,18 @@
 import { router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { StyleSheet, View, type ImageSourcePropType } from 'react-native';
+import { Pressable, StyleSheet, View, type ImageSourcePropType } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
 import { useI18n, useTranslations } from '@/i18n';
 import { radius, sizing, spacing } from '@/theme';
-import { SemanticInfoCard, SleepNotice, SleepPage } from '../components/sleep-ui';
+import { SemanticInfoCard, SleepCard, SleepNotice, SleepPage } from '../components/sleep-ui';
 import { useSleepRead, useSleepRepository } from '../hooks/use-sleep';
 import { sleepMessages } from '../messages';
 import type { SleepInsightItem, SleepInsightStatus } from '../types/sleep';
 import { sleepArt } from '../assets/sleep-art';
 import { sleepGoalInsightCopy } from '../utils/sleep-goal-insight-copy';
 import { sleepTrendInsightCopy } from '../utils/sleep-trend-insight-copy';
+import { sleepCatalogInsightCopy } from '../utils/sleep-catalog-insight-copy';
 
 function statusMessage(status: SleepInsightStatus, t: (key: keyof typeof sleepMessages.en) => string) {
   if (status === 'READY') return t('insightStatusReady');
@@ -44,9 +45,10 @@ function InsightRow({ item, t }: {
     ? sleepGoalInsightCopy(item.code, item.sample, item.evidence, t) : null;
   const trendCopy = item.code === 'A03' || item.code === 'B03'
     ? sleepTrendInsightCopy(item.code, item.sample, item.evidence, t, locale) : null;
+  const newCopy = sleepCatalogInsightCopy(item.code, t);
   const theme = useTheme();
-  const title = goalCopy?.title ?? trendCopy?.title ?? item.title;
-  const summary = goalCopy ? goalCopy.summary : trendCopy?.summary ?? item.summary;
+  const title = goalCopy?.title ?? trendCopy?.title ?? newCopy?.title ?? item.title;
+  const summary = goalCopy ? goalCopy.summary : trendCopy?.summary ?? newCopy?.summary ?? item.summary;
   return <SemanticInfoCard artwork={insightArtwork(item.code)} title={title} tone={item.locked ? 'default' : item.category === 'B' ? 'warm' : 'mint'} muted={item.locked}
     onPress={item.locked ? undefined
     : () => router.push({ pathname: '/sleep/insights/[code]', params: { code: item.code } })}
@@ -63,9 +65,12 @@ function InsightRow({ item, t }: {
 
 export default function SleepInsightsScreen() {
   const repository = useSleepRepository();
+  const theme = useTheme();
   const { state, reload } = useSleepRead(() => repository.getAllInsights(), 'sleep-insights:all');
   const t = useTranslations(sleepMessages);
   const items = state.kind === 'ready' ? state.data.items : [];
+  const timeZones = state.kind === 'ready' ? state.data.timeZones : [];
+  const selectedTimeZone = repository.getReferenceTimeZone();
   const patterns = items.filter(({ category }) => category === 'A');
   const feelings = items.filter(({ category }) => category === 'B');
 
@@ -74,6 +79,20 @@ export default function SleepInsightsScreen() {
     {state.kind === 'error' ? <SleepNotice title={t('failedInsights')} message={state.message} error
       actionLabel={t('insightRetry')} onAction={reload} /> : null}
     {state.kind === 'ready' && items.length === 0 ? <SleepNotice title={t('insightsEmpty')} /> : null}
+    {timeZones.length ? <SleepCard>
+      <ThemedText accessibilityRole="header" variant="bodyStrong">{t('referenceTimeZoneTitle')}</ThemedText>
+      <ThemedText variant="caption" themeColor="textSecondary">{t('referenceTimeZoneHelp')}</ThemedText>
+      <View style={styles.timeZones}>
+        {timeZones.map((zone) => <Pressable key={zone} accessibilityRole="button"
+          accessibilityState={{ selected: zone === selectedTimeZone }} onPress={() => repository.setReferenceTimeZone(zone)}
+          style={[styles.zoneChip, { backgroundColor: zone === selectedTimeZone ? theme.backgroundSelected : theme.backgroundElement,
+            borderColor: zone === selectedTimeZone ? theme.accent : theme.border }]}>
+          <ThemedText variant="labelStrong" themeColor={zone === selectedTimeZone ? 'accent' : 'text'}>{zone}</ThemedText>
+        </Pressable>)}
+        {selectedTimeZone ? <Pressable accessibilityRole="button" onPress={() => repository.setReferenceTimeZone(null)}
+          style={styles.clearZone}><ThemedText variant="label" themeColor="accent">{t('referenceTimeZoneClear')}</ThemedText></Pressable> : null}
+      </View>
+    </SleepCard> : null}
     {patterns.length ? <>
       <ThemedText accessibilityRole="header" variant="heading">{t('insightGroupA')}</ThemedText>
       {patterns.map((item) => <InsightRow key={item.code} item={item} t={t} />)}
@@ -87,6 +106,7 @@ export default function SleepInsightsScreen() {
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  copy: { flex: 1, gap: spacing.xs },
-  icon: { padding: spacing.sm, borderRadius: radius.md },
+  timeZones: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+  zoneChip: { borderWidth: 1, borderRadius: radius.md, paddingVertical: spacing.xs, paddingHorizontal: spacing.sm },
+  clearZone: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.xs },
 });

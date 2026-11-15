@@ -164,6 +164,9 @@ function mapInsightItem(value: unknown, period: SleepInsightPeriod): SleepInsigh
       }
     } else if ((code === 'A02' || code === 'B04') && !validGoalInsightDetail(code, item.sample, item.evidence, period)) {
       throw new Error('Sleep service returned invalid Goal insight evidence.');
+    } else if ((code === 'A04' || code === 'A05' || code === 'B02')
+      && !readSleepDetailVisual({ code, status, period, sample: item.sample, evidence: item.evidence })) {
+      throw new Error('Sleep service returned invalid catalog insight evidence.');
     }
   }
   if (item.summary !== undefined && typeof item.summary !== 'string') throw new Error('Sleep service returned an invalid Insight summary.');
@@ -175,7 +178,10 @@ export function mapSleepInsightList(value: unknown): SleepInsightList {
   const response = value as Record<string, unknown>;
   if (!Array.isArray(response.items)) throw new Error('Sleep service returned an invalid Insights list.');
   const period = mapInsightPeriod(response.period);
-  return { period, items: response.items.map((item) => mapInsightItem(item, period)) };
+  const timeZones = response.timeZones ?? [];
+  if (!Array.isArray(timeZones) || timeZones.some((zone) => typeof zone !== 'string' || !zone)
+    || new Set(timeZones).size !== timeZones.length) throw new Error('Sleep service returned invalid reference time zones.');
+  return { period, items: response.items.map((item) => mapInsightItem(item, period)), timeZones: timeZones as string[] };
 }
 
 export function mapSleepInsightDetail(value: unknown, expectedCode: CatalogSleepInsightCode): SleepInsightDetail {
@@ -195,15 +201,20 @@ export function mapSleepInsightDetail(value: unknown, expectedCode: CatalogSleep
       if (!readSleepDetailVisual({ ...detail, period })) {
         throw new Error('Sleep service returned invalid Trend insight evidence.');
       }
-    } else if (!validGoalInsightDetail(expectedCode, detail.sample, detail.evidence, period)) {
+    } else if ((expectedCode === 'A02' || expectedCode === 'B04')
+      && !validGoalInsightDetail(expectedCode, detail.sample, detail.evidence, period)) {
       throw new Error('Sleep service returned invalid Goal insight evidence.');
+    } else if ((expectedCode === 'A04' || expectedCode === 'A05' || expectedCode === 'B02')
+      && !readSleepDetailVisual({ ...detail, period })) {
+      throw new Error('Sleep service returned invalid catalog insight evidence.');
     }
   }
   return { ...detail, period } as unknown as SleepInsightDetail;
 }
 
 function isCatalogInsightCode(value: unknown): value is CatalogSleepInsightCode {
-  return value === 'A01' || value === 'A02' || value === 'A03' || value === 'B01' || value === 'B03' || value === 'B04';
+  return value === 'A01' || value === 'A02' || value === 'A03' || value === 'A04' || value === 'A05'
+    || value === 'B01' || value === 'B02' || value === 'B03' || value === 'B04';
 }
 
 function insightCategory(code: CatalogSleepInsightCode): 'A' | 'B' {
@@ -289,7 +300,7 @@ export function mapRecentSleepReport(value: unknown): RecentSleepReport {
     highlights = report.highlights.slice(0, 3).map((value) => {
       if (!value || typeof value !== 'object') return invalidRecentReport();
       const item = value as Record<string, unknown>;
-      if ((item.code !== 'A01' && item.code !== 'B01') || item.status !== 'READY'
+      if (!isCatalogInsightCode(item.code) || item.status !== 'READY'
         || typeof item.title !== 'string' || !item.title || typeof item.summary !== 'string') return invalidRecentReport();
       if (codes.has(item.code)) return invalidRecentReport();
       codes.add(item.code);
@@ -357,11 +368,20 @@ function dailySummary(day: string, sessions: SleepSession[]): DailySummary {
 
 export class HttpSleepRepository implements SleepRepository {
   private readonly listeners = new Set<() => void>();
+  private referenceTimeZone: string | null = null;
 
   constructor(
     private readonly request: Requester = apiRequest,
     private readonly timeoutMs = requestDeadlineMs,
   ) {}
+
+  getReferenceTimeZone(): string | null { return this.referenceTimeZone; }
+
+  setReferenceTimeZone(timeZone: string | null): void {
+    if (this.referenceTimeZone === timeZone) return;
+    this.referenceTimeZone = timeZone;
+    this.listeners.forEach((listener) => listener());
+  }
 
   private async send<T>(path: string, init: RequestInit = {}): Promise<T> {
     const controller = new AbortController();
@@ -430,7 +450,16 @@ export class HttpSleepRepository implements SleepRepository {
 
   async getRecent(): Promise<ReadResult<RecentSleepReport>> {
     try {
-      return { kind: 'ready', data: mapRecentSleepReport(await this.send<unknown>('/sleep/recent', { method: 'GET' })) };
+      const query = new URLSearchParams({ catalog: 'full' });
+      if (this.referenceTimeZone) query.set('timeZone', this.referenceTimeZone);
+      let value: unknown;
+      try {
+        value = await this.send<unknown>(`/sleep/recent?${query}`, { method: 'GET' });
+      } catch (error) {
+        if (!(error instanceof ApiError) || error.status !== 400 || error.code !== 'INVALID_REQUEST') throw error;
+        value = await this.send<unknown>('/sleep/recent', { method: 'GET' });
+      }
+      return { kind: 'ready', data: mapRecentSleepReport(value) };
     } catch (error) {
       return {
         kind: 'error', message: errorMessage(error),
@@ -441,12 +470,19 @@ export class HttpSleepRepository implements SleepRepository {
 
   async getAllInsights(): Promise<ReadResult<SleepInsightList>> {
     try {
+      const query = new URLSearchParams({ catalog: 'full' });
+      if (this.referenceTimeZone) query.set('timeZone', this.referenceTimeZone);
       let response: unknown;
       try {
-        response = await this.send<unknown>('/sleep/insights?catalog=trend', { method: 'GET' });
+        response = await this.send<unknown>(`/sleep/insights?${query}`, { method: 'GET' });
       } catch (error) {
         if (!(error instanceof ApiError) || error.status !== 400 || error.code !== 'INVALID_REQUEST') throw error;
-        response = await this.send<unknown>('/sleep/insights?catalog=goal', { method: 'GET' });
+        try {
+          response = await this.send<unknown>('/sleep/insights?catalog=trend', { method: 'GET' });
+        } catch (trendError) {
+          if (!(trendError instanceof ApiError) || trendError.status !== 400 || trendError.code !== 'INVALID_REQUEST') throw trendError;
+          response = await this.send<unknown>('/sleep/insights?catalog=goal', { method: 'GET' });
+        }
       }
       return { kind: 'ready', data: mapSleepInsightList(response) };
     } catch (error) {
@@ -456,8 +492,10 @@ export class HttpSleepRepository implements SleepRepository {
 
   async getInsightDetail(code: CatalogSleepInsightCode): Promise<ReadResult<SleepInsightDetail>> {
     try {
+      const query = code === 'A04' && this.referenceTimeZone
+        ? `?timeZone=${encodeURIComponent(this.referenceTimeZone)}` : '';
       return { kind: 'ready', data: mapSleepInsightDetail(
-        await this.send<unknown>(`/sleep/insights/${encodeURIComponent(code)}`, { method: 'GET' }), code,
+        await this.send<unknown>(`/sleep/insights/${encodeURIComponent(code)}${query}`, { method: 'GET' }), code,
       ) };
     } catch (error) {
       return { kind: 'error', message: errorMessage(error), ...(error instanceof ApiError ? { code: error.code } : {}) };

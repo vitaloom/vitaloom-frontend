@@ -9,6 +9,7 @@ import { sleepArt } from '../assets/sleep-art';
 import { SleepButton, SleepCard, SleepNotice, SleepPage } from '../components/sleep-ui';
 import { useSleepRead, useSleepRepository } from '../hooks/use-sleep';
 import { sleepMessages } from '../messages';
+import { sleepCatalogInsightCopy } from '../utils/sleep-catalog-insight-copy';
 import type { RecentSleepReport } from '../types/sleep';
 import { sleepDay } from '../utils/sleep-format';
 import { RecentSleepStory } from '../components/recent-sleep-story';
@@ -70,10 +71,14 @@ function RecentReport({ report, locale }: { report: RecentSleepReport; locale: s
     <RecentSleepStory report={report} />
     {report.dataStatus === 'verified' && highlights.length === 0
       ? <SleepNotice title={t('reportInsightsEmpty')} /> : null}
-    {highlights.map((insight) => <SleepCard key={insight.code} tone="warm"
+    {highlights.map((insight) => {
+      const catalogCopy = sleepCatalogInsightCopy(insight.code, t);
+      const title = catalogCopy?.title ?? ('title' in insight ? insight.title : t('a01Coverage'));
+      const summary = catalogCopy?.summary ?? ('summary' in insight ? insight.summary : '');
+      return <SleepCard key={insight.code} tone="warm"
       {...(report.dataStatus === 'verified'
         && (('summary' in insight && insight.status === 'READY') || insight.status === 'ready') ? {
-        label: insight.code === 'A01' ? t('a01Coverage') : insight.title,
+        label: insight.code === 'A01' ? t('a01Coverage') : title,
         onPress: () => router.push({ pathname: '/sleep/insights/[code]', params: { code: insight.code } }) } : {})}>
       <ThemedText variant="labelStrong" themeColor="accent">{insight.code}</ThemedText>
       {insight.code === 'A01' ? <>
@@ -82,10 +87,11 @@ function RecentReport({ report, locale }: { report: RecentSleepReport; locale: s
           {t('verifiedDays')}: {a01Coverage.sampleDays}/{a01Coverage.denominatorDays}
         </ThemedText> : null}
       </> : <>
-        <ThemedText variant="body">{insight.title}</ThemedText>
-        <ThemedText variant="caption" themeColor="textSecondary">{insight.summary}</ThemedText>
+        <ThemedText variant="body">{title}</ThemedText>
+        <ThemedText variant="caption" themeColor="textSecondary">{summary}</ThemedText>
       </>}
-    </SleepCard>)}
+    </SleepCard>;
+    })}
     <SleepButton label={t('viewAllInsights')} variant="secondary" onPress={() => router.push('/sleep/insights')} />
     {report.dataStatus === 'no-data' ? <SleepButton label={t('recordSleep')} onPress={() => router.push('/sleep/record')} /> : null}
   </>;
