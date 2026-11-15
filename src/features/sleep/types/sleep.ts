@@ -26,6 +26,7 @@ export type JournalQuery = { from?: Day; to?: Day; cursor?: string; limit?: numb
 export type JournalPage = { sessions: SleepSession[]; verified: boolean; nextCursor: string | null; version: string };
 export type RecentSleepDay = { day: Day; status: 'recorded' | 'not-recorded' | 'unverified'; minutes: number | null };
 export type RecentSleepInsight = { code: 'A01'; status: 'ready'; sampleDays: number; denominatorDays: 7 };
+export type RecentSleepHighlight = { code: 'A01' | 'B01'; status: 'READY'; title: string; summary: string };
 export type RecentSleepReport = {
   period: { start: Day; end: Day; timeZone: 'Asia/Ho_Chi_Minh' };
   dataStatus: 'no-data' | 'verified' | 'unverified-data';
@@ -34,6 +35,7 @@ export type RecentSleepReport = {
   coverageDenominator: 7;
   averageMinutesPerRecordedDay: number | null;
   insights: RecentSleepInsight[];
+  highlights?: RecentSleepHighlight[];
 };
 
 export type InsightCode = 'A01' | 'A02' | 'A03' | 'A04' | 'A05' | 'B01' | 'B02' | 'B03' | 'B04' | 'C01' | 'C03' | 'C04';

@@ -7,7 +7,7 @@
 ## Runtime behavior
 
 - The Sleep entry opens `/sleep/recent`. The existing `/sleep/weekly` route points to the same report. Legacy week and timezone parameters have no effect on the server request. The root navigator waits for session restoration before evaluating the incoming protected route. In Statistics, the Sleep entry is available in daily mode.
-- `SleepRepository.getRecent()` calls the authenticated shared client at `GET /sleep/recent`. The client prepends `/api`. The adapter validates the seven ordered civil dates, day statuses, explicit nulls, and aggregate/A01 consistency. It displays server metrics and A01. Account changes retire old session-scoped repository requests.
+- `SleepRepository.getRecent()` calls the authenticated shared client at `GET /sleep/recent`. The client prepends `/api`. The adapter validates the seven ordered civil dates, day statuses, explicit nulls, and aggregate/A01 consistency. It displays server metrics and A01. Additive optional `highlights` accepts READY A01/B01 entries in server order, capped at three; A01 uses localized coverage text and B01 opens existing Detail. Older responses without `highlights` continue to render legacy A01. View All opens `/sleep/insights`, including no-data and unverified report states. Account changes retire old session-scoped repository requests.
 - `NO_DATA` shows seven missing dates, zero recorded days, and a shortcut to record Main Sleep. `VERIFIED` shows coverage, the recorded-day average, and either Insight Empty or A01. `UNVERIFIED_DATA` shows uncertain dates and any verified individual facts. Transport, API and decoding failures enter the retryable error state. Recent is unavailable in explicit development fixture mode.
 
 ## Files

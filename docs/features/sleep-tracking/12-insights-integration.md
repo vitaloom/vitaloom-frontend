@@ -6,4 +6,6 @@ All Insights groups entries by category A and B. READY entries can show their su
 
 The HTTP adapter accepts only A01 and B01 for this delivery. The explicit development mock mode retains fixture-backed behavior through mock repository implementations of the same methods. Existing goal and AI repository behavior is unchanged.
 
+Recent Report also consumes the additive optional `highlights` array (`code`, `status`, `title`, `summary`). It accepts READY A01/B01 entries, preserves server order, and renders at most three. A01 continues to use localized coverage copy; B01 opens the existing insight detail route. The legacy `insights` validation remains required and unchanged. When `highlights` is absent, Recent renders the legacy A01; when present, even as an empty array, it is authoritative. A localized View All action opens `/sleep/insights` from Recent, including NO_DATA and UNVERIFIED_DATA states, where the destination presents the server's locked/no-data entries.
+
 Focused transport coverage lives in `tests/sleep-insights-http.test.cjs`.

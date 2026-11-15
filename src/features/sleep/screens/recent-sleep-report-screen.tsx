@@ -28,6 +28,7 @@ export default function RecentSleepReportScreen() {
 function RecentReport({ report, locale }: { report: RecentSleepReport; locale: string }) {
   const t = useTranslations(sleepMessages);
   const { language } = useI18n();
+  const a01Coverage = report.insights.find((insight) => insight.code === 'A01');
   return <>
     <ThemedText variant="subhead" themeColor="textSecondary">
       {t('recentRange', { start: sleepDay(report.period.start, locale), end: sleepDay(report.period.end, locale) })}
@@ -55,15 +56,23 @@ function RecentReport({ report, locale }: { report: RecentSleepReport; locale: s
         </View>)}
       </View>
     </SleepCard>
-    {report.dataStatus === 'verified' && report.insights.length === 0
+    {report.dataStatus === 'verified' && (report.highlights ?? report.insights).length === 0
       ? <SleepNotice title={t('reportInsightsEmpty')} /> : null}
-    {report.insights.map((insight) => <SleepCard key={insight.code} tone="warm">
+    {(report.highlights ?? report.insights).map((insight) => <SleepCard key={insight.code} tone="warm"
+      {...('summary' in insight && insight.code === 'B01' ? { label: insight.title,
+        onPress: () => router.push({ pathname: '/sleep/insights/[code]', params: { code: insight.code } }) } : {})}>
       <ThemedText variant="labelStrong" themeColor="accent">{insight.code}</ThemedText>
-      <ThemedText variant="body">{t('a01Coverage')}</ThemedText>
-      <ThemedText variant="caption" themeColor="textSecondary">
-        {t('verifiedDays')}: {insight.sampleDays}/{insight.denominatorDays}
-      </ThemedText>
+      {insight.code === 'A01' ? <>
+        <ThemedText variant="body">{t('a01Coverage')}</ThemedText>
+        {a01Coverage ? <ThemedText variant="caption" themeColor="textSecondary">
+          {t('verifiedDays')}: {a01Coverage.sampleDays}/{a01Coverage.denominatorDays}
+        </ThemedText> : null}
+      </> : <>
+        <ThemedText variant="body">{insight.title}</ThemedText>
+        <ThemedText variant="caption" themeColor="textSecondary">{insight.summary}</ThemedText>
+      </>}
     </SleepCard>)}
+    <SleepButton label={t('viewAllInsights')} variant="secondary" onPress={() => router.push('/sleep/insights')} />
     {report.dataStatus === 'no-data' ? <SleepButton label={t('recordSleep')} onPress={() => router.push('/sleep/record')} /> : null}
   </>;
 }

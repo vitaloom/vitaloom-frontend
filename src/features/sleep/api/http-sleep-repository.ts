@@ -5,7 +5,7 @@ import type { SleepRepository } from './sleep-repository';
 import type {
   AiRequest, AiResponse, AnalyticsQuery, DailySummary, Day, Feeling, GoalState, HomeSummary, Insight,
   InsightKey, InsightList, JournalPage, JournalQuery, Mutation, ReadResult, SleepContext, SleepSession,
-  RecentSleepDay, RecentSleepInsight, RecentSleepReport, WeeklySummary, WriteResult,
+  RecentSleepDay, RecentSleepHighlight, RecentSleepInsight, RecentSleepReport, WeeklySummary, WriteResult,
   SleepInsightDetail, SleepInsightItem, SleepInsightList, SleepInsightPeriod, SleepInsightStatus,
 } from '../types/sleep';
 
@@ -180,6 +180,20 @@ export function mapRecentSleepReport(value: unknown): RecentSleepReport {
   const status = report.dataStatus;
   const insights = report.insights;
   if (report.coverageDenominator !== 7 || !Array.isArray(insights)) return invalidRecentReport();
+  let highlights: RecentSleepHighlight[] | undefined;
+  if (report.highlights !== undefined) {
+    if (!Array.isArray(report.highlights)) return invalidRecentReport();
+    const codes = new Set<string>();
+    highlights = report.highlights.slice(0, 3).map((value) => {
+      if (!value || typeof value !== 'object') return invalidRecentReport();
+      const item = value as Record<string, unknown>;
+      if ((item.code !== 'A01' && item.code !== 'B01') || item.status !== 'READY'
+        || typeof item.title !== 'string' || !item.title || typeof item.summary !== 'string') return invalidRecentReport();
+      if (codes.has(item.code)) return invalidRecentReport();
+      codes.add(item.code);
+      return { code: item.code, status: 'READY', title: item.title, summary: item.summary };
+    });
+  }
   let dataStatus: RecentSleepReport['dataStatus'];
   let recordedDays: number | null;
   let average: number | null;
@@ -227,7 +241,7 @@ export function mapRecentSleepReport(value: unknown): RecentSleepReport {
     period: { start, end, timeZone },
     dataStatus, days, recordedDays, coverageDenominator: 7,
     averageMinutesPerRecordedDay: average,
-    insights: mappedInsights,
+    insights: mappedInsights, ...(highlights === undefined ? {} : { highlights }),
   };
 }
 

@@ -38,6 +38,9 @@ function report(dataStatus = 'VERIFIED', recordedDays = 3) {
     insights: dataStatus === 'VERIFIED' && count >= 3
       ? [{ code: 'A01', status: 'READY', sampleDays: count, denominatorDays: 7 }]
       : [],
+    highlights: dataStatus === 'VERIFIED' && count >= 3
+      ? [{ code: 'A01', status: 'READY', title: 'Coverage', summary: '3 of 7 days' }]
+      : [],
   };
 }
 
@@ -62,6 +65,46 @@ test('maps verified individual facts while withholding unverified aggregates', (
   assert.equal(mapped.recordedDays, null);
   assert.equal(mapped.averageMinutesPerRecordedDay, null);
   assert.deepEqual(mapped.insights, []);
+  assert.deepEqual(mapped.highlights, []);
+});
+
+test('maps READY A/B highlights in server order and caps the list at three', () => {
+  const payload = report();
+  payload.highlights = [
+    { code: 'B01', status: 'READY', title: 'Feeling', summary: 'Feeling summary' },
+    { code: 'A01', status: 'READY', title: 'Coverage', summary: 'Coverage summary' },
+  ];
+  assert.deepEqual(mapRecentSleepReport(payload).highlights, payload.highlights);
+});
+
+test('keeps the legacy A01 adapter unchanged and falls back only when highlights is absent', () => {
+  const legacy = report();
+  delete legacy.highlights;
+  const mappedLegacy = mapRecentSleepReport(legacy);
+  assert.equal(mappedLegacy.insights[0].code, 'A01');
+  assert.equal(mappedLegacy.highlights, undefined);
+
+  const current = report();
+  current.highlights = [];
+  assert.deepEqual(mapRecentSleepReport(current).highlights, []);
+});
+
+test('rejects malformed, locked, or unsupported highlights', () => {
+  const invalidHighlights = [
+    [{ code: 'C01', status: 'READY', title: 'x', summary: 'y' }],
+    [{ code: 'B01', status: 'INSUFFICIENT_DATA', title: 'x', summary: 'y' }],
+    [{ code: 'B01', status: 'READY', title: '', summary: 'y' }],
+    [{ code: 'B01', status: 'READY', title: 'x', summary: null }],
+    [
+      { code: 'B01', status: 'READY', title: 'x', summary: 'y' },
+      { code: 'B01', status: 'READY', title: 'z', summary: 'w' },
+    ],
+  ];
+  for (const highlights of invalidHighlights) {
+    const value = report();
+    value.highlights = highlights;
+    assert.throws(() => mapRecentSleepReport(value));
+  }
 });
 
 test('rejects missing fields, invalid dates, out of order days, and contradictory aggregates', () => {
@@ -117,4 +160,8 @@ test('Recent screen keeps the weekly link and renders all seven server day statu
   assert.match(screen, /reportInsightsEmpty/);
   assert.match(screen, /unverifiedReport/);
   assert.match(screen, /recentDemoUnavailable/);
+  assert.match(screen, /report\.highlights/);
+  assert.match(screen, /\/sleep\/insights/);
+  assert.match(screen, /\/sleep\/insights\/\[code\]/);
+  assert.match(screen, /viewAllInsights/);
 });
