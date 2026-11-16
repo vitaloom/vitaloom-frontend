@@ -4,18 +4,24 @@ import { useTranslations } from '@/i18n';
 import { sleepMessages } from '../messages';
 import { ThemedText } from '@/components/themed-text';
 import { useSleepMutation, useSleepRead, useSleepRepository } from '../hooks/use-sleep';
-import type { AiRequest } from '../types/sleep';
+import type { AiRequest, AiResponse } from '../types/sleep';
+import { pendingSleepAi, requestSleepAi } from '../api/sleep-ai-requests';
 import { SleepButton, SleepCard, SleepNotice, SleepWriteNotice } from './sleep-ui';
 
 export function SleepAiSection({ request, requestKey, onStale }: { request: AiRequest; requestKey: string; onStale?: () => void }) {
   const repository = useSleepRepository();
   const t = useTranslations(sleepMessages);
-  const consent = useSleepRead(() => repository.getAiConsent(), 'ai-consent');
+  const consent = useSleepRead(() => repository.getAiConsent(), 'ai-consent', false, true);
   const [requested, setRequested] = useState<{
     key: string; repository: typeof repository; response: ReturnType<typeof repository.getAi>;
   }>();
-  useFocusEffect(useCallback(() => () => setRequested(undefined), []));
-  const requestPreview = () => setRequested({ key: requestKey, repository, response: repository.getAi(request) });
+  useFocusEffect(useCallback(() => {
+    const response = pendingSleepAi<AiResponse>(repository, requestKey);
+    setRequested(response ? { key: requestKey, repository, response } : undefined);
+    return () => setRequested(undefined);
+  }, [repository, requestKey]));
+  const requestPreview = () => setRequested({ key: requestKey, repository,
+    response: requestSleepAi(repository, requestKey, () => repository.getAi(request)) });
   const mutation = useSleepMutation(() => consent.reload(), 'ai-consent');
   const title = request.kind === 'story' ? 'Optional story preview' : undefined;
   if (consent.state.kind === 'loading') return null;
@@ -62,13 +68,15 @@ function AiFixture({ request, requestKey, response, onRetry, onStale, onConsentR
   }, [response, requestKey]);
   const state = snapshot?.response === response ? snapshot.state : { kind: 'loading' as const };
   const status = state.kind === 'ready' ? state.data.status : undefined;
+  const staleRead = state.kind === 'error' && state.code === 'STALE';
   const versionMismatch = state.kind === 'ready' && request.kind === 'explanation'
     && (state.data.status === 'explanation' || state.data.status === 'fallback')
     && state.data.evidenceFingerprint !== request.insight.version;
   useEffect(() => {
-    if (status === 'stale' || status === 'ineligible' || versionMismatch) onStale?.();
+    if (status === 'stale' || status === 'ineligible' || versionMismatch
+      || staleRead) onStale?.();
     if (status === 'consent-required') onConsentRequired();
-  }, [status, versionMismatch, onStale, onConsentRequired]);
+  }, [status, versionMismatch, staleRead, onStale, onConsentRequired]);
   if (versionMismatch) return null;
   if (state.kind === 'loading') return <ThemedText accessibilityLiveRegion="polite" variant="subhead">Loading preview…</ThemedText>;
   if (state.kind === 'error' || state.data.status === 'unavailable') {

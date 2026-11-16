@@ -669,6 +669,7 @@ export class HttpSleepRepository implements SleepRepository {
         if (confirmed.enabled !== mutation.enabled || (confirmed.enabled && !confirmed.available)) {
           throw new Error('Sleep service could not confirm the AI consent change.');
         }
+        for (const listener of this.listeners) listener();
         return { kind: 'confirmed', version: 'server' };
       } catch (error) {
         return { kind: 'rejected', message: errorMessage(error) };

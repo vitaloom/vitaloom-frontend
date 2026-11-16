@@ -6,6 +6,7 @@ import { SleepButton, SleepCard, SleepNotice } from './sleep-ui';
 import { useSleepRepository } from '../hooks/use-sleep';
 import { sleepMessages } from '../messages';
 import type { RecentSleepReport } from '../types/sleep';
+import { requestSleepAi } from '../api/sleep-ai-requests';
 
 export function RecentSleepStory({ report }: { report: RecentSleepReport }) {
   const repository = useSleepRepository();
@@ -13,8 +14,9 @@ export function RecentSleepStory({ report }: { report: RecentSleepReport }) {
   const [snapshot, setSnapshot] = useState<{ repository: typeof repository; reportKey: string; enabled: boolean; available: boolean; story?: Awaited<ReturnType<typeof repository.getRecentStory>>; error?: string }>();
   const [busy, setBusy] = useState(false);
   const generation = useRef(0);
-  const eligible = report.dataStatus === 'verified' && report.highlights?.some((item) => item.code === 'B01' && item.status === 'READY') === true;
-  const reportKey = `${report.period.start}:${report.period.end}:${report.dataStatus}:${report.highlights?.map((item) => `${item.code}:${item.summary}`).join('|') ?? ''}`;
+  const eligible = report.dataStatus === 'verified' && report.period.end === repository.getContext().today
+    && report.highlights?.some((item) => item.code !== 'A01' && item.status === 'READY') === true;
+  const reportKey = JSON.stringify(report);
 
   useFocusEffect(useCallback(() => {
     let active = true;
@@ -29,13 +31,14 @@ export function RecentSleepStory({ report }: { report: RecentSleepReport }) {
       }
       const current = { repository, reportKey, enabled: consent.data.enabled, available: consent.data.available };
       setSnapshot(current);
-      if (consent.data.enabled && consent.data.available && eligible) {
-        const story = await repository.getRecentStory();
+      if (consent.data.enabled && consent.data.available && eligible
+        && report.period.end === repository.getContext().today) {
+        const story = await requestSleepAi(repository, `story:${reportKey}`, () => repository.getRecentStory());
         if (active && generation.current === requestId) setSnapshot({ ...current, story });
       }
     })();
     return () => { active = false; generation.current += 1; setSnapshot(undefined); setBusy(false); };
-  }, [repository, eligible, reportKey]));
+  }, [repository, eligible, reportKey, report.period.end]));
 
   const current = snapshot?.repository === repository && snapshot.reportKey === reportKey ? snapshot : undefined;
   if (!current) return <SleepNotice title={t('aiPreferenceLoading')} loading />;
@@ -54,8 +57,8 @@ export function RecentSleepStory({ report }: { report: RecentSleepReport }) {
       return;
     }
     setSnapshot({ ...current, enabled, story: undefined });
-    if (enabled && current.available && eligible) {
-      const story = await repository.getRecentStory();
+    if (enabled && current.available && eligible && report.period.end === repository.getContext().today) {
+      const story = await requestSleepAi(repository, `story:${reportKey}`, () => repository.getRecentStory());
       if (generation.current === requestId) setSnapshot((value) => value?.repository === repository ? { ...value, story } : value);
     }
   }

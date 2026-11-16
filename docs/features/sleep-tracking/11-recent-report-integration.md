@@ -88,6 +88,8 @@ Evidence in the local `temp/p1-runtime` workspace includes sanitized HTTP record
 
 ## P3 Mobile consent and Recent Story
 
+The lifecycle and READY non-A01 eligibility described below were extended by [P6-FE-REFRESH](14-p6-fe-refresh.md); consult that handoff for current behavior and its pending UI E2E gate.
+
 The Recent screen reads persisted consent from `GET /api/sleep/ai/consent` after its report has loaded. The opt-in control appears only when the server marks the feature available and saves changes with authenticated `PUT /api/sleep/ai/consent` and `{enabled}`. The preference remains visible when consent is off, while Story content stays hidden. The client calls `GET /api/sleep/recent/story` only when consent is enabled, the server feature is available, and the verified current report includes READY B01 evidence. Consent and Story loads are focus-scoped so results from a previous screen focus or account repository are discarded.
 
 The Story payload is limited to two evidence-linked observations. Fallback status is labeled as an evidence summary and is not presented as generated text. Consent copy describes the limited evidence scope and the development fake provider. Current Story observations link to the existing Insight Detail route, which fetches current evidence.

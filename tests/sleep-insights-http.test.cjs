@@ -499,6 +499,21 @@ test('AI consent writes confirm the state returned by the server', async () => {
   assert.equal(outcome.kind, 'rejected');
 });
 
+test('confirmed consent changes invalidate subscribed evidence and pending AI', async () => {
+  const { repository } = repositoryFor([{ enabled: false, available: true }]);
+  let changes = 0;
+  repository.subscribe(() => { changes++; });
+  const { requestSleepAi } = require('../src/features/sleep/api/sleep-ai-requests.ts');
+  let finish;
+  const pending = requestSleepAi(repository, 'explanation:B01:fp', () => new Promise((resolve) => { finish = resolve; }));
+  await Promise.resolve();
+  const result = await repository.mutate('consent-off', { kind: 'set-ai-consent', enabled: false });
+  assert.equal(result.kind, 'confirmed');
+  assert.equal(changes, 1);
+  finish({ kind: 'ready', data: { status: 'explanation' } });
+  assert.equal((await pending).code, 'STALE');
+});
+
 test('Detail reads do not request explanations and explicit requests use authenticated POST', async () => {
   const fields = { observation: 'Quan sát', evidenceBasis: 'Bằng chứng', limitations: 'Giới hạn', evidenceFingerprint: 'fp' };
   const { repository, requests } = repositoryFor([detail(), { status: 'FALLBACK', ...fields }, { status: 'STALE' }]);
