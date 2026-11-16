@@ -566,9 +566,14 @@ export class HttpSleepRepository implements SleepRepository {
   async getAi(request: AiRequest): Promise<ReadResult<AiResponse>> {
     try {
       if (request.kind !== 'explanation') return unavailable('Sleep AI story');
+      if (!isCatalogInsightCode(request.insight.code)) return unavailable('Sleep AI explanation');
+      const body: Record<string, string> = {
+        insightCode: request.insight.code, evidenceVersion: request.insight.version,
+      };
+      if (request.insight.code === 'A04' && this.referenceTimeZone) body.timeZone = this.referenceTimeZone;
       const value = await this.send<unknown>('/sleep/ai/explanations', {
         method: 'POST', headers: new Headers({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ insightCode: request.insight.code, evidenceVersion: request.insight.version }),
+        body: JSON.stringify(body),
       });
       if (!value || typeof value !== 'object') throw new Error('Sleep service returned an invalid AI explanation.');
       const result = value as Record<string, unknown>;
@@ -594,7 +599,8 @@ export class HttpSleepRepository implements SleepRepository {
 
   async getRecentStory(): Promise<ReadResult<RecentStory>> {
     try {
-      const value = await this.send<unknown>('/sleep/recent/story', { method: 'GET' });
+      const query = this.referenceTimeZone ? `?timeZone=${encodeURIComponent(this.referenceTimeZone)}` : '';
+      const value = await this.send<unknown>(`/sleep/recent/story${query}`, { method: 'GET' });
       if (!value || typeof value !== 'object') throw new Error('Sleep service returned an invalid Recent Story.');
       const story = value as RecentStory;
       if (story.status === 'DISABLED' || story.status === 'CONSENT_REQUIRED' || story.status === 'INELIGIBLE') {
@@ -605,10 +611,10 @@ export class HttpSleepRepository implements SleepRepository {
         || typeof headline !== 'string' || !headline.trim()
         || !Array.isArray(observations) || observations.length === 0 || observations.length > 2
         || observations.some((observation) => !observation
-          || !['A01', 'B01'].includes(observation.insightCode)
+          || !isCatalogInsightCode(observation.insightCode)
           || [observation.text, observation.dataContext, observation.evidenceFingerprint]
             .some((field) => typeof field !== 'string' || !field.trim()))
-        || !observations.some(({ insightCode }) => insightCode === 'B01')
+        || !observations.some(({ insightCode }) => insightCode !== 'A01')
         || new Set(observations.map(({ insightCode }) => insightCode)).size !== observations.length) {
         throw new Error('Sleep service returned an invalid Recent Story.');
       }

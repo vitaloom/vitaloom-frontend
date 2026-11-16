@@ -91,7 +91,7 @@ export type AiResponse =
   | { status: 'ineligible' | 'consent-required' | 'unavailable' | 'stale' };
 export type AiConsent = { enabled: boolean; available: boolean };
 export type RecentStoryObservation = {
-  insightCode: 'A01' | 'B01'; text: string; dataContext: string; evidenceFingerprint: string;
+  insightCode: CatalogSleepInsightCode; text: string; dataContext: string; evidenceFingerprint: string;
 };
 export type RecentStory = {
   status: 'DISABLED' | 'CONSENT_REQUIRED' | 'INELIGIBLE' | 'STORY' | 'FALLBACK';

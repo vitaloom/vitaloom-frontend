@@ -438,6 +438,47 @@ test('AI consent and Recent Story use authenticated server-owned HTTP contracts'
   assert.equal(requests[2].init.body, JSON.stringify({ enabled: false }));
 });
 
+test('Recent Story accepts each published READY code and transports only an explicit selected zone', async () => {
+  const codes = ['A01', 'A02', 'A03', 'A04', 'A05', 'B01', 'B02', 'B03', 'B04'];
+  for (const code of codes.filter((value) => value !== 'A01')) {
+    const story = { status: 'STORY', headline: 'Recent sleep', observations: [
+      { insightCode: code, text: 'Observation', dataContext: 'Evidence', evidenceFingerprint: 'detail-version' },
+    ] };
+    const { repository, requests } = repositoryFor([story]);
+    assert.deepEqual(await repository.getRecentStory(), { kind: 'ready', data: story });
+    assert.equal(requests[0].path, '/sleep/recent/story');
+    assert.equal(requests[0].authenticated, true);
+  }
+  const legacy = repositoryFor([{ status: 'STORY', headline: 'Recent sleep', observations: [
+    { insightCode: 'A01', text: 'Coverage', dataContext: 'Evidence', evidenceFingerprint: 'a01-version' },
+    { insightCode: 'B01', text: 'Feeling', dataContext: 'Evidence', evidenceFingerprint: 'b01-version' },
+  ] }]);
+  assert.equal((await legacy.repository.getRecentStory()).kind, 'ready');
+  const selected = repositoryFor([{ status: 'STORY', headline: 'Recent sleep', observations: [
+    { insightCode: 'A04', text: 'Observation', dataContext: 'Evidence', evidenceFingerprint: 'detail-version' },
+  ] }]);
+  selected.repository.setReferenceTimeZone('America/New_York');
+  assert.equal((await selected.repository.getRecentStory()).kind, 'ready');
+  assert.equal(selected.requests[0].path, '/sleep/recent/story?timeZone=America%2FNew_York');
+});
+
+test('Explanation uses every published code, and sends the selected zone only for A04', async () => {
+  const fields = { observation: 'Quan sát', evidenceBasis: 'Bằng chứng', limitations: 'Giới hạn', evidenceFingerprint: 'fp' };
+  const codes = ['A01', 'A02', 'A03', 'A04', 'A05', 'B01', 'B02', 'B03', 'B04'];
+  const replies = codes.map(() => ({ status: 'EXPLANATION', ...fields }));
+  const { repository, requests } = repositoryFor(replies);
+  repository.setReferenceTimeZone('America/New_York');
+  for (const code of codes) {
+    const result = await repository.getAi({ kind: 'explanation', insight: { code, version: 'fp' } });
+    assert.equal(result.kind, 'ready');
+  }
+  assert.deepEqual(requests.map(({ path, init }) => [path, JSON.parse(init.body)]), codes.map((code) => [
+    '/sleep/ai/explanations', {
+      insightCode: code, evidenceVersion: 'fp', ...(code === 'A04' ? { timeZone: 'America/New_York' } : {}),
+    },
+  ]));
+});
+
 test('Recent Story rejects invalid status, unsupported claims and more than two observations', async () => {
   const observation = { insightCode: 'B01', text: 'x', dataContext: 'x', evidenceFingerprint: 'x' };
   const invalid = [
