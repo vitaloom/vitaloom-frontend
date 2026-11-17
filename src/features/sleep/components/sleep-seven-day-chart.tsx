@@ -3,6 +3,8 @@ import { StyleSheet, View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
 import { radius, spacing } from '@/theme';
+import { useTranslations } from '@/i18n';
+import { sleepMessages } from '../messages';
 import { sleepDay } from '../utils/sleep-format';
 
 type ChartDay = { date: string } & (
@@ -16,6 +18,8 @@ export function SleepSevenDayChart({ days, locale, labels }: {
   labels: Record<ChartDay['state'], string>;
 }) {
   const theme = useTheme();
+  const t = useTranslations(sleepMessages);
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' });
   const coverageOnly = !days.some((day) => day.state === 'recorded' && day.duration);
   const maximum = Math.max(1, ...days.map((day) => day.state === 'recorded' ? day.duration?.minutes ?? 0 : 0));
   const marker = (state: ChartDay['state']) => state === 'recorded'
@@ -34,7 +38,7 @@ export function SleepSevenDayChart({ days, locale, labels }: {
         const duration = day.state === 'recorded' ? day.duration : undefined;
         const meaning = duration?.label ?? labels[day.state];
         return <View key={day.date} accessible accessibilityLabel={`${sleepDay(day.date, locale)}. ${meaning}`} style={styles.column}>
-          <ThemedText variant="caption" style={styles.center}>{day.date.slice(8, 10)}/{day.date.slice(5, 7)}</ThemedText>
+          <ThemedText variant="caption" style={styles.center}>{day.date === today ? t('today') : `${day.date.slice(8, 10)}/${day.date.slice(5, 7)}`}</ThemedText>
           <View style={[styles.track, coverageOnly && styles.coverageTrack]}>
           {duration ? <>
             <ThemedText variant="caption" style={styles.center}>{duration.label}</ThemedText>
