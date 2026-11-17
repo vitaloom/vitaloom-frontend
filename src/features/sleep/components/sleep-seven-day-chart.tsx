@@ -1,5 +1,5 @@
 import { SymbolView } from 'expo-symbols';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
 import { radius, spacing } from '@/theme';
@@ -12,10 +12,11 @@ type ChartDay = { date: string } & (
   | { state: 'missing' | 'unverified' }
 );
 
-export function SleepSevenDayChart({ days, locale, labels }: {
+export function SleepSevenDayChart({ days, locale, labels, onRecordedDayPress }: {
   days: readonly ChartDay[];
   locale: string;
   labels: Record<ChartDay['state'], string>;
+  onRecordedDayPress?: (day: string) => void;
 }) {
   const theme = useTheme();
   const t = useTranslations(sleepMessages);
@@ -37,7 +38,12 @@ export function SleepSevenDayChart({ days, locale, labels }: {
       {days.map((day) => {
         const duration = day.state === 'recorded' ? day.duration : undefined;
         const meaning = duration?.label ?? labels[day.state];
-        return <View key={day.date} accessible accessibilityLabel={`${sleepDay(day.date, locale)}. ${meaning}`} style={styles.column}>
+        const columnProps = {
+          accessible: true,
+          accessibilityLabel: `${sleepDay(day.date, locale)}. ${meaning}`,
+          style: styles.column,
+        } as const;
+        const columnContent = <>
           <ThemedText variant="caption" style={styles.center}>{day.date === today ? t('today') : `${day.date.slice(8, 10)}/${day.date.slice(5, 7)}`}</ThemedText>
           <View style={[styles.track, coverageOnly && styles.coverageTrack]}>
           {duration ? <>
@@ -47,7 +53,11 @@ export function SleepSevenDayChart({ days, locale, labels }: {
             borderColor: theme.textSecondary, borderWidth: 1, borderStyle: 'dashed',
           }]}>{marker(day.state)}</View>}
           </View>
-        </View>;
+        </>;
+        return day.state === 'recorded' && day.duration && onRecordedDayPress
+          ? <Pressable key={day.date} {...columnProps} accessibilityRole="button"
+            onPress={() => onRecordedDayPress(day.date)}>{columnContent}</Pressable>
+          : <View key={day.date} {...columnProps}>{columnContent}</View>;
       })}
     </View>
     <View style={styles.legend}>

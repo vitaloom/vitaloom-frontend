@@ -20,16 +20,22 @@ export default function RecentSleepReportScreen() {
   const fixtures = sleepFixturesEnabled();
   const repository = useSleepRepository();
   const { state, reload } = useSleepRead(() => repository.getRecent(), 'sleep-recent', false, true);
+  const openRecordedDay = async (day: string) => {
+    const result = await repository.getJournal({ from: day, to: day });
+    if (result.kind !== 'ready') return;
+    const session = result.data.sessions.find((item) => item.sleepType === 'main' && item.day === day);
+    if (session) router.push({ pathname: '/sleep/journal/[id]', params: { id: session.id } });
+  };
 
   return <SleepPage title={t('recentReport')} fallback="/sleep" demo={fixtures}>
     {state.kind === 'loading' ? <SleepNotice title={t('loading')} loading /> : null}
     {state.kind === 'error' ? <SleepNotice title={fixtures ? t('recentDemoUnavailable') : t('loadError')}
       message={state.message} error={!fixtures} actionLabel={fixtures ? undefined : t('tryAgain')} onAction={fixtures ? undefined : reload} /> : null}
-    {state.kind === 'ready' ? <RecentReport report={state.data} locale={locale} /> : null}
+    {state.kind === 'ready' ? <RecentReport report={state.data} locale={locale} onRecordedDayPress={openRecordedDay} /> : null}
   </SleepPage>;
 }
 
-function RecentReport({ report, locale }: { report: RecentSleepReport; locale: string }) {
+function RecentReport({ report, locale, onRecordedDayPress }: { report: RecentSleepReport; locale: string; onRecordedDayPress: (day: string) => void }) {
   const t = useTranslations(sleepMessages);
   const { language } = useI18n();
   const a01Coverage = report.insights.find((insight) => insight.code === 'A01');
@@ -58,6 +64,7 @@ function RecentReport({ report, locale }: { report: RecentSleepReport; locale: s
     <SleepCard>
       <ThemedText accessibilityRole="header" variant="heading">{t('reportMetricsShort')}</ThemedText>
       <SleepSevenDayChart locale={locale}
+        onRecordedDayPress={onRecordedDayPress}
         labels={{ recorded: t('calendarRecorded'), missing: t('notRecorded'), unverified: t('dayUnverified') }}
         days={report.days.map((day) => {
           if (day.status === 'recorded' && day.minutes !== null) {

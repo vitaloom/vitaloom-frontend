@@ -36,6 +36,12 @@ export default function SleepScreen() {
   const { language, locale } = useI18n();
   const repository = useSleepRepository();
   const { state, reload } = useSleepRead(() => repository.getHome(), 'sleep-home', false, true);
+  const openRecordedDay = async (day: string) => {
+    const result = await repository.getJournal({ from: day, to: day });
+    if (result.kind !== 'ready') return;
+    const session = result.data.sessions.find((item) => item.sleepType === 'main' && item.day === day);
+    if (session) router.push({ pathname: '/sleep/journal/[id]', params: { id: session.id } });
+  };
   const summary = state.kind === 'ready' ? state.data : null;
   const featured = summary?.featured;
   const featuredCopy = featured && 'source' in featured ? sleepCatalogInsightCopy(featured.code, t) : null;
@@ -47,17 +53,33 @@ export default function SleepScreen() {
     {state.kind === 'error' ? <SleepNotice title={t('loadError')} message={state.message}
       actionLabel={t('tryAgain')} onAction={reload} error /> : null}
     {summary ? <>
-      {fixtures && summary.daily.status === 'unverified' ? <SleepNotice title={t('unverified')}
-        actionLabel={t('reload')} onAction={reload} /> : <LatestSleep session={summary.latest} />}
+      {/* {fixtures && summary.daily.status === 'unverified' ? <SleepNotice title={t('unverified')}
+        actionLabel={t('reload')} onAction={reload} /> : <LatestSleep session={summary.latest} />} */}
+        
+            {featured && ('source' in featured || (featured.eligible && featured.status === 'ready')) ? <SleepCard tone="warm"
+      onPress={() => router.push('source' in featured
+        ? { pathname: '/sleep/insights/[code]', params: { code: featured.code } }
+        : insightHref(featured))} label={t('openFeatured')}>
+      <View style={styles.row}>
+        <View style={styles.fill}>
+          <ThemedText variant="labelStrong" themeColor="accent">{t('featuredInsight')}</ThemedText>
+          <ThemedText variant="body">{'source' in featured ? featuredCopy?.title ?? featured.title : featured.summary}</ThemedText>
+          {'source' in featured ? <ThemedText variant="subhead">{featuredCopy?.summary ?? featured.summary}</ThemedText> : null}
+        </View>
+        <Image source={sleepArt.pillow} resizeMode="contain" style={styles.pillow} accessible={false} />
+      </View>
+    </SleepCard> : null}
       {summary.recentDays ? <SleepCard>
         <ThemedText accessibilityRole="header" variant="heading">{t('reportMetricsShort')}</ThemedText>
         <SleepSevenDayChart locale={locale}
+          onRecordedDayPress={openRecordedDay}
           labels={{ recorded: t('calendarRecorded'), missing: t('notRecorded'), unverified: t('dayUnverified') }}
           days={summary.recentDays.map((day) => day.status === 'recorded' && day.minutes !== null
             ? { date: day.day, state: 'recorded', duration: { minutes: day.minutes, label: homeDuration(day.minutes, language) } }
             : { date: day.day, state: day.status === 'not-recorded' ? 'missing' : 'unverified' })} />
       </SleepCard> : null}
     </> : null}
+    <SleepButton label={t('recordSleep')} onPress={() => router.push('/sleep/record')} />
     <View style={styles.tiles}>
       {destinations.map(({ key, path, icon }) => {
         const label = t(key);
@@ -72,21 +94,7 @@ export default function SleepScreen() {
         </Pressable>;
       })}
     </View>
-    {featured && ('source' in featured || (featured.eligible && featured.status === 'ready')) ? <SleepCard tone="warm"
-      onPress={() => router.push('source' in featured
-        ? { pathname: '/sleep/insights/[code]', params: { code: featured.code } }
-        : insightHref(featured))} label={t('openFeatured')}>
-      <View style={styles.row}>
-        <View style={styles.fill}>
-          <ThemedText variant="labelStrong" themeColor="accent">{t('featuredInsight')}</ThemedText>
-          <ThemedText variant="body">{'source' in featured ? featuredCopy?.title ?? featured.title : featured.summary}</ThemedText>
-          {'source' in featured ? <ThemedText variant="subhead">{featuredCopy?.summary ?? featured.summary}</ThemedText> : null}
-        </View>
-        <Image source={sleepArt.pillow} resizeMode="contain" style={styles.pillow} accessible={false} />
-      </View>
-    </SleepCard> : null}
     <SleepButton label={t('insights')} variant="secondary" onPress={() => router.push('/sleep/insights')} />
-    <SleepButton label={t('recordSleep')} onPress={() => router.push('/sleep/record')} />
   </SleepPage>;
 }
 
