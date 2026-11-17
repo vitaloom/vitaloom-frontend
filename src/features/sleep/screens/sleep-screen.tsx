@@ -8,9 +8,10 @@ import { radius, sizing, spacing } from '@/theme';
 import { sleepArt } from '../assets/sleep-art';
 import { sleepFixturesEnabled } from '../api/get-sleep-repository';
 import { SleepButton, SleepCard, SleepNotice, SleepPage } from '../components/sleep-ui';
+import { SleepSevenDayChart } from '../components/sleep-seven-day-chart';
 import { useSleepRead, useSleepRepository } from '../hooks/use-sleep';
 import { sleepMessages } from '../messages';
-import type { DailySummary, SleepSession } from '../types/sleep';
+import type { SleepSession } from '../types/sleep';
 import { sleepDay } from '../utils/sleep-format';
 import { insightHref } from '../utils/sleep-navigation';
 import { sleepCatalogInsightCopy } from '../utils/sleep-catalog-insight-copy';
@@ -32,6 +33,7 @@ function homeDuration(minutes: number, language: Language) {
 export default function SleepScreen() {
   const theme = useTheme();
   const t = useTranslations(sleepMessages);
+  const { language, locale } = useI18n();
   const repository = useSleepRepository();
   const { state, reload } = useSleepRead(() => repository.getHome(), 'sleep-home', false, true);
   const summary = state.kind === 'ready' ? state.data : null;
@@ -47,7 +49,14 @@ export default function SleepScreen() {
     {summary ? <>
       {fixtures && summary.daily.status === 'unverified' ? <SleepNotice title={t('unverified')}
         actionLabel={t('reload')} onAction={reload} /> : <LatestSleep session={summary.latest} />}
-      <DailyGoal summary={summary.daily} />
+      {summary.recentDays ? <SleepCard>
+        <ThemedText accessibilityRole="header" variant="heading">{t('reportMetricsShort')}</ThemedText>
+        <SleepSevenDayChart locale={locale}
+          labels={{ recorded: t('calendarRecorded'), missing: t('notRecorded'), unverified: t('dayUnverified') }}
+          days={summary.recentDays.map((day) => day.status === 'recorded' && day.minutes !== null
+            ? { date: day.day, state: 'recorded', duration: { minutes: day.minutes, label: homeDuration(day.minutes, language) } }
+            : { date: day.day, state: day.status === 'not-recorded' ? 'missing' : 'unverified' })} />
+      </SleepCard> : null}
     </> : null}
     <View style={styles.tiles}>
       {destinations.map(({ key, path, icon }) => {
@@ -104,34 +113,6 @@ function LatestSleep({ session }: { session: SleepSession | null }) {
   </SleepCard>;
 }
 
-function DailyGoal({ summary }: { summary: DailySummary }) {
-  const theme = useTheme();
-  const t = useTranslations(sleepMessages);
-  const { language, locale } = useI18n();
-  const goal = summary.goal;
-  const progress = summary.progress === null ? null : Math.round(summary.progress);
-  return <SleepCard onPress={() => router.push('/sleep/goal')}>
-    <View style={styles.row}>
-      <ThemedText variant="heading" style={styles.fill}>{t('sleepGoal')}</ThemedText>
-      {goal.minutes !== null && goal.verified ? <ThemedText variant="label" themeColor="textSecondary">{t('daily', { duration: homeDuration(goal.minutes, language) })}</ThemedText> : null}
-    </View>
-    <ThemedText variant={summary.minutes === null ? 'subhead' : 'metric'}>
-      {summary.minutes !== null ? homeDuration(summary.minutes, language) : summary.status === 'unverified' ? t('todayUnavailable') : t('noSleepToday')}
-    </ThemedText>
-    {summary.minutes !== null ? <ThemedText variant="caption" themeColor="textSecondary">{t('totalToday')}</ThemedText> : null}
-    {progress !== null ? <View style={styles.row}>
-      <View style={[styles.track, { backgroundColor: theme.accentSoft }]} accessibilityElementsHidden>
-        <View style={[styles.bar, { backgroundColor: theme.accent, width: `${Math.min(100, progress)}%` }]} />
-      </View>
-      <ThemedText variant="labelStrong" themeColor="accent" accessibilityLabel={t('percentGoal', { percent: progress })}>
-        {new Intl.NumberFormat(locale, { style: 'percent' }).format(progress / 100)}
-      </ThemedText>
-    </View> : null}
-    {goal.verified && goal.minutes === null ? <ThemedText variant="subhead" themeColor="textSecondary">{t('noActiveGoal')}</ThemedText> : null}
-    {!goal.verified ? <ThemedText variant="subhead" themeColor="textSecondary">{t('goalHistoryUnavailable')}</ThemedText> : null}
-  </SleepCard>;
-}
-
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.sm },
   fill: { flex: 1, gap: spacing.xs },
@@ -142,6 +123,4 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', padding: spacing.sm, gap: spacing.xs },
   tileIcon: { borderRadius: radius.md, padding: spacing.sm },
   center: { textAlign: 'center' },
-  track: { flex: 1, borderRadius: radius.full, height: 12, overflow: 'hidden' },
-  bar: { height: '100%', borderRadius: radius.full },
 });

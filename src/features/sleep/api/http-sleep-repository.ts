@@ -521,7 +521,7 @@ export class HttpSleepRepository implements SleepRepository {
     const featured = highlight
       ? { source: 'recent' as const, code: highlight.code, title: highlight.title, summary: highlight.summary }
       : null;
-    return { kind: 'ready', data: { latest, daily, featured } };
+    return { kind: 'ready', data: { latest, daily, recentDays: recent.kind === 'ready' ? recent.data.days : null, featured } };
   }
 
   async getDaily(day: Day): Promise<ReadResult<DailySummary>> {

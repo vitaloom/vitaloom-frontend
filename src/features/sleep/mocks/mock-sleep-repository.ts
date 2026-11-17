@@ -68,7 +68,17 @@ export class MockSleepRepository implements SleepRepository {
     const latestDay = this.sessions.filter((session) => session.sleepType === 'main')
       .reduce<string | null>((latest, session) => !latest || session.day > latest ? session.day : latest, null);
     const latest = latestDay ? this.sessions.find((session) => session.sleepType === 'main' && session.day === latestDay) ?? null : null;
-    return { kind: 'ready' as const, data: { latest: latest && { ...copySession(latest), editable: this.isEditable(latest) }, daily: dailySummary(state, this.getContext().today), featured: featuredInsight(state) } };
+    const today = this.getContext().today;
+    const recentDays = Array.from({ length: 7 }, (_, index) => {
+      const summary = dailySummary(state, shiftDay(today, index - 6));
+      return {
+        day: summary.day,
+        status: summary.status === 'recorded' ? 'recorded' as const
+          : summary.status === 'unverified' ? 'unverified' as const : 'not-recorded' as const,
+        minutes: summary.minutes,
+      };
+    });
+    return { kind: 'ready' as const, data: { latest: latest && { ...copySession(latest), editable: this.isEditable(latest) }, daily: dailySummary(state, today), recentDays, featured: featuredInsight(state) } };
   }
 
   async getDaily(day: string) {
