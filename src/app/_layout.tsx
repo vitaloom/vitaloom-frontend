@@ -8,6 +8,8 @@ import { ActivityIndicator, View } from 'react-native';
 import { I18nProvider, useTranslations } from '@/i18n';
 import { authMessages } from '@/features/auth/messages';
 import { sleepMessages } from '@/features/sleep/messages';
+import { assistantSandboxEnabled } from '@/features/assistant/assistant-api';
+import { assistantCourseEnabled } from '@/features/assistant/assistant-course-api';
 
 export default function RootLayout() {
   return <I18nProvider><AppearanceProvider><AuthProvider><ThemedNavigator /></AuthProvider></AppearanceProvider></I18nProvider>;
@@ -65,6 +67,9 @@ function AuthenticatedNavigator() {
       <Stack.Screen name="sleep" options={{ headerShown: false, title: t('title') }} />
       <Stack.Screen name="steps" options={{ headerShown: false }} />
       <Stack.Screen name="heart-rate" options={{ headerShown: false }} />
+      <Stack.Protected guard={assistantSandboxEnabled || assistantCourseEnabled} redirectTo="/(tabs)/home">
+        <Stack.Screen name="assistant" />
+      </Stack.Protected>
       <Stack.Screen name="profile-edit" />
       <Stack.Screen name="profile-setup" />
       <Stack.Protected guard={pendingProfileInvitation} redirectTo="/(tabs)/home">

@@ -80,6 +80,7 @@ export default function SleepScreen() {
       </SleepCard> : null}
     </> : null}
     <SleepButton label={t('recordSleep')} onPress={() => router.push('/sleep/record')} />
+    <SleepButton label={t('insights')} variant="secondary" onPress={() => router.push('/sleep/insights')} />
     <View style={styles.tiles}>
       {destinations.map(({ key, path, icon }) => {
         const label = t(key);
@@ -94,32 +95,31 @@ export default function SleepScreen() {
         </Pressable>;
       })}
     </View>
-    <SleepButton label={t('insights')} variant="secondary" onPress={() => router.push('/sleep/insights')} />
   </SleepPage>;
 }
 
-function LatestSleep({ session }: { session: SleepSession | null }) {
-  const theme = useTheme();
-  const t = useTranslations(sleepMessages);
-  const { language, locale } = useI18n();
-  const feelingLabel = { comfortable: t('comfortable'), normal: t('normal'), tired: t('tired') } as const;
-  return <SleepCard tone="mint" onPress={session ? () => router.push({ pathname: '/sleep/journal/[id]', params: { id: session.id } }) : undefined}>
-    <View style={styles.row}>
-      <ThemedText variant="heading" style={styles.fill}>{t('latestSleep')}</ThemedText>
-      {session ? <ThemedText variant="label" themeColor="textSecondary">{sleepDay(session.day, locale)}</ThemedText> : null}
-    </View>
-    {session ? <>
-      <View style={styles.row}>
-        <ThemedText variant="display" style={styles.fill}>{homeDuration(session.minutes, language)}</ThemedText>
-        {session.feeling ? <View style={[styles.feeling, { backgroundColor: theme.backgroundElement }]}>
-          <ThemedText variant="labelStrong">{feelingLabel[session.feeling]}</ThemedText>
-        </View> : null}
-        <ThemedText variant="heading" themeColor="accent" accessible={false}>›</ThemedText>
-      </View>
-      <ThemedText variant="subhead" themeColor="textSecondary">{t(session.sleepType === 'main' ? 'mainSleep' : 'nap')}</ThemedText>
-    </> : <ThemedText variant="body" themeColor="textSecondary">{t('noRecordedSleep')}</ThemedText>}
-  </SleepCard>;
-}
+// function LatestSleep({ session }: { session: SleepSession | null }) {
+//   const theme = useTheme();
+//   const t = useTranslations(sleepMessages);
+//   const { language, locale } = useI18n();
+//   const feelingLabel = { comfortable: t('comfortable'), normal: t('normal'), tired: t('tired') } as const;
+//   return <SleepCard tone="mint" onPress={session ? () => router.push({ pathname: '/sleep/journal/[id]', params: { id: session.id } }) : undefined}>
+//     <View style={styles.row}>
+//       <ThemedText variant="heading" style={styles.fill}>{t('latestSleep')}</ThemedText>
+//       {session ? <ThemedText variant="label" themeColor="textSecondary">{sleepDay(session.day, locale)}</ThemedText> : null}
+//     </View>
+//     {session ? <>
+//       <View style={styles.row}>
+//         <ThemedText variant="display" style={styles.fill}>{homeDuration(session.minutes, language)}</ThemedText>
+//         {session.feeling ? <View style={[styles.feeling, { backgroundColor: theme.backgroundElement }]}>
+//           <ThemedText variant="labelStrong">{feelingLabel[session.feeling]}</ThemedText>
+//         </View> : null}
+//         <ThemedText variant="heading" themeColor="accent" accessible={false}>›</ThemedText>
+//       </View>
+//       <ThemedText variant="subhead" themeColor="textSecondary">{t(session.sleepType === 'main' ? 'mainSleep' : 'nap')}</ThemedText>
+//     </> : <ThemedText variant="body" themeColor="textSecondary">{t('noRecordedSleep')}</ThemedText>}
+//   </SleepCard>;
+// }
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.sm },
