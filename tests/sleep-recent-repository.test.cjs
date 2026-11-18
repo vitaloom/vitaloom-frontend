@@ -166,7 +166,9 @@ test('Recent screen keeps the weekly link and renders all seven server day statu
   assert.match(legacyRoute, /recent-sleep-report-screen/);
   assert.match(screen, /report\.days\.map/);
   assert.match(screen, /<SleepSevenDayChart/);
-  assert.match(chart, /accessibilityLabel=\{`\$\{sleepDay\(day\.date, locale\)\}\. \$\{meaning\}`\}/);
+  assert.match(chart, /const columnProps = \{[\s\S]*?accessibilityLabel: `\$\{sleepDay\(day\.date, locale\)\}\. \$\{meaning\}`/);
+  assert.match(chart, /<Pressable key=\{day\.date\} \{\.\.\.columnProps\}/);
+  assert.match(chart, /<View key=\{day\.date\} \{\.\.\.columnProps\}>/);
   assert.match(screen, /day\.status === 'recorded' && day\.minutes !== null/);
   assert.match(screen, /day\.status === 'not-recorded' \? 'missing' : 'unverified'/);
   assert.match(screen, /onPress: \(\) => router\.push\(\{ pathname: '\/sleep\/insights\/\[code\]', params: \{ code: insight\.code \} \}\)/);
