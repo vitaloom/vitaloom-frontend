@@ -10,9 +10,11 @@ import { authMessages } from '@/features/auth/messages';
 import { sleepMessages } from '@/features/sleep/messages';
 import { assistantSandboxEnabled } from '@/features/assistant/assistant-api';
 import { assistantCourseEnabled } from '@/features/assistant/assistant-course-api';
+import { GlobalFloatingLauncher } from '@/features/assistant/global-floating-launcher';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 export default function RootLayout() {
-  return <I18nProvider><AppearanceProvider><AuthProvider><ThemedNavigator /></AuthProvider></AppearanceProvider></I18nProvider>;
+  return <GestureHandlerRootView style={{ flex: 1 }}><I18nProvider><AppearanceProvider><AuthProvider><ThemedNavigator /></AuthProvider></AppearanceProvider></I18nProvider></GestureHandlerRootView>;
 }
 
 function ThemedNavigator() {
@@ -40,7 +42,7 @@ function ThemedNavigator() {
 
 function AuthenticatedNavigator() {
   const { scheme } = useAppearance();
-  const { status, pendingProfileInvitation } = useAuth();
+  const { status, user, pendingProfileInvitation } = useAuth();
   const t = useTranslations(sleepMessages);
   const tAuth = useTranslations(authMessages);
   const themeColors = colors[scheme];
@@ -53,7 +55,8 @@ function AuthenticatedNavigator() {
     <ActivityIndicator color={themeColors.accent} />
   </View>;
 
-  return <Stack screenOptions={{
+  return <>
+  <Stack screenOptions={{
     headerShown: false,
     contentStyle: { backgroundColor: themeColors.background },
     headerStyle: { backgroundColor: themeColors.backgroundElement },
@@ -79,5 +82,8 @@ function AuthenticatedNavigator() {
     <Stack.Protected guard={authenticationScreenAvailable} redirectTo="/">
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
     </Stack.Protected>
-  </Stack>;
+  </Stack>
+  {authenticated && (assistantCourseEnabled || assistantSandboxEnabled)
+    ? <GlobalFloatingLauncher key={user?.id} /> : null}
+  </>;
 }

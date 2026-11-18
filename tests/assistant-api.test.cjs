@@ -76,3 +76,25 @@ test('Composer sends Gemini acknowledgement only on the opted-in request', async
     { text: sampleQuestion, turnId: second, geminiAccepted: true },
   ]);
 });
+
+test('Voice upload preserves authentication and lets fetch supply the multipart boundary', async (t) => {
+  const turnId = createTurnId();
+  client.resetApiSession();
+  client.setAccessToken('synthetic-voice-token');
+  t.after(() => client.resetApiSession());
+  t.mock.method(globalThis, 'fetch', async (path, init) => {
+    assert.match(path, /\/api\/assistant\/mvp\/voice-turns$/);
+    assert.equal(init.method, 'POST');
+    assert.equal(init.headers.get('Authorization'), 'Bearer synthetic-voice-token');
+    assert.equal(init.headers.has('Content-Type'), false);
+    assert.ok(init.body instanceof FormData);
+    assert.equal(init.body.get('turnId'), turnId);
+    assert.equal(init.body.get('consentAccepted'), 'true');
+    assert.ok(init.body.has('audio'));
+    return Response.json({ id: 'voice-conversation', turns: [] });
+  });
+
+  const api = courseApi(client.getApiSessionGeneration(), new AbortController().signal);
+  const conversation = await api.voiceTurn('file:///voice.m4a', turnId);
+  assert.equal(conversation.id, 'voice-conversation');
+});

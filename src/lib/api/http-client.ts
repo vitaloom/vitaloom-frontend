@@ -53,7 +53,8 @@ async function parseResponse<T>(response: Response): Promise<T> {
 
 async function send<T>(path: string, init: RequestInit, bearer: string | null): Promise<T> {
   const headers = new Headers(init.headers);
-  if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+  if (init.body && !(typeof FormData !== 'undefined' && init.body instanceof FormData)
+    && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
   if (bearer) headers.set('Authorization', `Bearer ${bearer}`);
   let response: Response;
   try {

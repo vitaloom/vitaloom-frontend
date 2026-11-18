@@ -26,6 +26,12 @@
             "backgroundColor": "#102527"
           }
         }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow VitaLoom to record a voice request for the Assistant."
+        }
       ]
     ],
     "experiments": {

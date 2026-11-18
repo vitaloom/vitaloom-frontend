@@ -23,7 +23,7 @@ function sourceRoute(value: string) {
   }
 }
 
-export default function AssistantCourseScreen() {
+export default function AssistantCourseScreen({ initialConversationId }: { initialConversationId?: string }) {
   const t = useTranslations(courseMessages);
   const { locale } = useI18n();
   const theme = useTheme();
@@ -74,13 +74,16 @@ export default function AssistantCourseScreen() {
   }), [perform]);
 
   useEffect(() => {
-    const initialLoad = setTimeout(() => void load(0), 0);
+    const initialLoad = setTimeout(() => {
+      if (initialConversationId) void perform(client => client.open(initialConversationId), open);
+      else void load(0);
+    }, 0);
     return () => {
       clearTimeout(initialLoad);
       pending.current?.abort();
       pending.current = null;
     };
-  }, [load]);
+  }, [initialConversationId, load, perform]);
 
   useEffect(() => {
     if (turnCount) scroll.current?.scrollToEnd({ animated: false });

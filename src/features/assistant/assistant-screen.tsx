@@ -17,10 +17,10 @@ import { assistantCourseEnabled } from './assistant-course-api';
 
 export default function AssistantScreen() {
   const { status, user } = useAuth();
-  const { mode } = useLocalSearchParams<{ mode?: string }>();
+  const { mode, conversationId } = useLocalSearchParams<{ mode?: string; conversationId?: string }>();
   if (status !== 'authenticated' || !user) return null;
   return !assistantCourseEnabled || mode === 'gemini'
-    ? <AssistantTurn key={user.id} /> : <AssistantCourseScreen key={user.id} />;
+    ? <AssistantTurn key={user.id} /> : <AssistantCourseScreen key={`${user.id}:${conversationId ?? ''}`} initialConversationId={conversationId} />;
 }
 
 function AssistantTurn() {
