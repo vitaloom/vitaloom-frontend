@@ -1,6 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const path = require('node:path');
 const ts = require('typescript');
 
 require.extensions['.ts'] = (module, filename) => {
@@ -79,6 +80,7 @@ test('Composer sends Gemini acknowledgement only on the opted-in request', async
 
 test('Voice upload preserves authentication and lets fetch supply the multipart boundary', async (t) => {
   const turnId = createTurnId();
+  const audio = new Blob([Uint8Array.of(1, 79, 255)], { type: 'audio/mp4' });
   client.resetApiSession();
   client.setAccessToken('synthetic-voice-token');
   t.after(() => client.resetApiSession());
@@ -91,11 +93,33 @@ test('Voice upload preserves authentication and lets fetch supply the multipart 
     assert.equal(init.body.get('turnId'), turnId);
     assert.equal(init.body.get('consentAccepted'), 'true');
     assert.equal(init.body.get('consentVersion'), 'assemblyai-us-v1');
-    assert.ok(init.body.has('audio'));
+    const encoded = new Request('http://localhost/api/assistant/mvp/voice-turns', init);
+    assert.match(encoded.headers.get('Content-Type'), /^multipart\/form-data; boundary=/);
+    const file = (await encoded.formData()).get('audio');
+    assert.equal(file.name, 'recording.m4a');
+    assert.equal(file.type, 'audio/mp4');
+    assert.deepEqual(new Uint8Array(await file.arrayBuffer()), Uint8Array.of(1, 79, 255));
     return Response.json({ id: 'voice-conversation', turns: [] });
   });
 
   const api = courseApi(client.getApiSessionGeneration(), new AbortController().signal);
-  const conversation = await api.voiceTurn('file:///voice.m4a', turnId);
+  const conversation = await api.voiceTurn(audio, turnId);
   assert.equal(conversation.id, 'voice-conversation');
+});
+
+test('Expo native multipart accepts a byte-readable file and rejects a URI-only part', async () => {
+  const expoDirectory = path.dirname(require.resolve('expo/package.json'));
+  const { convertFormDataAsync } = require(path.join(expoDirectory, 'src/winter/fetch/convertFormData.ts'));
+  const file = { name: 'recording.m4a', type: 'audio/mp4' };
+  const formWith = (value) => ({ entries: () => [['audio', value]] });
+  await assert.rejects(convertFormDataAsync(formWith({ ...file, uri: 'file:///voice.m4a' })),
+    /Unsupported FormDataPart implementation/);
+  const source = Uint8Array.of(1, 79, 255);
+  const { body, boundary } = await convertFormDataAsync(formWith({ ...file, bytes: async () => source }));
+  const decoded = await new Response(body, {
+    headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
+  }).formData();
+  assert.equal(decoded.get('audio').name, file.name);
+  assert.equal(decoded.get('audio').type, file.type);
+  assert.deepEqual(new Uint8Array(await decoded.get('audio').arrayBuffer()), source);
 });

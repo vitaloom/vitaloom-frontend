@@ -34,9 +34,9 @@ export function courseApi(session: number, signal: AbortSignal) {
     permission: (id: string, allowed: boolean) => request<Conversation>(`/${id}/permission`, 'PUT', { allowed }),
     send: (id: string, text: string, turnId: string, geminiAccepted = false) => request<Conversation>(
       `/${id}/turns`, 'POST', { text, turnId, ...(geminiAccepted ? { geminiAccepted: true } : {}) }),
-    voiceTurn: (audioUri: string, turnId: string) => {
+    voiceTurn: (audio: Blob, turnId: string) => {
       const form = new FormData();
-      form.append('audio', { uri: audioUri, name: 'recording.m4a', type: 'audio/mp4' } as unknown as Blob);
+      form.append('audio', audio, 'recording.m4a');
       form.append('turnId', turnId);
       form.append('consentAccepted', 'true');
       form.append('consentVersion', 'assemblyai-us-v1');

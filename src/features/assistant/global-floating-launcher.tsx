@@ -1,4 +1,5 @@
 import { AudioModule, RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder } from 'expo-audio';
+import { File } from 'expo-file-system';
 import * as FileSystem from 'expo-file-system/legacy';
 import { router, useSegments } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -95,7 +96,7 @@ export function GlobalFloatingLauncher() {
       const uri = recorder.uri;
       if (!mounted.current || signal.signal.aborted || !uri || accountId !== user?.id
         || session !== getApiSessionGeneration()) return;
-      const row = await courseApi(session, signal.signal).voiceTurn(uri, createTurnId());
+      const row = await courseApi(session, signal.signal).voiceTurn(new File(uri), createTurnId());
       if (!signal.signal.aborted && session === getApiSessionGeneration() && mounted.current) {
         router.push({ pathname: '/assistant', params: { conversationId: row.id } });
       }
