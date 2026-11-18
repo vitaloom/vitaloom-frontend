@@ -1,0 +1,26 @@
+{
+  "feature": "assistant",
+  "status": "PENDING_VISUAL_ACCEPTANCE",
+  "source": "User-supplied PNGs from C:/Users/ANH DUC/Downloads/vitaloom-voice-assets",
+  "screenAssets": [
+    {
+      "screenId": "ASSISTANT-GLOBAL-LAUNCHER",
+      "approvedReference": "not provided",
+      "assets": [
+        { "role": "hero-idle", "path": "./vita-ai-launcher-idle.png", "states": ["idle", "touch-pending", "dragging", "ring-filling"] },
+        { "role": "hero-activated", "path": "./vita-ai-mascot-activated.png", "states": ["ring-complete"] },
+        { "role": "glow", "path": "./vita-ai-activation-glow.png", "states": ["ring-complete"] },
+        { "role": "hero-recording", "path": "./vita-ai-recording-microphone.png", "states": ["recording"] },
+        { "role": "reference-only", "path": "./vita-ai-activation-ring-reference.png", "states": [] },
+        { "role": "optional-reference-only", "path": "./vita-ai-audio-waveform.png", "states": [] }
+      ]
+    },
+    {
+      "screenId": "ASSISTANT-CONVERSATION-SHEET",
+      "approvedReference": "not provided",
+      "assets": [
+        { "role": "assistant-avatar", "path": "./vita-ai-launcher-idle.png", "states": ["header", "assistant-message"] }
+      ]
+    }
+  ]
+}

@@ -1,18 +1,18 @@
 import type { File } from 'expo-file-system';
 import { router, usePathname, useSegments } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Keyboard, Platform } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { Keyboard, Platform, StyleSheet, View, type LayoutRectangle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { MAIN_TAB_BAR_HEIGHT } from '@/components/ui/main-tab-bar';
+import { getMainTabBarHeight, MAIN_TAB_BAR_HEIGHT, subscribeMainTabBarHeight } from '@/components/ui/main-tab-bar';
 import { useScreenOverlayBlocked } from '@/components/ui/screen-overlay-context';
 import { getApiSessionGeneration } from '@/lib/api/http-client';
-import { spacing } from '@/theme';
-
 import { AssistantConversationSheet } from './assistant-conversation-sheet';
 import { createTurnId } from './assistant-api';
 import { assistantCourseEnabled } from './assistant-course-api';
 import { GlobalFloatingLauncher, removeVoiceFile } from './global-floating-launcher';
+import { clampLauncherPosition, defaultLauncherPosition, getLauncherHintAlignment, LAUNCHER_LAYOUT,
+  type LauncherPosition } from './launcher-layout';
 import { useAssistantConversation } from './use-assistant-conversation';
 
 const MAIN_ROUTES = new Set(['/home', '/statistics', '/profile', '/sleep', '/water', '/steps', '/heart-rate']);
@@ -20,6 +20,7 @@ const voiceEnabled = Platform.OS !== 'web' && assistantCourseEnabled
   && process.env.EXPO_PUBLIC_ASSISTANT_VOICE === 'true';
 
 type PendingAudio = { file: File; turnId: string; session: number };
+type OverlayViewport = LayoutRectangle & { originX: number; originY: number };
 
 export function GlobalAssistant() {
   const pathname = usePathname();
@@ -28,12 +29,16 @@ export function GlobalAssistant() {
   const blockingOverlay = useScreenOverlayBlocked();
   const [keyboardVisible, setKeyboardVisible] = useState(() => Keyboard.isVisible?.() ?? false);
   const [openPath, setOpenPath] = useState<string>();
+  const [viewport, setViewport] = useState<OverlayViewport>({ x: 0, y: 0, width: 0, height: 0, originX: 0, originY: 0 });
+  const measuredTabBarHeight = useSyncExternalStore(subscribeMainTabBarHeight, getMainTabBarHeight, () => undefined);
+  const [savedPosition, setSavedPosition] = useState<LauncherPosition>();
   const audio = useRef<PendingAudio | undefined>(undefined);
   const recordingSession = useRef<number | undefined>(undefined);
   const conversation = useAssistantConversation();
   const { beginVoice, submitVoice, failVoice, dismissVoiceError, voiceError } = conversation;
   const eligible = MAIN_ROUTES.has(pathname);
   const open = eligible && openPath === pathname;
+  const inTabs = segments[0] === '(tabs)';
 
   if (openPath && openPath !== pathname) setOpenPath(undefined);
 
@@ -57,6 +62,23 @@ export function GlobalAssistant() {
     recordingSession.current = undefined;
     clearAudio();
   }, [clearAudio]);
+
+  const tabBarHeight = inTabs ? measuredTabBarHeight ?? MAIN_TAB_BAR_HEIGHT + insets.bottom : 0;
+  const positionBounds = useMemo(() => ({
+    width: viewport.width,
+    height: viewport.height,
+    insets: { top: insets.top, right: insets.right, bottom: insets.bottom, left: insets.left },
+    tabBarHeight,
+  }), [viewport.width, viewport.height, insets.top, insets.right, insets.bottom, insets.left, tabBarHeight]);
+  const initialPosition = useMemo(() => defaultLauncherPosition(positionBounds), [positionBounds]);
+  const launcherPosition = clampLauncherPosition(savedPosition ?? initialPosition, positionBounds);
+  const hintAlignment = getLauncherHintAlignment(launcherPosition, viewport.width,
+    { left: insets.left, right: insets.right });
+  const hintMaxWidth = Math.min(220, Math.max(LAUNCHER_LAYOUT.buttonSize, viewport.width - insets.left - insets.right));
+
+  const updateLauncherPosition = useCallback((position: LauncherPosition) => {
+    setSavedPosition(clampLauncherPosition(position, positionBounds));
+  }, [positionBounds]);
 
   const showSheet = () => {
     if (!eligible) return;
@@ -105,14 +127,19 @@ export function GlobalAssistant() {
     failVoice();
   }, [failVoice]);
 
-  return <>
-    <GlobalFloatingLauncher visible={eligible && !open && !blockingOverlay && !keyboardVisible}
+  return <View pointerEvents="box-none" style={StyleSheet.absoluteFill}
+    onLayout={event => {
+      const { x, y, width, height } = event.nativeEvent.layout;
+      setViewport(current => ({ ...current, x, y, width, height, originX: x, originY: y }));
+    }}>
+    <GlobalFloatingLauncher visible={eligible && viewport.width > 0 && !open && !blockingOverlay && !keyboardVisible}
       route={pathname} allowVoice={voiceEnabled} busy={conversation.busy || !!voiceError?.retryable}
-      bottom={Math.max(insets.bottom, spacing.md) + spacing.sm + (segments[0] === '(tabs)' ? MAIN_TAB_BAR_HEIGHT : 0)}
-      right={Math.max(insets.right, spacing.md)} onOpen={showSheet} onVoiceRelease={handleVoiceRelease}
+      position={launcherPosition} coordinateOrigin={{ x: viewport.originX, y: viewport.originY }}
+      hintAlignment={hintAlignment} hintMaxWidth={hintMaxWidth}
+      onPositionChange={updateLauncherPosition} onOpen={showSheet} onVoiceRelease={handleVoiceRelease}
       onVoiceReady={handleVoiceReady} onVoiceFailure={handleVoiceFailure} />
     {assistantCourseEnabled && <AssistantConversationSheet visible={open} onClose={closeSheet}
       conversation={conversation} onDismissVoiceError={discardVoiceError}
       onRetryVoice={() => { if (audio.current && beginVoice()) void sendAudio(audio.current); }} />}
-  </>;
+  </View>;
 }

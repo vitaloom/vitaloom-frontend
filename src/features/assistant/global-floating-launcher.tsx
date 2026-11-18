@@ -3,10 +3,10 @@ import { File } from 'expo-file-system';
 import { deleteAsync } from 'expo-file-system/legacy';
 import * as Haptics from 'expo-haptics';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { GestureDetector, useExclusiveGestures, useLongPressGesture, useTapGesture } from 'react-native-gesture-handler';
-import { Alert, AppState, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
+import { Alert, AppState, Platform, StyleSheet, View } from 'react-native';
 import Animated, { cancelAnimation, Easing, useAnimatedProps, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
-import Svg, { Circle, Path } from 'react-native-svg';
+import Svg, { Circle } from 'react-native-svg';
 
 import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
@@ -15,29 +15,33 @@ import { getApiSessionGeneration } from '@/lib/api/http-client';
 import { palette, radius, shadows, spacing } from '@/theme';
 
 import { courseMessages } from './course-messages';
+import { LAUNCHER_GESTURE_CONFIG, createLauncherGestureState, reduceLauncherGesture,
+  type LauncherGestureEvent, type LauncherGestureState, type LauncherGestureAction } from './launcher-gesture-machine';
+import { LAUNCHER_LAYOUT, type LauncherPosition } from './launcher-layout';
 import { VitaAiAvatar } from './vita-ai-avatar';
 
-const BUTTON_SIZE = 56;
+const BUTTON_SIZE = LAUNCHER_LAYOUT.buttonSize;
 const RING_SIZE = 66;
 const RING_RADIUS = 30;
 const RING_CENTER = RING_SIZE / 2;
 const CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
-const TAP_MAX_MS = 220;
-const ACTIVATE_MS = 1000;
-const MAX_GESTURE_DISTANCE = 12;
 const MAX_RECORDING_MS = 19_000;
 const MAX_AUDIO_BYTES = 1024 * 1024;
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+const activationGlow = require('../../../assets/assistant/vita-ai-activation-glow.png');
 
-type LauncherPhase = 'idle' | 'activating' | 'activated' | 'recording' | 'limited';
-type Hold = { session: number };
+type Hold = { session: number; touchId: number };
+type TouchOrigin = { touchId: number; x: number; y: number; left: number; top: number };
 type Props = {
   visible: boolean;
   route: string;
-  bottom: number;
-  right: number;
   allowVoice: boolean;
   busy: boolean;
+  position: LauncherPosition;
+  coordinateOrigin: { x: number; y: number };
+  hintAlignment: 'left' | 'center' | 'right';
+  hintMaxWidth: number;
+  onPositionChange: (position: LauncherPosition) => void;
   onOpen: () => void;
   onVoiceRelease: () => boolean;
   onVoiceReady: (file: File) => void;
@@ -49,21 +53,26 @@ export function removeVoiceFile(uri?: string | null) {
 }
 
 export function GlobalFloatingLauncher({
-  visible, route, bottom, right, allowVoice, busy, onOpen, onVoiceRelease, onVoiceReady, onVoiceFailure,
+  visible, route, allowVoice, busy, position, coordinateOrigin, hintAlignment, hintMaxWidth, onPositionChange, onOpen, onVoiceRelease, onVoiceReady, onVoiceFailure,
 }: Props) {
   const theme = useTheme();
   const t = useTranslations(courseMessages);
   const tLauncher = useTranslations(launcherMessages);
-  const [phase, setPhase] = useState<LauncherPhase>('idle');
+  const [phase, setPhase] = useState<LauncherGestureState['phase']>('idle');
+  const machine = useRef(createLauncherGestureState());
+  const touchOrigin = useRef<TouchOrigin | null>(null);
   const hold = useRef<Hold | null>(null);
   const consent = useRef(false);
   const preparing = useRef(false);
   const capturing = useRef(false);
   const finishing = useRef(false);
   const mounted = useRef(true);
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ringTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const capTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const capStop = useRef<Promise<boolean> | null>(null);
   const resetRecorder = useRef<() => void>(() => undefined);
+  const dispatchRef = useRef<(event: LauncherGestureEvent) => void>(() => undefined);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY, (event: RecordingStatus) => {
     if (event.hasError || event.mediaServicesDidReset || (event.isFinished && !capStop.current)) {
       resetRecorder.current();
@@ -72,20 +81,38 @@ export function GlobalFloatingLauncher({
 
   const progress = useSharedValue(0);
   const pulse = useSharedValue(0);
+  const glow = useSharedValue(0);
   const reducedMotion = useReducedMotion();
   const ring = useAnimatedProps(() => ({ strokeDashoffset: (1 - progress.get()) * CIRCUMFERENCE }));
   const pulseStyle = useAnimatedStyle(() => ({
     opacity: 0.36 * (1 - pulse.get()),
     transform: [{ scale: 1 + 0.28 * pulse.get() }],
   }));
+  const glowStyle = useAnimatedStyle(() => ({
+    opacity: reducedMotion ? 0.72 : 0.5 + 0.28 * glow.get(),
+    transform: [{ scale: 1 + (reducedMotion ? 0 : 0.06 * glow.get()) }],
+  }), [reducedMotion]);
 
-  const resetVisuals = useCallback(() => {
+  const clearTimers = useCallback(() => {
+    if (holdTimer.current) clearTimeout(holdTimer.current);
+    if (ringTimer.current) clearTimeout(ringTimer.current);
+    holdTimer.current = null;
+    ringTimer.current = null;
+  }, []);
+
+  const clearAnimations = useCallback(() => {
     cancelAnimation(progress);
     progress.set(0);
     cancelAnimation(pulse);
     pulse.set(0);
+    cancelAnimation(glow);
+    glow.set(0);
+  }, [glow, progress, pulse]);
+
+  const resetVisuals = useCallback(() => {
+    clearAnimations();
     if (mounted.current) setPhase('idle');
-  }, [progress, pulse]);
+  }, [clearAnimations]);
 
   const stopCapture = useCallback(async (released?: Hold) => {
     if (!capturing.current || finishing.current) return;
@@ -113,25 +140,30 @@ export function GlobalFloatingLauncher({
     }
   }, [onVoiceFailure, onVoiceReady, recorder, resetVisuals]);
 
-  const cancelHold = useCallback(() => {
-    hold.current = null;
-    resetVisuals();
-    void stopCapture();
-  }, [resetVisuals, stopCapture]);
+  const startRing = useCallback((touchId: number) => {
+    cancelAnimation(progress);
+    progress.set(reducedMotion ? 0 : withTiming(1, {
+      duration: LAUNCHER_GESTURE_CONFIG.activationRingMs,
+      easing: Easing.linear,
+    }));
+    ringTimer.current = setTimeout(() => {
+      const current = hold.current;
+      if (current?.touchId !== touchId) return;
+      dispatchRef.current(current.session === getApiSessionGeneration()
+        ? { type: 'ring-complete', touchId }
+        : { type: 'cancel', touchId });
+    }, LAUNCHER_GESTURE_CONFIG.activationRingMs);
+  }, [progress, reducedMotion]);
 
-  const activate = async () => {
+  const activate = useCallback(async () => {
     const current = hold.current;
     if (!current || preparing.current || capturing.current || finishing.current) return;
     const sameSession = () => mounted.current && current.session === getApiSessionGeneration();
     const stillHeld = () => sameSession() && AppState.currentState === 'active' && hold.current === current;
     if (!stillHeld()) return;
-    cancelAnimation(progress);
     progress.set(1);
-    setPhase('activated');
-    const haptic = Platform.OS === 'android'
-      ? Haptics.performAndroidHapticsAsync(Haptics.AndroidHaptics.Gesture_End)
-      : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    void haptic.catch(() => undefined);
+    cancelAnimation(glow);
+    if (!reducedMotion) glow.set(withRepeat(withTiming(1, { duration: 900, easing: Easing.inOut(Easing.quad) }), -1, true));
     if (!consent.current) {
       Alert.alert(t('voiceConsentTitle'), t('voiceConsent'), [
         { text: t('voiceConsentCancel'), style: 'cancel' },
@@ -147,9 +179,7 @@ export function GlobalFloatingLauncher({
       if (!stillHeld()) return;
       if (!permission.granted) {
         const granted = permission.canAskAgain && (await requestRecordingPermissionsAsync()).granted;
-        if (sameSession()) {
-          Alert.alert(t('voiceConsentTitle'), granted ? tLauncher('holdAgain') : t('microphoneDenied'));
-        }
+        if (sameSession()) Alert.alert(t('voiceConsentTitle'), granted ? tLauncher('holdAgain') : t('microphoneDenied'));
         return;
       }
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
@@ -164,16 +194,14 @@ export function GlobalFloatingLauncher({
       recorder.record();
       if (!recorder.isRecording) throw new Error('Recording did not start');
       capturing.current = true;
-      setPhase('recording');
-      if (!reducedMotion) {
-        pulse.set(withRepeat(withTiming(1, { duration: 1000, easing: Easing.out(Easing.quad) }), -1));
-      }
+      dispatchRef.current({ type: 'recording-started', touchId: current.touchId });
+      if (!reducedMotion) pulse.set(withRepeat(withTiming(1, { duration: 1000, easing: Easing.out(Easing.quad) }), -1));
       capTimer.current = setTimeout(() => {
         if (!capturing.current || capStop.current) return;
         capStop.current = recorder.stop().then(() => true, () => false);
         cancelAnimation(pulse);
         pulse.set(0);
-        if (mounted.current) setPhase('limited');
+        dispatchRef.current({ type: 'recording-limited', touchId: current.touchId });
       }, MAX_RECORDING_MS);
     } catch {
       await recorder.stop().catch(() => undefined);
@@ -188,7 +216,71 @@ export function GlobalFloatingLauncher({
       }
       preparing.current = false;
     }
-  };
+  }, [glow, progress, pulse, reducedMotion, recorder, resetVisuals, t, tLauncher]);
+
+  const runGestureActions = useCallback((actions: LauncherGestureAction[], touchId: number) => {
+    for (const action of actions) {
+      if (action === 'start-hold-timer') {
+        if (!allowVoice || busy) continue;
+        hold.current = { session: getApiSessionGeneration(), touchId };
+        const session = hold.current?.session;
+        holdTimer.current = setTimeout(() => {
+          const current = hold.current;
+          if (current?.touchId !== touchId) return;
+          dispatchRef.current(current.session === session && session === getApiSessionGeneration()
+            ? { type: 'hold-delay', touchId }
+            : { type: 'cancel', touchId });
+        }, LAUNCHER_GESTURE_CONFIG.touchPendingMs);
+      } else if (action === 'start-ring-timer') {
+        if (holdTimer.current) clearTimeout(holdTimer.current);
+        holdTimer.current = null;
+        startRing(touchId);
+      } else if (action === 'light-haptic') {
+        if (!hold.current || hold.current.session !== getApiSessionGeneration()) continue;
+        const haptic = Platform.OS === 'android'
+          ? Haptics.performAndroidHapticsAsync(Haptics.AndroidHaptics.Gesture_End)
+          : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        void haptic.catch(() => undefined);
+      } else if (action === 'activate-voice') {
+        void activate();
+      } else if (action === 'cancel-hold') {
+        clearTimers();
+        hold.current = null;
+        clearAnimations();
+        void stopCapture();
+      } else if (action === 'open-chat') {
+        clearTimers();
+        hold.current = null;
+        clearAnimations();
+        onOpen();
+      } else if (action === 'finish-recording') {
+        clearTimers();
+        const released = hold.current;
+        hold.current = null;
+        const handoff = released?.session === getApiSessionGeneration() && onVoiceRelease();
+        void stopCapture(handoff ? released : undefined);
+      }
+    }
+  }, [activate, allowVoice, busy, clearAnimations, clearTimers, onOpen, onVoiceRelease, startRing, stopCapture]);
+
+  const dispatchGesture = useCallback((event: LauncherGestureEvent) => {
+    const result = reduceLauncherGesture(machine.current, event);
+    machine.current = result.state;
+    if (mounted.current) setPhase(result.state.phase);
+    runGestureActions(result.actions, event.touchId);
+  }, [runGestureActions]);
+  useEffect(() => { dispatchRef.current = dispatchGesture; }, [dispatchGesture]);
+
+  const cancelHold = useCallback(() => {
+    const touchId = machine.current.touchId;
+    if (touchId !== null) dispatchRef.current({ type: 'cancel', touchId });
+    else {
+      clearTimers();
+      hold.current = null;
+      clearAnimations();
+      void stopCapture();
+    }
+  }, [clearAnimations, clearTimers, stopCapture]);
 
   useEffect(() => {
     resetRecorder.current = () => {
@@ -217,65 +309,74 @@ export function GlobalFloatingLauncher({
     return () => cancelLatest.current();
   }, [route, visible]);
 
-  const holdGesture = useLongPressGesture({
-    minDuration: ACTIVATE_MS,
-    maxDistance: MAX_GESTURE_DISTANCE,
-    shouldCancelWhenOutside: true,
-    runOnJS: true,
-    enabled: visible && allowVoice && !busy,
-    onBegin: () => {
-      if (preparing.current || finishing.current) return;
-      hold.current = { session: getApiSessionGeneration() };
-      setPhase('activating');
-      if (!reducedMotion) progress.set(withTiming(1, { duration: ACTIVATE_MS, easing: Easing.linear }));
-    },
-    onActivate: () => { void activate(); },
-    onDeactivate: event => {
-      const released = hold.current;
-      hold.current = null;
-      if (event.canceled || !released || released.session !== getApiSessionGeneration()
-        || AppState.currentState !== 'active' || !capturing.current) {
-        cancelHold();
-        return;
-      }
-      if (!capStop.current && !recorder.isRecording) {
-        cancelHold();
-        Alert.alert(t('voiceConsentTitle'), t('voiceUnavailable'));
-        return;
-      }
-      void stopCapture(onVoiceRelease() ? released : undefined);
-    },
-    onFinalize: () => {
-      if (hold.current) cancelHold();
-    },
-  });
-  const tapGesture = useTapGesture({
-    maxDuration: TAP_MAX_MS,
-    maxDistance: MAX_GESTURE_DISTANCE,
-    shouldCancelWhenOutside: true,
+  const gesture = usePanGesture({
+    minDistance: LAUNCHER_GESTURE_CONFIG.dragThresholdDp,
+    shouldCancelWhenOutside: false,
     runOnJS: true,
     enabled: visible,
-    onActivate: onOpen,
+    onTouchesDown: event => {
+      if (event.numberOfTouches !== 1) {
+        const touchId = machine.current.touchId;
+        if (touchId !== null) dispatchGesture({ type: 'cancel', touchId });
+        touchOrigin.current = null;
+        return;
+      }
+      if (machine.current.phase !== 'idle') return;
+      const touch = event.changedTouches[0];
+      if (!touch) return;
+      touchOrigin.current = {
+        touchId: touch.id,
+        x: touch.absoluteX,
+        y: touch.absoluteY,
+        left: position.left,
+        top: position.top,
+      };
+      dispatchGesture({ type: 'down', touchId: touch.id });
+    },
+    onTouchesMove: event => {
+      const start = touchOrigin.current;
+      const touch = event.allTouches.find(item => item.id === start?.touchId);
+      if (!start || !touch) return;
+      if (event.numberOfTouches !== 1) {
+        dispatchGesture({ type: 'cancel', touchId: start.touchId });
+        touchOrigin.current = null;
+        return;
+      }
+      const distanceDp = Math.hypot(touch.absoluteX - start.x, touch.absoluteY - start.y);
+      dispatchGesture({ type: 'move', touchId: start.touchId, distanceDp });
+      if (machine.current.phase === 'dragging') {
+        onPositionChange({
+          left: touch.absoluteX - coordinateOrigin.x - (start.x - coordinateOrigin.x - start.left),
+          top: touch.absoluteY - coordinateOrigin.y - (start.y - coordinateOrigin.y - start.top),
+        });
+      }
+    },
+    onTouchesUp: event => {
+      const start = touchOrigin.current;
+      if (!start || !event.changedTouches.some(item => item.id === start.touchId)) return;
+      dispatchGesture({ type: 'release', touchId: start.touchId });
+      touchOrigin.current = null;
+    },
+    onTouchesCancel: () => {
+      const touchId = machine.current.touchId;
+      if (touchId !== null) dispatchGesture({ type: 'cancel', touchId });
+      touchOrigin.current = null;
+    },
   });
-  const gesture = useExclusiveGestures(holdGesture, tapGesture);
 
   if (!visible) return null;
   const recording = phase === 'recording' || phase === 'limited';
-  const ringVisible = phase === 'activating' || phase === 'activated';
+  const ringVisible = phase === 'ringing' || phase === 'activated';
   const label = phase === 'limited' ? t('voiceLimitReached')
     : recording ? t('voiceRecording') : tLauncher('open');
+  const hintStyle = hintAlignment === 'left' ? styles.hintLeft
+    : hintAlignment === 'right' ? styles.hintRight : styles.hintCenter;
   const content = <>
-    {phase === 'recording' && <Animated.View pointerEvents="none"
+    {phase === 'activated' && <Animated.Image source={activationGlow} resizeMode="contain"
+      pointerEvents="none" style={[styles.glow, glowStyle]} />}
+    {recording && <Animated.View pointerEvents="none"
       style={[styles.pulse, { backgroundColor: theme.sleep }, pulseStyle]} />}
-    {recording
-      ? <View style={[styles.recordIcon, { backgroundColor: theme.accent }]}>
-        <Svg width={32} height={32} viewBox="0 0 24 24" accessible={false}>
-          <Path d="M9 5a3 3 0 0 1 6 0v5a3 3 0 0 1-6 0z" fill={theme.onAccent} />
-          <Path d="M6 10a6 6 0 0 0 12 0M12 16v4m-3 0h6" stroke={theme.onAccent}
-            strokeWidth={1.8} strokeLinecap="round" fill="none" />
-        </Svg>
-      </View>
-      : <VitaAiAvatar size={BUTTON_SIZE} />}
+    <VitaAiAvatar size={BUTTON_SIZE} variant={recording ? 'recording' : phase === 'activated' ? 'activated' : 'idle'} />
     {ringVisible && <View pointerEvents="none" style={styles.ring} importantForAccessibility="no-hide-descendants">
       <Svg height={RING_SIZE} width={RING_SIZE} accessible={false}>
         <Circle cx={RING_CENTER} cy={RING_CENTER} r={RING_RADIUS} stroke={theme.sleepSoft} strokeWidth={3} fill="none" />
@@ -286,39 +387,39 @@ export function GlobalFloatingLauncher({
       </Svg>
     </View>}
   </>;
-  return <View pointerEvents="box-none" style={[styles.position, { right, bottom }]}>
+  return <View pointerEvents="box-none" style={[styles.position, { left: position.left, top: position.top }]}>
     {recording && <View pointerEvents="none" accessibilityLiveRegion="polite"
-      style={[styles.hint, { backgroundColor: theme.backgroundElement }]}>
+      style={[styles.hint, hintStyle,
+        { backgroundColor: theme.backgroundElement, maxWidth: hintMaxWidth }]}>
       <ThemedText variant="caption">{label}</ThemedText>
     </View>}
-    {allowVoice
-      ? <GestureDetector gesture={gesture}>
-        <View testID="vita-ai-launcher" accessible accessibilityRole="button" accessibilityLabel={label}
-          accessibilityHint={busy ? undefined : tLauncher('holdHint')} accessibilityActions={[{ name: 'activate' }]}
-          accessibilityState={{ busy }} onAccessibilityTap={onOpen}
-          onAccessibilityAction={event => { if (event.nativeEvent.actionName === 'activate') onOpen(); }}
-          style={styles.button}>{content}</View>
-      </GestureDetector>
-      : <Pressable testID="vita-ai-launcher" accessibilityRole="button" accessibilityLabel={label}
-        onPress={onOpen} style={({ pressed }) => [styles.button, { opacity: pressed ? 0.8 : 1 }]}>
-        {content}
-      </Pressable>}
+    <GestureDetector gesture={gesture}>
+      <View testID="vita-ai-launcher" accessible accessibilityRole="button" accessibilityLabel={label}
+        accessibilityHint={busy ? undefined : tLauncher('holdHint')} accessibilityActions={[{ name: 'activate' }]}
+        accessibilityState={{ busy }} onAccessibilityTap={onOpen}
+        onAccessibilityAction={event => { if (event.nativeEvent.actionName === 'activate') onOpen(); }}
+        style={styles.button}>{content}</View>
+    </GestureDetector>
   </View>;
 }
 
 const styles = StyleSheet.create({
-  position: { position: 'absolute', alignItems: 'flex-end', zIndex: 20 },
+  position: { position: 'absolute', alignItems: 'center', zIndex: 20 },
   button: {
     width: BUTTON_SIZE, height: BUTTON_SIZE, borderRadius: radius.full,
     alignItems: 'center', justifyContent: 'center', boxShadow: shadows.floating,
   },
   ring: { position: 'absolute', top: (BUTTON_SIZE - RING_SIZE) / 2, left: (BUTTON_SIZE - RING_SIZE) / 2 },
+  glow: { position: 'absolute', width: 80, height: 54 },
   pulse: { ...StyleSheet.absoluteFill, borderRadius: radius.full },
-  recordIcon: { ...StyleSheet.absoluteFill, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center' },
   hint: {
-    maxWidth: 220, marginBottom: spacing.sm, paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs, borderRadius: radius.md, boxShadow: shadows.card,
+    position: 'absolute', bottom: BUTTON_SIZE + LAUNCHER_LAYOUT.hintGap,
+    paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderRadius: radius.md,
+    boxShadow: shadows.card,
   },
+  hintLeft: { left: 0 },
+  hintCenter: { alignSelf: 'center' },
+  hintRight: { right: 0 },
 });
 
 const launcherMessages = {
