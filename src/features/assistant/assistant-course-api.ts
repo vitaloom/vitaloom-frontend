@@ -39,6 +39,7 @@ export function courseApi(session: number, signal: AbortSignal) {
       form.append('audio', { uri: audioUri, name: 'recording.m4a', type: 'audio/mp4' } as unknown as Blob);
       form.append('turnId', turnId);
       form.append('consentAccepted', 'true');
+      form.append('consentVersion', 'assemblyai-us-v1');
       return apiRequest<Conversation>('/assistant/mvp/voice-turns', {
         method: 'POST', signal, body: form,
       }, true, session);

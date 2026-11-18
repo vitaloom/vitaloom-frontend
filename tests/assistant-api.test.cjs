@@ -90,6 +90,7 @@ test('Voice upload preserves authentication and lets fetch supply the multipart 
     assert.ok(init.body instanceof FormData);
     assert.equal(init.body.get('turnId'), turnId);
     assert.equal(init.body.get('consentAccepted'), 'true');
+    assert.equal(init.body.get('consentVersion'), 'assemblyai-us-v1');
     assert.ok(init.body.has('audio'));
     return Response.json({ id: 'voice-conversation', turns: [] });
   });
