@@ -17,11 +17,13 @@ const tabs: Record<string, { labelKey: 'nav.home' | 'nav.statistics' | 'nav.prof
 
 type BottomTabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>['tabBar']>>[0];
 
+export const MAIN_TAB_BAR_HEIGHT = 72;
+
 export function MainTabBar({ state, navigateToTab }: BottomTabBarProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const t = useTranslations(sharedUiMessages);
-  return <View style={{ flexDirection: 'row', backgroundColor: theme.backgroundElement, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, paddingHorizontal: 12, paddingTop: 5, paddingBottom: Math.max(insets.bottom, 9), minHeight: 72 + insets.bottom, boxShadow: shadows.floating }}>
+  return <View style={{ flexDirection: 'row', backgroundColor: theme.backgroundElement, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, paddingHorizontal: 12, paddingTop: 5, paddingBottom: Math.max(insets.bottom, 9), minHeight: MAIN_TAB_BAR_HEIGHT + insets.bottom, boxShadow: shadows.floating }}>
     {state.routes.map((route, index) => {
       const tab = tabs[route.name];
       if (!tab) return null;

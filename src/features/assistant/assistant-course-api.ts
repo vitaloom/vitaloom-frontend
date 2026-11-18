@@ -20,6 +20,23 @@ type Turn = {
 
 export type ConversationSummary = { id: string; updatedAt: string };
 export type Conversation = ConversationSummary & { personalAllowed: boolean; turns: Turn[] };
+export type AssistantAccountSettings = { personalDataAllowed: boolean };
+
+function requireAccountSettings(value: AssistantAccountSettings): AssistantAccountSettings {
+  if (!value || typeof value.personalDataAllowed !== 'boolean') {
+    throw new Error('Invalid Assistant account settings.');
+  }
+  return value;
+}
+
+export function assistantSettingsApi(session: number, signal: AbortSignal) {
+  return {
+    get: async () => requireAccountSettings(await apiRequest<AssistantAccountSettings>(
+      '/assistant/mvp/settings', { method: 'GET', signal }, true, session)),
+    update: async (personalDataAllowed: boolean) => requireAccountSettings(await apiRequest<AssistantAccountSettings>(
+      '/assistant/mvp/settings', { method: 'PUT', signal, body: JSON.stringify({ personalDataAllowed }) }, true, session)),
+  };
+}
 
 export function courseApi(session: number, signal: AbortSignal) {
   function request<T>(path: string, method = 'GET', payload?: object) {

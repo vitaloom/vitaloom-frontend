@@ -10,7 +10,8 @@ import { authMessages } from '@/features/auth/messages';
 import { sleepMessages } from '@/features/sleep/messages';
 import { assistantSandboxEnabled } from '@/features/assistant/assistant-api';
 import { assistantCourseEnabled } from '@/features/assistant/assistant-course-api';
-import { GlobalFloatingLauncher } from '@/features/assistant/global-floating-launcher';
+import { ScreenOverlayProvider } from '@/components/ui/screen-overlay-context';
+import { GlobalAssistant } from '@/features/assistant/global-assistant';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 export default function RootLayout() {
@@ -55,7 +56,7 @@ function AuthenticatedNavigator() {
     <ActivityIndicator color={themeColors.accent} />
   </View>;
 
-  return <>
+  return <ScreenOverlayProvider>
   <Stack screenOptions={{
     headerShown: false,
     contentStyle: { backgroundColor: themeColors.background },
@@ -83,7 +84,7 @@ function AuthenticatedNavigator() {
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
     </Stack.Protected>
   </Stack>
-  {authenticated && (assistantCourseEnabled || assistantSandboxEnabled)
-    ? <GlobalFloatingLauncher key={user?.id} /> : null}
-  </>;
+  {authenticated && user && (assistantCourseEnabled || assistantSandboxEnabled)
+    ? <GlobalAssistant key={user.id} /> : null}
+  </ScreenOverlayProvider>;
 }

@@ -7,6 +7,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { radius, sizing, spacing } from '@/theme';
 import { useTranslations } from '@/i18n';
 import { sharedUiMessages } from './messages';
+import { useScreenOverlay } from './screen-overlay-context';
 import { WellnessIcon, type WellnessIconName } from './wellness-icon';
 
 const metrics: { labelKey: 'nav.metric.steps' | 'nav.metric.heartRate' | 'nav.metric.water' | 'nav.metric.sleep'; route: string; icon: WellnessIconName }[] = [
@@ -18,6 +19,7 @@ const metrics: { labelKey: 'nav.metric.steps' | 'nav.metric.heartRate' | 'nav.me
 
 export function HealthMetricsSidebar({ brandedHeader = false }: { brandedHeader?: boolean }) {
   const [open, setOpen] = useState(false);
+  useScreenOverlay(open);
   const pathname = usePathname();
   const theme = useTheme();
   const insets = useSafeAreaInsets();

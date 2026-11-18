@@ -151,12 +151,6 @@ export default function AssistantCourseScreen({ initialConversationId }: { initi
               setGeminiAccepted(false);
               void load(0);
             }} />
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-              <ThemedText style={{ flex: 1 }}>{t('personal')}</ThemedText>
-              <Switch accessibilityLabel={t('personal')} disabled={busy} value={current.personalAllowed}
-                onValueChange={allowed => void perform(client => client.permission(current.id, allowed), setCurrent)} />
-            </View>
-            <ThemedText themeColor="textSecondary">{t('revoke')}</ThemedText>
             <Button title={confirmDelete ? t('confirmDelete') : t('delete')} disabled={busy} onPress={() => {
               if (!confirmDelete) return setConfirmDelete(true);
               void perform(async client => {
@@ -177,7 +171,7 @@ export default function AssistantCourseScreen({ initialConversationId }: { initi
               const source = part.source;
               const route = source && sourceRoute(source.route);
               return <View key={index} style={{ gap: spacing.xs }}>
-                <ThemedText>{part.text}</ThemedText>
+                <ThemedText>{part.status === 'PERMISSION_REQUIRED' ? t('personalPermissionRequired') : part.text}</ThemedText>
                 {source && !route && <ThemedText themeColor="textSecondary">{source.title} · {source.id} · v{source.version}</ThemedText>}
                 {!!route && !!source && <Pressable accessibilityRole="link" onPress={() => router.push(route)}
                   style={{ minHeight: sizing.controlMin, justifyContent: 'center' }}>

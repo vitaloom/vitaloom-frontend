@@ -29,5 +29,6 @@ export function ProfileOverviewFlow({ accountId, onBack, onEdit, onSignOut, onAu
       />
     );
   }
-  return <ProfileOverview snapshot={state.snapshot} saved={state.saved ?? false} {...{ onEdit, onBack, onSignOut }} />;
+  return <ProfileOverview snapshot={state.snapshot} saved={state.saved ?? false} accountId={accountId}
+    {...{ onEdit, onBack, onSignOut }} />;
 }

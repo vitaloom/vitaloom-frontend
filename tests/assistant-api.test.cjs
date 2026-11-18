@@ -78,6 +78,34 @@ test('Composer sends Gemini acknowledgement only on the opted-in request', async
   ]);
 });
 
+test('Vita AI account access loads and saves through the authenticated settings API', async (t) => {
+  const requests = [];
+  client.resetApiSession();
+  client.setAccessToken('synthetic-settings-token');
+  t.after(() => client.resetApiSession());
+  t.mock.method(globalThis, 'fetch', async (path, init) => {
+    requests.push({ path, method: init.method, body: init.body, auth: init.headers.get('Authorization') });
+    return Response.json({ personalDataAllowed: requests.length === 1 ? false : true });
+  });
+
+  const api = require('../src/features/assistant/assistant-course-api.ts')
+    .assistantSettingsApi(client.getApiSessionGeneration(), new AbortController().signal);
+  assert.deepEqual(await api.get(), { personalDataAllowed: false });
+  assert.deepEqual(await api.update(true), { personalDataAllowed: true });
+  assert.deepEqual(requests, [
+    { path: '/api/assistant/mvp/settings', method: 'GET', body: undefined, auth: 'Bearer synthetic-settings-token' },
+    { path: '/api/assistant/mvp/settings', method: 'PUT', body: JSON.stringify({ personalDataAllowed: true }),
+      auth: 'Bearer synthetic-settings-token' },
+  ]);
+});
+
+test('Vita AI account access rejects a malformed settings response', async (t) => {
+  t.mock.method(globalThis, 'fetch', async () => Response.json({ personalDataAllowed: 'yes' }));
+  const api = require('../src/features/assistant/assistant-course-api.ts')
+    .assistantSettingsApi(client.getApiSessionGeneration(), new AbortController().signal);
+  await assert.rejects(api.get(), /Invalid Assistant account settings/);
+});
+
 test('Voice upload preserves authentication and lets fetch supply the multipart boundary', async (t) => {
   const turnId = createTurnId();
   const audio = new Blob([Uint8Array.of(1, 79, 255)], { type: 'audio/mp4' });
