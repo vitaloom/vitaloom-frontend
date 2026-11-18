@@ -20,6 +20,8 @@ import { courseMessages } from './course-messages';
 const voiceEnabled = process.env.EXPO_PUBLIC_ASSISTANT_VOICE === 'true';
 const MAX_RECORDING_SECONDS = 19;
 
+type RecordingHold = { session: number; accountId: string };
+
 export function GlobalFloatingLauncher() {
   const theme = useTheme();
   const t = useTranslations(courseMessages);
@@ -30,16 +32,15 @@ export function GlobalFloatingLauncher() {
   const [recording, setRecording] = useState(false);
   const [recordingLimited, setRecordingLimited] = useState(false);
   const [sending, setSending] = useState(false);
-  const held = useRef(false);
+  const hold = useRef<RecordingHold | null>(null);
   const recordingRef = useRef(false);
   const capReached = useRef(false);
+  const preparing = useRef(false);
   const finishing = useRef(false);
   const mounted = useRef(true);
   const upload = useRef<AbortController | null>(null);
   const capTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const capStop = useRef<Promise<void> | null>(null);
-  const pinnedSession = useRef<number | null>(null);
-  const pinnedUserId = useRef<string | null>(null);
   const consent = useRef<{ userId: string; accepted: boolean } | undefined>(undefined);
   const onAssistantRoute = segments.some(segment => segment === 'assistant');
   const onTabRoute = segments.some(segment => segment === '(tabs)');
@@ -55,30 +56,32 @@ export function GlobalFloatingLauncher() {
 
   const discardRecording = useCallback(async () => {
     if (!recordingRef.current) return;
+    finishing.current = true;
     recordingRef.current = false;
     if (capTimer.current) clearTimeout(capTimer.current);
     capTimer.current = null;
     try {
       if (capStop.current) await capStop.current;
       else await recorder.stop();
-      await setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
     } catch {
-      // A system interruption can stop the native recorder before this cleanup runs.
+      // The operating system may have already stopped the recording.
+    } finally {
+      await setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
+      await removeAudio(recorder.uri);
+      capStop.current = null;
+      capReached.current = false;
+      finishing.current = false;
+      if (mounted.current) {
+        setRecordingLimited(false);
+        setRecording(false);
+      }
     }
-    await removeAudio(recorder.uri);
-    capStop.current = null;
-    capReached.current = false;
-    setRecordingLimited(false);
-    if (mounted.current) setRecording(false);
   }, [recorder, removeAudio]);
 
-
-  const sendRecording = useCallback(async () => {
+  const sendRecording = useCallback(async ({ session, accountId }: RecordingHold) => {
     if (finishing.current || !recordingRef.current) return;
     finishing.current = true;
     recordingRef.current = false;
-    const session = pinnedSession.current;
-    const accountId = pinnedUserId.current;
     const signal = new AbortController();
     upload.current = signal;
     if (capTimer.current) clearTimeout(capTimer.current);
@@ -90,65 +93,63 @@ export function GlobalFloatingLauncher() {
       else if (!capReached.current) await recorder.stop();
       await setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
       const uri = recorder.uri;
-      if (!mounted.current || signal.signal.aborted || !uri || !user || accountId !== user.id
-        || session == null || session !== getApiSessionGeneration()) {
-        await removeAudio(uri);
-        return;
-      }
+      if (!mounted.current || signal.signal.aborted || !uri || accountId !== user?.id
+        || session !== getApiSessionGeneration()) return;
       const row = await courseApi(session, signal.signal).voiceTurn(uri, createTurnId());
       if (!signal.signal.aborted && session === getApiSessionGeneration() && mounted.current) {
         router.push({ pathname: '/assistant', params: { conversationId: row.id } });
       }
     } catch {
-      if (mounted.current && !upload.current?.signal.aborted) Alert.alert(t('title'), t('voiceUnavailable'));
+      if (mounted.current && !signal.signal.aborted) Alert.alert(t('title'), t('voiceUnavailable'));
     } finally {
       await removeAudio(recorder.uri);
       if (upload.current === signal) upload.current = null;
       finishing.current = false;
       capStop.current = null;
       capReached.current = false;
-      setRecordingLimited(false);
-      if (mounted.current) setSending(false);
+      if (mounted.current) {
+        setRecordingLimited(false);
+        setSending(false);
+      }
     }
   }, [recorder, removeAudio, t, user]);
 
   const beginRecording = useCallback(async () => {
-    const session = pinnedSession.current;
-    const accountId = pinnedUserId.current;
-    if (!user || accountId !== user.id || session == null || session !== getApiSessionGeneration()
-      || !held.current || recordingRef.current || finishing.current || upload.current) return;
-    let accepted = consent.current?.userId === user.id && consent.current.accepted;
-    if (!held.current || !mounted.current || !user || accountId !== user.id
-      || session !== getApiSessionGeneration()) return;
-    if (!accepted) {
+    const currentHold = hold.current;
+    if (!currentHold || !user || user.id !== currentHold.accountId || preparing.current
+      || recordingRef.current || finishing.current) return;
+    const stillHeld = () => mounted.current && hold.current === currentHold
+      && currentHold.session === getApiSessionGeneration();
+    if (!stillHeld()) return;
+    if (consent.current?.userId !== user.id || !consent.current.accepted) {
       Alert.alert(t('voiceConsentTitle'), t('voiceConsent'), [
         { text: t('voiceConsentCancel'), style: 'cancel' },
         { text: t('voiceConsentAccept'), onPress: () => {
-          consent.current = { userId: user.id, accepted: true };
+          if (mounted.current && currentHold.session === getApiSessionGeneration()) {
+            consent.current = { userId: user.id, accepted: true };
+          }
         } },
       ]);
       return;
     }
-    consent.current = { userId: user.id, accepted: true };
-    const permission = await AudioModule.getRecordingPermissionsAsync();
-    if (!held.current || !mounted.current || accountId !== user.id || session !== getApiSessionGeneration()) return;
-    const granted = permission.granted || (await requestRecordingPermissionsAsync()).granted;
-    if (!held.current || !mounted.current || accountId !== user.id || session !== getApiSessionGeneration()) return;
-    if (!granted) {
-      Alert.alert(t('title'), t('microphoneDenied'));
-      return;
-    }
+    preparing.current = true;
+    let audioModeEnabled = false;
     try {
-      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
-      if (!held.current || !mounted.current || accountId !== user.id || session !== getApiSessionGeneration()) {
-        await setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
+      const permission = await AudioModule.getRecordingPermissionsAsync();
+      if (!stillHeld()) return;
+      const granted = permission.granted || (await requestRecordingPermissionsAsync()).granted;
+      if (!stillHeld()) return;
+      if (!granted) {
+        Alert.alert(t('title'), t('microphoneDenied'));
         return;
       }
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      audioModeEnabled = true;
+      if (!stillHeld()) return;
       await recorder.prepareToRecordAsync(RecordingPresets.HIGH_QUALITY);
-      if (!held.current || !mounted.current || accountId !== user.id || session !== getApiSessionGeneration()) {
+      if (!stillHeld()) {
         await recorder.stop().catch(() => undefined);
         await removeAudio(recorder.uri);
-        await setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
         return;
       }
       recorder.record();
@@ -167,8 +168,12 @@ export function GlobalFloatingLauncher() {
       }, MAX_RECORDING_SECONDS * 1000);
     } catch {
       await removeAudio(recorder.uri);
-      await setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
-      Alert.alert(t('title'), t('voiceUnavailable'));
+      if (stillHeld()) Alert.alert(t('title'), t('voiceUnavailable'));
+    } finally {
+      if (audioModeEnabled && !recordingRef.current) {
+        await setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
+      }
+      preparing.current = false;
     }
   }, [recorder, removeAudio, t, user]);
 
@@ -176,10 +181,8 @@ export function GlobalFloatingLauncher() {
     mounted.current = true;
     return () => {
       mounted.current = false;
-      held.current = false;
+      hold.current = null;
       upload.current?.abort();
-      pinnedSession.current = null;
-      pinnedUserId.current = null;
       if (capTimer.current) clearTimeout(capTimer.current);
       if (recordingRef.current) void discardRecording();
     };
@@ -188,9 +191,7 @@ export function GlobalFloatingLauncher() {
   useEffect(() => {
     const subscription = AppState.addEventListener('change', next => {
       if (next !== 'active') {
-        held.current = false;
-        pinnedSession.current = null;
-        pinnedUserId.current = null;
+        hold.current = null;
         upload.current?.abort();
         if (recordingRef.current) void discardRecording();
       }
@@ -200,9 +201,7 @@ export function GlobalFloatingLauncher() {
 
   useEffect(() => {
     consent.current = undefined;
-    held.current = false;
-    pinnedSession.current = null;
-    pinnedUserId.current = null;
+    hold.current = null;
     upload.current?.abort();
     if (recordingRef.current) void discardRecording();
   }, [discardRecording, status, user?.id]);
@@ -215,20 +214,17 @@ export function GlobalFloatingLauncher() {
     runOnJS: true,
     enabled: voiceAvailable && !sending,
     onBegin: () => {
-      held.current = true;
-      pinnedSession.current = getApiSessionGeneration();
-      pinnedUserId.current = user?.id ?? null;
+      if (user) hold.current = { session: getApiSessionGeneration(), accountId: user.id };
     },
     onActivate: () => { void beginRecording(); },
     onDeactivate: event => {
-      held.current = false;
-      if (!event.canceled) void sendRecording();
+      const released = hold.current;
+      hold.current = null;
+      if (!event.canceled && released) void sendRecording(released);
     },
     onFinalize: event => {
       if (event.canceled) {
-        held.current = false;
-        pinnedSession.current = null;
-        pinnedUserId.current = null;
+        hold.current = null;
         if (recordingRef.current) void discardRecording();
       }
     },
