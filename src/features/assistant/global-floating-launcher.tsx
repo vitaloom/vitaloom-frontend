@@ -1,6 +1,5 @@
 import { AudioModule, type RecordingStatus, RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder } from 'expo-audio';
 import { File } from 'expo-file-system';
-import { deleteAsync } from 'expo-file-system/legacy';
 import * as Haptics from 'expo-haptics';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
@@ -19,6 +18,8 @@ import { LAUNCHER_GESTURE_CONFIG, createLauncherGestureState, reduceLauncherGest
   type LauncherGestureEvent, type LauncherGestureState, type LauncherGestureAction } from './launcher-gesture-machine';
 import { LAUNCHER_LAYOUT, type LauncherPosition } from './launcher-layout';
 import { VitaAiAvatar } from './vita-ai-avatar';
+import { acceptAssistantVoiceConsent, hasAssistantVoiceConsent } from './assistant-voice-consent';
+import { removeVoiceFile } from './assistant-voice-files';
 
 const BUTTON_SIZE = LAUNCHER_LAYOUT.buttonSize;
 const RING_SIZE = 66;
@@ -48,10 +49,6 @@ type Props = {
   onVoiceFailure: () => void;
 };
 
-export function removeVoiceFile(uri?: string | null) {
-  if (uri) void deleteAsync(uri, { idempotent: true }).catch(() => undefined);
-}
-
 export function GlobalFloatingLauncher({
   visible, route, allowVoice, busy, position, coordinateOrigin, hintAlignment, hintMaxWidth, onPositionChange, onOpen, onVoiceRelease, onVoiceReady, onVoiceFailure,
 }: Props) {
@@ -62,7 +59,6 @@ export function GlobalFloatingLauncher({
   const machine = useRef(createLauncherGestureState());
   const touchOrigin = useRef<TouchOrigin | null>(null);
   const hold = useRef<Hold | null>(null);
-  const consent = useRef(false);
   const preparing = useRef(false);
   const capturing = useRef(false);
   const finishing = useRef(false);
@@ -164,10 +160,10 @@ export function GlobalFloatingLauncher({
     progress.set(1);
     cancelAnimation(glow);
     if (!reducedMotion) glow.set(withRepeat(withTiming(1, { duration: 900, easing: Easing.inOut(Easing.quad) }), -1, true));
-    if (!consent.current) {
+    if (!hasAssistantVoiceConsent()) {
       Alert.alert(t('voiceConsentTitle'), t('voiceConsent'), [
         { text: t('voiceConsentCancel'), style: 'cancel' },
-        { text: t('voiceConsentAccept'), onPress: () => { if (sameSession()) consent.current = true; } },
+        { text: t('voiceConsentAccept'), onPress: () => { if (sameSession()) acceptAssistantVoiceConsent(); } },
       ]);
       return;
     }

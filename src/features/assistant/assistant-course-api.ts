@@ -52,10 +52,11 @@ export function courseApi(session: number, signal: AbortSignal) {
     permission: (id: string, allowed: boolean) => request<Conversation>(`/${id}/permission`, 'PUT', { allowed }),
     send: (id: string, text: string, turnId: string) => request<Conversation>(
       `/${id}/turns`, 'POST', { text, turnId }),
-    voiceTurn: (audio: Blob, turnId: string) => {
+    voiceTurn: (audio: Blob, turnId: string, conversationId?: string) => {
       const form = new FormData();
       form.append('audio', audio, 'recording.m4a');
       form.append('turnId', turnId);
+      if (conversationId) form.append('conversationId', conversationId);
       form.append('consentAccepted', 'true');
       form.append('consentVersion', 'assemblyai-us-v1');
       return apiRequest<Conversation>('/assistant/mvp/voice-turns', {

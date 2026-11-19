@@ -1,6 +1,6 @@
 import { router, Stack } from 'expo-router';
 import { type ComponentRef, useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Button, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { ActivityIndicator, Button, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -13,6 +13,11 @@ import { useAssistantAccess } from './assistant-access-provider';
 import { createTurnId } from './assistant-api';
 import { type Conversation, type ConversationSummary, courseApi } from './assistant-course-api';
 import { courseMessages } from './course-messages';
+import { AssistantVoiceInput } from './assistant-voice-input';
+import type { File as ExpoFile } from 'expo-file-system';
+import { removeVoiceFile } from './assistant-voice-files';
+
+const voiceEnabled = Platform.OS !== 'web' && process.env.EXPO_PUBLIC_ASSISTANT_VOICE === 'true';
 
 function sourceRoute(value: string) {
   switch (value) {
@@ -25,6 +30,7 @@ function sourceRoute(value: string) {
 }
 
 export default function AssistantCourseScreen({ initialConversationId }: { initialConversationId?: string }) {
+  const sessionGeneration = getApiSessionGeneration();
   const t = useTranslations(courseMessages);
   const { refresh } = useAssistantAccess();
   const { locale } = useI18n();
@@ -38,14 +44,22 @@ export default function AssistantCourseScreen({ initialConversationId }: { initi
   const [error, setError] = useState<'error' | 'blocked' | 'conflict'>();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [retry, setRetry] = useState<{ id: string; text: string; turnId: string }>();
+  const [voiceRetryAvailable, setVoiceRetryAvailable] = useState(false);
+  const voiceRetry = useRef<{ audio: ExpoFile; turnId: string; conversationId?: string; session: number } | undefined>(undefined);
   const pending = useRef<AbortController | null>(null);
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
   const turnCount = current?.turns.length ?? 0;
   const canRetry = retry?.id === current?.id && retry?.text === text.trim()
     && !!retry?.turnId;
 
+  const clearVoiceRetry = useCallback(() => {
+    removeVoiceFile(voiceRetry.current?.audio.uri);
+    voiceRetry.current = undefined;
+    setVoiceRetryAvailable(false);
+  }, []);
+
   const perform = useCallback(async <T,>(work: (client: ReturnType<typeof courseApi>) => Promise<T>,
-    apply: (result: T) => void) => {
+    apply: (result: T) => void, onFailure?: (status: number) => void) => {
     if (pending.current) return;
     const abort = new AbortController();
     const session = getApiSessionGeneration();
@@ -61,6 +75,7 @@ export default function AssistantCourseScreen({ initialConversationId }: { initi
       const status = failure instanceof ApiError ? failure.status : 0;
       if (status === 403) void refresh();
       setError([401, 403, 404].includes(status) ? 'blocked' : status === 409 ? 'conflict' : 'error');
+      onFailure?.(status);
     } finally {
       if (pending.current === abort) pending.current = null;
       if (active()) setBusy(false);
@@ -73,6 +88,14 @@ export default function AssistantCourseScreen({ initialConversationId }: { initi
     setPage(nextPage);
   }), [perform]);
 
+  const open = useCallback((row: Conversation) => {
+    clearVoiceRetry();
+    setCurrent(row);
+    setConfirmDelete(false);
+    setText('');
+    setRetry(undefined);
+  }, [clearVoiceRetry]);
+
   useEffect(() => {
     const initialLoad = setTimeout(() => {
       if (initialConversationId) void perform(client => client.open(initialConversationId), open);
@@ -82,19 +105,24 @@ export default function AssistantCourseScreen({ initialConversationId }: { initi
       clearTimeout(initialLoad);
       pending.current?.abort();
       pending.current = null;
+      removeVoiceFile(voiceRetry.current?.audio.uri);
+      voiceRetry.current = undefined;
     };
-  }, [initialConversationId, load, perform]);
+  }, [initialConversationId, load, open, perform]);
+
+  useEffect(() => {
+    const pendingVoice = voiceRetry.current;
+    if (!pendingVoice || pendingVoice.session === sessionGeneration) return;
+    pending.current?.abort();
+    pending.current = null;
+    clearVoiceRetry();
+    setBusy(false);
+    setError('error');
+  }, [clearVoiceRetry, sessionGeneration]);
 
   useEffect(() => {
     if (turnCount) scroll.current?.scrollToEnd({ animated: false });
   }, [turnCount]);
-
-  function open(row: Conversation) {
-    setCurrent(row);
-    setConfirmDelete(false);
-    setText('');
-    setRetry(undefined);
-  }
 
   function send() {
     if (!current || !text.trim() || pending.current) return;
@@ -106,6 +134,38 @@ export default function AssistantCourseScreen({ initialConversationId }: { initi
       setText('');
       setRetry(undefined);
     });
+  }
+
+  function sendVoice(file: ExpoFile) {
+    const saved = voiceRetry.current;
+    const attempt = saved?.audio === file ? saved : {
+      audio: file,
+      turnId: createTurnId(),
+      conversationId: current?.id,
+      session: getApiSessionGeneration(),
+    };
+    voiceRetry.current = attempt;
+    setVoiceRetryAvailable(false);
+    void perform(client => client.voiceTurn(attempt.audio, attempt.turnId, attempt.conversationId), row => {
+      setCurrent(row);
+      removeVoiceFile(attempt.audio.uri);
+      voiceRetry.current = undefined;
+      setVoiceRetryAvailable(false);
+    }, status => {
+      if (status >= 400 && status < 500 && status !== 409) clearVoiceRetry();
+      else setVoiceRetryAvailable(true);
+    });
+  }
+
+  function retryVoice() {
+    const saved = voiceRetry.current;
+    if (!saved || pending.current) return;
+    if (saved.session !== getApiSessionGeneration()) {
+      clearVoiceRetry();
+      setError('error');
+      return;
+    }
+    sendVoice(saved.audio);
   }
 
   const panel = { backgroundColor: theme.backgroundElement, borderRadius: radius.lg, padding: spacing.md, gap: spacing.sm };
@@ -138,6 +198,7 @@ export default function AssistantCourseScreen({ initialConversationId }: { initi
         </> : <>
           <View style={panel}>
             <Button title={t('history')} disabled={busy} onPress={() => {
+              clearVoiceRetry();
               setCurrent(undefined);
               void load(0);
             }} />
@@ -181,6 +242,16 @@ export default function AssistantCourseScreen({ initialConversationId }: { initi
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
             <Button title={canRetry ? t('retry') : t('send')}
               disabled={busy || !text.trim() || turnCount >= 50} onPress={send} />
+            {voiceRetryAvailable ? <Button title={t('retry')} disabled={busy} onPress={retryVoice} /> : null}
+            {voiceEnabled ? <AssistantVoiceInput disabled={busy || turnCount >= 50} onStart={() => {
+              if (busy || pending.current || turnCount >= 50) return false;
+              clearVoiceRetry();
+              setBusy(true);
+              return true;
+            }} onReady={sendVoice} onFailure={() => {
+              setBusy(false);
+              setError('error');
+            }} /> : null}
           </View>
           {turnCount >= 50 && <ThemedText>{t('limit')}</ThemedText>}
         </>}

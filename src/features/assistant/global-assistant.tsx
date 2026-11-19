@@ -10,7 +10,8 @@ import { getApiSessionGeneration } from '@/lib/api/http-client';
 import { AssistantConversationSheet } from './assistant-conversation-sheet';
 import { useAssistantAccess } from './assistant-access-provider';
 import { createTurnId } from './assistant-api';
-import { GlobalFloatingLauncher, removeVoiceFile } from './global-floating-launcher';
+import { GlobalFloatingLauncher } from './global-floating-launcher';
+import { removeVoiceFile } from './assistant-voice-files';
 import { clampLauncherPosition, defaultLauncherPosition, getLauncherHintAlignment, LAUNCHER_LAYOUT,
   type LauncherPosition } from './launcher-layout';
 import { useAssistantConversation } from './use-assistant-conversation';
@@ -19,7 +20,6 @@ const MAIN_ROUTES = new Set(['/home', '/statistics', '/profile', '/sleep', '/wat
 const voiceEnabled = Platform.OS !== 'web'
   && process.env.EXPO_PUBLIC_ASSISTANT_VOICE === 'true';
 
-type PendingAudio = { file: File; turnId: string; session: number };
 type OpenAssistant = { route: string; accessVersion: number };
 type OverlayViewport = LayoutRectangle & { originX: number; originY: number };
 
@@ -35,21 +35,16 @@ export function GlobalAssistant() {
   const [viewport, setViewport] = useState<OverlayViewport>({ x: 0, y: 0, width: 0, height: 0, originX: 0, originY: 0 });
   const measuredTabBarHeight = useSyncExternalStore(subscribeMainTabBarHeight, getMainTabBarHeight, () => undefined);
   const [savedPosition, setSavedPosition] = useState<LauncherPosition>();
-  const audio = useRef<PendingAudio | undefined>(undefined);
   const recordingSession = useRef<number | undefined>(undefined);
   const conversation = useAssistantConversation(assistantAllowed);
-  const { beginVoice, submitVoice, failVoice, dismissVoiceError, voiceError, reset } = conversation;
+  const { beginVoice, submitVoice, retryVoice, failVoice, dismissVoiceError, voiceError, reset,
+    activeConversationId } = conversation;
   const eligible = MAIN_ROUTES.has(pathname);
   const open = eligible && assistantAllowed && openAssistant?.route === pathname
     && openAssistant.accessVersion === access.version;
   const inTabs = segments[0] === '(tabs)';
 
   if (openAssistant && openAssistant.route !== pathname) setOpenAssistant(undefined);
-
-  const clearAudio = useCallback(() => {
-    removeVoiceFile(audio.current?.file.uri);
-    audio.current = undefined;
-  }, []);
 
   useEffect(() => {
     const show = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
@@ -64,15 +59,13 @@ export function GlobalAssistant() {
 
   useEffect(() => () => {
     recordingSession.current = undefined;
-    clearAudio();
-  }, [clearAudio]);
+  }, []);
 
   useEffect(() => {
     if (assistantAllowed) return;
     recordingSession.current = undefined;
-    clearAudio();
     reset();
-  }, [assistantAllowed, clearAudio, reset]);
+  }, [assistantAllowed, reset]);
 
   const tabBarHeight = inTabs ? measuredTabBarHeight ?? MAIN_TAB_BAR_HEIGHT + insets.bottom : 0;
   const positionBounds = useMemo(() => ({
@@ -97,7 +90,6 @@ export function GlobalAssistant() {
   };
 
   const discardVoiceError = () => {
-    clearAudio();
     dismissVoiceError();
   };
 
@@ -109,28 +101,26 @@ export function GlobalAssistant() {
 
   const handleVoiceRelease = () => {
     if (!assistantAllowed || !eligible || blockingOverlay || keyboardVisible || open || !beginVoice()) return false;
-    clearAudio();
     recordingSession.current = getApiSessionGeneration();
     setOpenAssistant({ route: pathname, accessVersion: access.version });
     return true;
   };
-
-  const sendAudio = useCallback(async (pending: PendingAudio) => {
-    if (pending.session !== getApiSessionGeneration()) return;
-    if (await submitVoice(pending.file, pending.turnId) && audio.current === pending) clearAudio();
-  }, [clearAudio, submitVoice]);
 
   const handleVoiceReady = useCallback((file: File) => {
     const session = recordingSession.current;
     recordingSession.current = undefined;
     if (!assistantAllowed || session === undefined || session !== getApiSessionGeneration()) {
       removeVoiceFile(file.uri);
+      failVoice();
       return;
     }
-    const pending = { session, file, turnId: createTurnId() };
-    audio.current = pending;
-    void sendAudio(pending);
-  }, [assistantAllowed, sendAudio]);
+    void submitVoice(file, createTurnId(), activeConversationId);
+  }, [activeConversationId, assistantAllowed, failVoice, submitVoice]);
+
+  const handleInConversationVoice = useCallback(async (file: File) => {
+    const turnId = createTurnId();
+    await submitVoice(file, turnId, activeConversationId);
+  }, [activeConversationId, submitVoice]);
 
   const handleVoiceFailure = useCallback(() => {
     recordingSession.current = undefined;
@@ -152,6 +142,7 @@ export function GlobalAssistant() {
       onVoiceReady={handleVoiceReady} onVoiceFailure={handleVoiceFailure} />
     <AssistantConversationSheet visible={open} onClose={closeSheet}
       conversation={conversation} onDismissVoiceError={discardVoiceError}
-      onRetryVoice={() => { if (audio.current && beginVoice()) void sendAudio(audio.current); }} />
+      onRetryVoice={() => void retryVoice()} allowVoice={voiceEnabled && open} onVoiceReady={handleInConversationVoice}
+      onVoiceFailure={failVoice} />
   </View>;
 }

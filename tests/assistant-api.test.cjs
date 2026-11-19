@@ -111,7 +111,7 @@ test('Vita AI account access rejects a malformed settings response', async (t) =
   await assert.rejects(api.get(), /Invalid Assistant account settings/);
 });
 
-test('Voice upload preserves authentication and lets fetch supply the multipart boundary', async (t) => {
+test('Voice upload targets an active conversation and lets fetch supply the multipart boundary', async (t) => {
   const turnId = createTurnId();
   const audio = new Blob([Uint8Array.of(1, 79, 255)], { type: 'audio/mp4' });
   client.resetApiSession();
@@ -124,6 +124,7 @@ test('Voice upload preserves authentication and lets fetch supply the multipart 
     assert.equal(init.headers.has('Content-Type'), false);
     assert.ok(init.body instanceof FormData);
     assert.equal(init.body.get('turnId'), turnId);
+    assert.equal(init.body.get('conversationId'), 'active-conversation');
     assert.equal(init.body.get('consentAccepted'), 'true');
     assert.equal(init.body.get('consentVersion'), 'assemblyai-us-v1');
     const encoded = new Request('http://localhost/api/assistant/mvp/voice-turns', init);
@@ -136,8 +137,23 @@ test('Voice upload preserves authentication and lets fetch supply the multipart 
   });
 
   const api = courseApi(client.getApiSessionGeneration(), new AbortController().signal);
-  const conversation = await api.voiceTurn(audio, turnId);
+  const conversation = await api.voiceTurn(audio, turnId, 'active-conversation');
   assert.equal(conversation.id, 'voice-conversation');
+});
+
+test('Voice upload can start a conversation from the launcher', async (t) => {
+  const turnId = createTurnId();
+  const audio = new Blob([Uint8Array.of(3, 4)], { type: 'audio/mp4' });
+  t.mock.method(globalThis, 'fetch', async (_path, init) => {
+    assert.ok(init.body instanceof FormData);
+    assert.equal(init.body.get('turnId'), turnId);
+    assert.equal(init.body.has('conversationId'), false);
+    return Response.json({ id: 'new-voice-conversation', turns: [] });
+  });
+
+  const api = courseApi(client.getApiSessionGeneration(), new AbortController().signal);
+  const conversation = await api.voiceTurn(audio, turnId);
+  assert.equal(conversation.id, 'new-voice-conversation');
 });
 
 test('Expo native multipart accepts a byte-readable file and rejects a URI-only part', async () => {

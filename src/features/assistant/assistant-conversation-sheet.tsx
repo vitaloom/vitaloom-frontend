@@ -12,15 +12,20 @@ import { radius, shadows, sizing, spacing } from '@/theme';
 import { assistantUiMessages } from './assistant-ui-messages';
 import { VitaAiAvatar } from './vita-ai-avatar';
 import type { useAssistantConversation } from './use-assistant-conversation';
+import { AssistantVoiceInput } from './assistant-voice-input';
 
 type ConversationController = ReturnType<typeof useAssistantConversation>;
 
-export function AssistantConversationSheet({ visible, onClose, conversation, onRetryVoice, onDismissVoiceError }: {
+export function AssistantConversationSheet({ visible, onClose, conversation, onRetryVoice, onDismissVoiceError,
+  allowVoice, onVoiceReady, onVoiceFailure }: {
   visible: boolean;
   onClose: () => void;
   conversation: ConversationController;
   onRetryVoice: () => void;
   onDismissVoiceError: () => void;
+  allowVoice: boolean;
+  onVoiceReady: (file: import('expo-file-system').File) => void;
+  onVoiceFailure: () => void;
 }) {
   const theme = useTheme();
   const t = useTranslations(assistantUiMessages);
@@ -145,6 +150,8 @@ export function AssistantConversationSheet({ visible, onClose, conversation, onR
               returnKeyType="default" style={{ flex: 1, minHeight: sizing.controlComfortable, maxHeight: 112,
                 paddingHorizontal: spacing.md, paddingVertical: spacing.sm, color: theme.text, fontSize: 16,
                 lineHeight: 22, textAlignVertical: 'center' }} />
+            {allowVoice ? <AssistantVoiceInput disabled={conversation.busy} onStart={conversation.beginVoice}
+              onReady={onVoiceReady} onFailure={onVoiceFailure} /> : null}
             <Pressable accessibilityRole="button" accessibilityLabel={t('send')}
               accessibilityState={{ disabled: conversation.busy || !conversation.text.trim(), busy: conversation.busy }}
               disabled={conversation.busy || !conversation.text.trim()}

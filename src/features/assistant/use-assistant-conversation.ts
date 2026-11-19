@@ -7,6 +7,7 @@ import { ApiError, getApiSessionGeneration } from '@/lib/api/http-client';
 import { useAssistantAccess } from './assistant-access-provider';
 import { createTurnId } from './assistant-api';
 import { courseApi, type Conversation } from './assistant-course-api';
+import { removeVoiceFile } from './assistant-voice-files';
 
 export type AssistantMessage = { id: string; role: 'user' | 'assistant'; text: string; pending?: boolean };
 export type AssistantVoiceError = { retryable: boolean };
@@ -26,17 +27,19 @@ function conversationMessages(row: Conversation): AssistantMessage[] {
 
 export function useAssistantConversation(personalDataAllowed: boolean) {
   const { refresh } = useAssistantAccess();
+  const sessionGeneration = getApiSessionGeneration();
   const [messages, setMessages] = useState<AssistantMessage[]>([]);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<TextError>();
   const [voiceError, setVoiceError] = useState<AssistantVoiceError | null>(null);
+  const [conversationId, setConversationId] = useState<string>();
   const pending = useRef<AbortController | null>(null);
   const locked = useRef(false);
   const mounted = useRef(true);
   const activeConversationId = useRef<string | undefined>(undefined);
   const retry = useRef<TextRetry | undefined>(undefined);
-  const previousMessages = useRef<AssistantMessage[]>([]);
+  const voiceRetry = useRef<{ audio: ExpoFile; turnId: string; conversationId?: string; session: number } | undefined>(undefined);
 
   const messageError = useCallback((failure: unknown): TextError => {
     if (!(failure instanceof ApiError)) return 'requestError';
@@ -52,11 +55,26 @@ export function useAssistantConversation(personalDataAllowed: boolean) {
       mounted.current = false;
       pending.current?.abort();
       pending.current = null;
+      removeVoiceFile(voiceRetry.current?.audio.uri);
+      voiceRetry.current = undefined;
     };
   }, []);
 
+  useEffect(() => {
+    const pendingVoice = voiceRetry.current;
+    if (!pendingVoice || pendingVoice.session === sessionGeneration) return;
+    pending.current?.abort();
+    pending.current = null;
+    removeVoiceFile(pendingVoice.audio.uri);
+    voiceRetry.current = undefined;
+    locked.current = false;
+    setBusy(false);
+    setVoiceError({ retryable: false });
+  }, [sessionGeneration]);
+
   const applyConversation = useCallback((row: Conversation) => {
     activeConversationId.current = row.id;
+    setConversationId(row.id);
     setMessages(conversationMessages(row));
   }, []);
 
@@ -81,10 +99,12 @@ export function useAssistantConversation(personalDataAllowed: boolean) {
       const row = activeConversationId.current
           ? await client.send(activeConversationId.current, content, turnId)
         : await client.create().then(conversation => {
+          if (!mounted.current || controller.signal.aborted || session !== getApiSessionGeneration()) return;
           activeConversationId.current = conversation.id;
+          setConversationId(conversation.id);
           return client.send(conversation.id, content, turnId);
         });
-      if (!mounted.current || controller.signal.aborted || session !== getApiSessionGeneration()) return;
+      if (!row || !mounted.current || controller.signal.aborted || session !== getApiSessionGeneration()) return;
       applyConversation(row);
       setText('');
       retry.current = undefined;
@@ -101,66 +121,101 @@ export function useAssistantConversation(personalDataAllowed: boolean) {
     }
   }, [applyConversation, messageError, personalDataAllowed, text]);
 
-  const beginVoice = useCallback(() => {
+  const beginVoice = useCallback((preservePendingVoice = false) => {
     if (!personalDataAllowed || locked.current || pending.current) return false;
+    if (!preservePendingVoice) {
+      removeVoiceFile(voiceRetry.current?.audio.uri);
+      voiceRetry.current = undefined;
+    }
     locked.current = true;
-    previousMessages.current = messages;
     setBusy(true);
     setError(undefined);
     setVoiceError(null);
-    setMessages([{ id: 'voice:processing', role: 'assistant', text: 'processing', pending: true }]);
     return true;
-  }, [messages, personalDataAllowed]);
+  }, [personalDataAllowed]);
 
-  const submitVoice = useCallback(async (audio: ExpoFile, turnId: string) => {
-    if (!personalDataAllowed || !locked.current || pending.current) return false;
+  const submitVoice = useCallback(async (audio: ExpoFile, turnId: string, conversationId?: string) => {
+    if (!personalDataAllowed || !locked.current || pending.current) {
+      removeVoiceFile(audio.uri);
+      return true;
+    }
     const session = getApiSessionGeneration();
+    const attempt = { audio, turnId, conversationId, session };
+    voiceRetry.current = attempt;
+    const discardAttempt = () => {
+      removeVoiceFile(audio.uri);
+      if (voiceRetry.current === attempt) voiceRetry.current = undefined;
+    };
     const controller = new AbortController();
     pending.current = controller;
     try {
-      const row = await courseApi(session, controller.signal).voiceTurn(audio, turnId);
-      if (!mounted.current || controller.signal.aborted || session !== getApiSessionGeneration()) return true;
-      applyConversation(row);
-      retry.current = undefined;
-      previousMessages.current = [];
-      return true;
-    } catch (failure) {
-      if (!mounted.current || controller.signal.aborted || session !== getApiSessionGeneration()) return true;
-      if (failure instanceof ApiError && failure.status === 403) void refresh();
-      if (failure instanceof ApiError && [400, 401, 403, 404, 413, 415, 422].includes(failure.status)) {
-        setVoiceError({ retryable: false });
-        setMessages(previousMessages.current);
+      const row = await courseApi(session, controller.signal).voiceTurn(audio, turnId, conversationId);
+      if (!mounted.current || controller.signal.aborted || session !== getApiSessionGeneration()) {
+        discardAttempt();
         return true;
       }
-      setMessages(previousMessages.current);
+      applyConversation(row);
+      retry.current = undefined;
+      discardAttempt();
+      return true;
+    } catch (failure) {
+      if (!mounted.current || controller.signal.aborted || session !== getApiSessionGeneration()) {
+        discardAttempt();
+        return true;
+      }
+      if (failure instanceof ApiError && failure.status === 403) void refresh();
+      if (failure instanceof ApiError && failure.status >= 400 && failure.status < 500 && failure.status !== 409) {
+        setVoiceError({ retryable: false });
+        discardAttempt();
+        return true;
+      }
       setVoiceError({ retryable: true });
       return false;
     } finally {
       if (pending.current === controller) {
         pending.current = null;
         locked.current = false;
-        if (mounted.current && session === getApiSessionGeneration()) setBusy(false);
+        if (mounted.current) setBusy(false);
       }
     }
   }, [applyConversation, personalDataAllowed, refresh]);
+
+  const retryVoice = useCallback(async () => {
+    const saved = voiceRetry.current;
+    if (!saved || locked.current || pending.current || !beginVoice(true)) return false;
+    if (saved.session !== getApiSessionGeneration()) {
+      removeVoiceFile(saved.audio.uri);
+      voiceRetry.current = undefined;
+      locked.current = false;
+      setBusy(false);
+      setVoiceError({ retryable: false });
+      return false;
+    }
+    return submitVoice(saved.audio, saved.turnId, saved.conversationId);
+  }, [beginVoice, submitVoice]);
 
   const failVoice = useCallback(() => {
     if (pending.current) return;
     locked.current = false;
     setBusy(false);
     setVoiceError({ retryable: false });
-    setMessages(previousMessages.current);
   }, []);
 
-  const dismissVoiceError = useCallback(() => setVoiceError(null), []);
+  const dismissVoiceError = useCallback(() => {
+    removeVoiceFile(voiceRetry.current?.audio.uri);
+    voiceRetry.current = undefined;
+    setVoiceError(null);
+  }, []);
 
   const reset = useCallback(() => {
     pending.current?.abort();
     pending.current = null;
     locked.current = false;
     retry.current = undefined;
-    previousMessages.current = [];
+    removeVoiceFile(voiceRetry.current?.audio.uri);
+    voiceRetry.current = undefined;
     activeConversationId.current = undefined;
+    setConversationId(undefined);
     setMessages([]);
     setText('');
     setBusy(false);
@@ -176,6 +231,7 @@ export function useAssistantConversation(personalDataAllowed: boolean) {
 
   return {
     messages, text, setText, busy, error, setError, sendText, retrySend,
-    beginVoice, submitVoice, failVoice, voiceError, dismissVoiceError, reset,
+    activeConversationId: conversationId,
+    beginVoice, submitVoice, retryVoice, failVoice, voiceError, dismissVoiceError, reset,
   };
 }
