@@ -1,6 +1,6 @@
 import { ActivityIndicator, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import type { ComponentRef } from 'react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -13,6 +13,7 @@ import { assistantUiMessages } from './assistant-ui-messages';
 import { VitaAiAvatar } from './vita-ai-avatar';
 import type { useAssistantConversation } from './use-assistant-conversation';
 import { AssistantVoiceInput } from './assistant-voice-input';
+import { courseMessages } from './course-messages';
 
 type ConversationController = ReturnType<typeof useAssistantConversation>;
 
@@ -29,9 +30,11 @@ export function AssistantConversationSheet({ visible, onClose, conversation, onR
 }) {
   const theme = useTheme();
   const t = useTranslations(assistantUiMessages);
+  const course = useTranslations(courseMessages);
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
+  const [holdingVoice, setHoldingVoice] = useState(false);
 
   useEffect(() => {
     if (visible) requestAnimationFrame(() => scroll.current?.scrollToEnd({ animated: false }));
@@ -105,12 +108,15 @@ export function AssistantConversationSheet({ visible, onClose, conversation, onR
             </View>)}
 
             {conversation.busy && !conversation.messages.some(message => message.pending) ? <View
-              accessibilityRole="progressbar" accessibilityLabel={t('sending')} accessibilityLiveRegion="polite"
+              accessibilityRole={holdingVoice ? undefined : 'progressbar'}
+              accessibilityLabel={holdingVoice ? course('voiceRecording') : t('sending')} accessibilityLiveRegion="polite"
               style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
               <VitaAiAvatar size={36} />
               <View style={[messageStyle('assistant'), { flexDirection: 'row', alignItems: 'center', gap: spacing.sm }]}>
-                <ActivityIndicator size="small" color={theme.accent} />
-                <ThemedText themeColor="textSecondary">{t('sending')}</ThemedText>
+                  {holdingVoice ? null : <ActivityIndicator size="small" color={theme.accent} />}
+                  <ThemedText themeColor="textSecondary">
+                    {holdingVoice ? course('voiceRecording') : t('sending')}
+                  </ThemedText>
               </View>
             </View> : null}
           </ScrollView>
@@ -150,8 +156,20 @@ export function AssistantConversationSheet({ visible, onClose, conversation, onR
               returnKeyType="default" style={{ flex: 1, minHeight: sizing.controlComfortable, maxHeight: 112,
                 paddingHorizontal: spacing.md, paddingVertical: spacing.sm, color: theme.text, fontSize: 16,
                 lineHeight: 22, textAlignVertical: 'center' }} />
-            {allowVoice ? <AssistantVoiceInput disabled={conversation.busy} onStart={conversation.beginVoice}
-              onReady={onVoiceReady} onFailure={onVoiceFailure} /> : null}
+            {allowVoice ? <AssistantVoiceInput holdToRecord disabled={conversation.busy} onStart={() => {
+              if (!conversation.beginVoice()) return false;
+              setHoldingVoice(true);
+              return true;
+            }} onReady={file => {
+              setHoldingVoice(false);
+              onVoiceReady(file);
+            }} onCancel={() => {
+              setHoldingVoice(false);
+              conversation.cancelVoice();
+            }} onFailure={() => {
+              setHoldingVoice(false);
+              onVoiceFailure();
+            }} /> : null}
             <Pressable accessibilityRole="button" accessibilityLabel={t('send')}
               accessibilityState={{ disabled: conversation.busy || !conversation.text.trim(), busy: conversation.busy }}
               disabled={conversation.busy || !conversation.text.trim()}

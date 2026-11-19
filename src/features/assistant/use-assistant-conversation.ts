@@ -194,12 +194,17 @@ export function useAssistantConversation(personalDataAllowed: boolean) {
     return submitVoice(saved.audio, saved.turnId, saved.conversationId);
   }, [beginVoice, submitVoice]);
 
-  const failVoice = useCallback(() => {
+  const cancelVoice = useCallback(() => {
     if (pending.current) return;
     locked.current = false;
     setBusy(false);
-    setVoiceError({ retryable: false });
   }, []);
+
+  const failVoice = useCallback(() => {
+    if (pending.current) return;
+    cancelVoice();
+    setVoiceError({ retryable: false });
+  }, [cancelVoice]);
 
   const dismissVoiceError = useCallback(() => {
     removeVoiceFile(voiceRetry.current?.audio.uri);
@@ -232,6 +237,6 @@ export function useAssistantConversation(personalDataAllowed: boolean) {
   return {
     messages, text, setText, busy, error, setError, sendText, retrySend,
     activeConversationId: conversationId,
-    beginVoice, submitVoice, retryVoice, failVoice, voiceError, dismissVoiceError, reset,
+    beginVoice, submitVoice, retryVoice, cancelVoice, failVoice, voiceError, dismissVoiceError, reset,
   };
 }
