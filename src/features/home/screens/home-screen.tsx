@@ -18,21 +18,19 @@ import { Reminder } from '../components/reminder';
 import { WellnessBanner } from '../components/wellness-banner';
 import { dashboardMetrics, dashboardUser } from '../data/dashboard';
 import { useTranslations } from '@/i18n';
-import { assistantSandboxEnabled } from '@/features/assistant/assistant-api';
-import { assistantCourseEnabled } from '@/features/assistant/assistant-course-api';
 import { courseMessages } from '@/features/assistant/course-messages';
-import { assistantMessages } from '@/features/assistant/messages';
+import { useAssistantAccess } from '@/features/assistant/assistant-access-provider';
 import { homeMessages } from '../messages';
 
 export default function HomeScreen() {
   const theme = useTheme();
   const t = useTranslations(homeMessages);
-  const tAssistant = useTranslations(assistantMessages);
   const tCourse = useTranslations(courseMessages);
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const compact = width < 370;
   const { status, user } = useAuth();
+  const assistantAccess = useAssistantAccess();
   const [request, setRequest] = useState(0);
   const [settled, setSettled] = useState<{ key: string; summary?: HeartRateSummary; failed?: true } | null>(null);
   const [stepsSettled, setStepsSettled] = useState<{ key: string; totalSteps: number | null; goal?: number; progressPercent?: number | null; buckets: (number | null)[] } | { key: string; failed: true } | null>(null);
@@ -80,9 +78,9 @@ export default function HomeScreen() {
       <DashboardHeader user={dashboardUser} />
       {typeof document !== 'undefined' ? <Pressable accessibilityRole="button" accessibilityLabel={t('home.refresh')} onPress={refresh} style={{ alignSelf: 'flex-end', minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.sm }}><ThemedText variant="labelStrong" style={{ color: theme.accent }}>{t('home.refresh')}</ThemedText></Pressable> : null}
       <WellnessBanner compact={compact} />
-      {assistantSandboxEnabled || assistantCourseEnabled ? <Pressable accessibilityRole="link" onPress={() => router.push('/assistant')}
+      {assistantAccess.personalDataAllowed ? <Pressable accessibilityRole="link" onPress={() => router.push('/assistant')}
         style={{ minHeight: 48, justifyContent: 'center', alignSelf: 'flex-start', paddingHorizontal: spacing.sm }}>
-        <ThemedText variant="labelStrong" themeColor="accent">{assistantCourseEnabled ? tCourse('title') : tAssistant('title')}</ThemedText>
+        <ThemedText variant="labelStrong" themeColor="accent">{tCourse('title')}</ThemedText>
       </Pressable> : null}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10 }}>
         {dashboardMetrics.map((metric) => <MetricCard key={metric.key} metric={metric} compact={compact} heartRate={metric.key === 'heart-rate' ? heartRate : undefined} steps={metric.key === 'steps' ? steps : undefined} sleep={metric.key === 'sleep' ? sleep : undefined} onRetry={metric.key === 'sleep' ? reloadSleep : retry} />)}

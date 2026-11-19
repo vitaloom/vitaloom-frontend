@@ -1,6 +1,6 @@
 import { router, Stack } from 'expo-router';
 import { type ComponentRef, useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Button, Pressable, ScrollView, Switch, TextInput, View } from 'react-native';
+import { ActivityIndicator, Button, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -9,6 +9,7 @@ import { useI18n, useTranslations } from '@/i18n';
 import { ApiError, getApiSessionGeneration } from '@/lib/api/http-client';
 import { layout, radius, sizing, spacing } from '@/theme';
 
+import { useAssistantAccess } from './assistant-access-provider';
 import { createTurnId } from './assistant-api';
 import { type Conversation, type ConversationSummary, courseApi } from './assistant-course-api';
 import { courseMessages } from './course-messages';
@@ -25,25 +26,23 @@ function sourceRoute(value: string) {
 
 export default function AssistantCourseScreen({ initialConversationId }: { initialConversationId?: string }) {
   const t = useTranslations(courseMessages);
+  const { refresh } = useAssistantAccess();
   const { locale } = useI18n();
   const theme = useTheme();
   const [history, setHistory] = useState<ConversationSummary[]>([]);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [current, setCurrent] = useState<Conversation>();
-  const [accepted, setAccepted] = useState(false);
   const [text, setText] = useState('');
-  const [geminiAccepted, setGeminiAccepted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<'error' | 'blocked' | 'conflict'>();
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [retry, setRetry] = useState<{ id: string; text: string; turnId: string; geminiAccepted: boolean }>();
+  const [retry, setRetry] = useState<{ id: string; text: string; turnId: string }>();
   const pending = useRef<AbortController | null>(null);
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
   const turnCount = current?.turns.length ?? 0;
-  const allowGemini = geminiAccepted;
   const canRetry = retry?.id === current?.id && retry?.text === text.trim()
-    && retry?.geminiAccepted === allowGemini;
+    && !!retry?.turnId;
 
   const perform = useCallback(async <T,>(work: (client: ReturnType<typeof courseApi>) => Promise<T>,
     apply: (result: T) => void) => {
@@ -60,12 +59,13 @@ export default function AssistantCourseScreen({ initialConversationId }: { initi
     } catch (failure) {
       if (!active()) return;
       const status = failure instanceof ApiError ? failure.status : 0;
+      if (status === 403) void refresh();
       setError([401, 403, 404].includes(status) ? 'blocked' : status === 409 ? 'conflict' : 'error');
     } finally {
       if (pending.current === abort) pending.current = null;
       if (active()) setBusy(false);
     }
-  }, []);
+  }, [refresh]);
 
   const load = useCallback((nextPage: number) => perform(client => client.list(nextPage), result => {
     setHistory(result.items);
@@ -93,7 +93,6 @@ export default function AssistantCourseScreen({ initialConversationId }: { initi
     setCurrent(row);
     setConfirmDelete(false);
     setText('');
-    setGeminiAccepted(false);
     setRetry(undefined);
   }
 
@@ -101,11 +100,10 @@ export default function AssistantCourseScreen({ initialConversationId }: { initi
     if (!current || !text.trim() || pending.current) return;
     const trimmed = text.trim();
     const turnId = canRetry && retry ? retry.turnId : createTurnId();
-    setRetry({ id: current.id, text: trimmed, turnId, geminiAccepted: allowGemini });
-    void perform(client => client.send(current.id, trimmed, turnId, allowGemini), row => {
+    setRetry({ id: current.id, text: trimmed, turnId });
+    void perform(client => client.send(current.id, trimmed, turnId), row => {
       setCurrent(row);
       setText('');
-      setGeminiAccepted(false);
       setRetry(undefined);
     });
   }
@@ -121,14 +119,8 @@ export default function AssistantCourseScreen({ initialConversationId }: { initi
         {busy && <ActivityIndicator accessibilityLabel={t('loading')} />}
         {error && <ThemedText themeColor="danger" accessibilityLiveRegion="polite">{t(error)}</ThemedText>}
         {!current ? <>
-          <Button title={t('gemini')} disabled={busy}
-            onPress={() => router.push({ pathname: '/assistant', params: { mode: 'gemini' } })} />
           <View style={panel}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-              <ThemedText style={{ flex: 1 }}>{t('consent')}</ThemedText>
-              <Switch disabled={busy} value={accepted} onValueChange={setAccepted} accessibilityLabel={t('consent')} />
-            </View>
-            <Button title={t('create')} disabled={busy || !accepted}
+            <Button title={t('create')} disabled={busy}
               onPress={() => void perform(client => client.create(), open)} />
           </View>
           <ThemedText variant="labelStrong">{t('history')}</ThemedText>
@@ -147,8 +139,6 @@ export default function AssistantCourseScreen({ initialConversationId }: { initi
           <View style={panel}>
             <Button title={t('history')} disabled={busy} onPress={() => {
               setCurrent(undefined);
-              setAccepted(false);
-              setGeminiAccepted(false);
               void load(0);
             }} />
             <Button title={confirmDelete ? t('confirmDelete') : t('delete')} disabled={busy} onPress={() => {
@@ -158,7 +148,6 @@ export default function AssistantCourseScreen({ initialConversationId }: { initi
                 return client.list(0);
               }, result => {
                 setCurrent(undefined);
-                setAccepted(false);
                 setHistory(result.items);
                 setHasMore(result.hasMore);
                 setPage(0);
@@ -186,15 +175,9 @@ export default function AssistantCourseScreen({ initialConversationId }: { initi
           <TextInput accessibilityLabel={t('input')} placeholder={t('input')} placeholderTextColor={theme.textSecondary}
             value={text} onChangeText={value => {
               setText(value);
-              setGeminiAccepted(false);
             }} editable={!busy} maxLength={300} multiline
             style={{ backgroundColor: theme.backgroundElement, color: theme.text, borderRadius: radius.lg,
               minHeight: sizing.controlComfortable, padding: spacing.md }} />
-          {text.trim().length > 0 && <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-            <ThemedText style={{ flex: 1 }}>{t('geminiConsent')}</ThemedText>
-            <Switch disabled={busy} value={geminiAccepted} onValueChange={setGeminiAccepted}
-              accessibilityLabel={t('geminiConsent')} />
-          </View>}
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
             <Button title={canRetry ? t('retry') : t('send')}
               disabled={busy || !text.trim() || turnCount >= 50} onPress={send} />

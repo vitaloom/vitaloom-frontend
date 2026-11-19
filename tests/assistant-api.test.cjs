@@ -55,7 +55,7 @@ test('Assistant rejects a reply for a different turn or a fabricated source', as
   await assert.rejects(send, /Missing Assistant answer or citation/);
 });
 
-test('Composer sends Gemini acknowledgement only on the opted-in request', async (t) => {
+test('Composer sends account-authorized conversation turns without per-turn Gemini consent', async (t) => {
   const first = createTurnId();
   const second = createTurnId();
   const requests = [];
@@ -71,10 +71,10 @@ test('Composer sends Gemini acknowledgement only on the opted-in request', async
 
   const api = courseApi(client.getApiSessionGeneration(), new AbortController().signal);
   await api.send('demo', sampleQuestion, first);
-  await api.send('demo', sampleQuestion, second, true);
+  await api.send('demo', sampleQuestion, second);
   assert.deepEqual(requests, [
     { text: sampleQuestion, turnId: first },
-    { text: sampleQuestion, turnId: second, geminiAccepted: true },
+    { text: sampleQuestion, turnId: second },
   ]);
 });
 
@@ -85,16 +85,21 @@ test('Vita AI account access loads and saves through the authenticated settings 
   t.after(() => client.resetApiSession());
   t.mock.method(globalThis, 'fetch', async (path, init) => {
     requests.push({ path, method: init.method, body: init.body, auth: init.headers.get('Authorization') });
-    return Response.json({ personalDataAllowed: requests.length === 1 ? false : true });
+    return Response.json({ personalDataAllowed: requests.length === 1 ? false
+      : JSON.parse(init.body).personalDataAllowed });
   });
 
   const api = require('../src/features/assistant/assistant-course-api.ts')
     .assistantSettingsApi(client.getApiSessionGeneration(), new AbortController().signal);
   assert.deepEqual(await api.get(), { personalDataAllowed: false });
   assert.deepEqual(await api.update(true), { personalDataAllowed: true });
+  assert.deepEqual(await api.update(false), { personalDataAllowed: false });
   assert.deepEqual(requests, [
     { path: '/api/assistant/mvp/settings', method: 'GET', body: undefined, auth: 'Bearer synthetic-settings-token' },
-    { path: '/api/assistant/mvp/settings', method: 'PUT', body: JSON.stringify({ personalDataAllowed: true }),
+    { path: '/api/assistant/mvp/settings', method: 'PUT', body: JSON.stringify({ personalDataAllowed: true,
+      consentVersion: 'gemini-health-v1' }),
+      auth: 'Bearer synthetic-settings-token' },
+    { path: '/api/assistant/mvp/settings', method: 'PUT', body: JSON.stringify({ personalDataAllowed: false }),
       auth: 'Bearer synthetic-settings-token' },
   ]);
 });

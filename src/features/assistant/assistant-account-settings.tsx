@@ -1,77 +1,25 @@
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback } from 'react';
 import { ActivityIndicator, Pressable, Switch, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
 import { useTranslations } from '@/i18n';
-import { getApiSessionGeneration } from '@/lib/api/http-client';
 import { radius, shadows, sizing, spacing } from '@/theme';
 
-import { assistantSettingsApi } from './assistant-course-api';
+import { useAssistantAccess } from './assistant-access-provider';
 import { assistantSettingsMessages } from './assistant-settings-messages';
-
-type SettingsStatus = 'loading' | 'ready' | 'saving' | 'error';
 
 export function AssistantAccountSettings({ accountId }: { accountId: string }) {
   const theme = useTheme();
   const t = useTranslations(assistantSettingsMessages);
-  const [status, setStatus] = useState<SettingsStatus>('loading');
-  const [personalDataAllowed, setPersonalDataAllowed] = useState(false);
-  const request = useRef<AbortController | null>(null);
-
-  const loadSettings = useCallback(async (controller: AbortController, expectedAccountId: string) => {
-    const session = getApiSessionGeneration();
-    setStatus('loading');
-    try {
-      const settings = await assistantSettingsApi(session, controller.signal).get();
-      if (request.current === controller && !controller.signal.aborted
-        && expectedAccountId === accountId && session === getApiSessionGeneration()) {
-        setPersonalDataAllowed(settings.personalDataAllowed);
-        setStatus('ready');
-        request.current = null;
-      }
-    } catch {
-      if (request.current === controller && !controller.signal.aborted
-        && expectedAccountId === accountId && session === getApiSessionGeneration()) {
-        setStatus('error');
-        request.current = null;
-      }
-    }
-  }, [accountId]);
+  const { accountId: loadedAccountId, status: accessStatus, personalDataAllowed, refresh, update } = useAssistantAccess();
+  const status = loadedAccountId === accountId ? accessStatus : 'loading';
+  const currentAllowed = status === 'ready' && personalDataAllowed;
 
   useFocusEffect(useCallback(() => {
-    const controller = new AbortController();
-    request.current = controller;
-    void loadSettings(controller, accountId);
-    return () => {
-      request.current?.abort();
-      request.current = null;
-    };
-  }, [accountId, loadSettings]));
-
-  const saveSettings = async (nextAllowed: boolean) => {
-    if (status !== 'ready' || request.current) return;
-    const controller = new AbortController();
-    const session = getApiSessionGeneration();
-    request.current = controller;
-    setStatus('saving');
-    try {
-      const settings = await assistantSettingsApi(session, controller.signal).update(nextAllowed);
-      if (request.current === controller && !controller.signal.aborted
-        && session === getApiSessionGeneration()) {
-        setPersonalDataAllowed(settings.personalDataAllowed);
-        setStatus('ready');
-        request.current = null;
-      }
-    } catch {
-      if (request.current === controller && !controller.signal.aborted
-        && session === getApiSessionGeneration()) {
-        setStatus('error');
-        request.current = null;
-      }
-    }
-  };
+    void refresh();
+  }, [refresh]));
 
   const panel = {
     backgroundColor: theme.backgroundElement,
@@ -92,8 +40,8 @@ export function AssistantAccountSettings({ accountId }: { accountId: string }) {
         <Switch
           accessibilityLabel={t('permission')}
           disabled={status !== 'ready'}
-          value={personalDataAllowed}
-          onValueChange={value => void saveSettings(value)}
+          value={currentAllowed}
+          onValueChange={value => void update(value)}
         />
       </View>
       <ThemedText variant="caption" themeColor="textSecondary" style={{ marginTop: spacing.xs }}>
@@ -104,10 +52,7 @@ export function AssistantAccountSettings({ accountId }: { accountId: string }) {
           <ThemedText variant="caption" themeColor="danger" accessibilityRole="alert">{t('error')}</ThemedText>
           <Pressable accessibilityRole="button"
             onPress={() => {
-              const controller = new AbortController();
-              request.current?.abort();
-              request.current = controller;
-              void loadSettings(controller, accountId);
+              void refresh();
             }}
             style={{ minHeight: sizing.controlComfortable, alignSelf: 'flex-start', justifyContent: 'center', paddingHorizontal: spacing.xs }}>
             <ThemedText variant="labelStrong" themeColor="accent">{t('retry')}</ThemedText>

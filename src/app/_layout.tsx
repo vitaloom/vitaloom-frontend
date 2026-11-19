@@ -8,14 +8,13 @@ import { ActivityIndicator, View } from 'react-native';
 import { I18nProvider, useTranslations } from '@/i18n';
 import { authMessages } from '@/features/auth/messages';
 import { sleepMessages } from '@/features/sleep/messages';
-import { assistantSandboxEnabled } from '@/features/assistant/assistant-api';
-import { assistantCourseEnabled } from '@/features/assistant/assistant-course-api';
 import { ScreenOverlayProvider } from '@/components/ui/screen-overlay-context';
 import { GlobalAssistant } from '@/features/assistant/global-assistant';
+import { AssistantAccessProvider, useAssistantAccess } from '@/features/assistant/assistant-access-provider';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 export default function RootLayout() {
-  return <GestureHandlerRootView style={{ flex: 1 }}><I18nProvider><AppearanceProvider><AuthProvider><ThemedNavigator /></AuthProvider></AppearanceProvider></I18nProvider></GestureHandlerRootView>;
+  return <GestureHandlerRootView style={{ flex: 1 }}><I18nProvider><AppearanceProvider><AuthProvider><AssistantAccessProvider><ThemedNavigator /></AssistantAccessProvider></AuthProvider></AppearanceProvider></I18nProvider></GestureHandlerRootView>;
 }
 
 function ThemedNavigator() {
@@ -44,6 +43,7 @@ function ThemedNavigator() {
 function AuthenticatedNavigator() {
   const { scheme } = useAppearance();
   const { status, user, pendingProfileInvitation } = useAuth();
+  const assistantAccess = useAssistantAccess();
   const t = useTranslations(sleepMessages);
   const tAuth = useTranslations(authMessages);
   const themeColors = colors[scheme];
@@ -71,7 +71,8 @@ function AuthenticatedNavigator() {
       <Stack.Screen name="sleep" options={{ headerShown: false, title: t('title') }} />
       <Stack.Screen name="steps" options={{ headerShown: false }} />
       <Stack.Screen name="heart-rate" options={{ headerShown: false }} />
-      <Stack.Protected guard={assistantSandboxEnabled || assistantCourseEnabled} redirectTo="/(tabs)/home">
+      <Stack.Protected guard={assistantAccess.personalDataAllowed}
+        redirectTo="/(tabs)/home">
         <Stack.Screen name="assistant" />
       </Stack.Protected>
       <Stack.Screen name="profile-edit" />
@@ -84,7 +85,7 @@ function AuthenticatedNavigator() {
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
     </Stack.Protected>
   </Stack>
-  {authenticated && user && (assistantCourseEnabled || assistantSandboxEnabled)
+  {authenticated && user
     ? <GlobalAssistant key={user.id} /> : null}
   </ScreenOverlayProvider>;
 }

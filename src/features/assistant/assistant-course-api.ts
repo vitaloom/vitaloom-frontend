@@ -34,7 +34,8 @@ export function assistantSettingsApi(session: number, signal: AbortSignal) {
     get: async () => requireAccountSettings(await apiRequest<AssistantAccountSettings>(
       '/assistant/mvp/settings', { method: 'GET', signal }, true, session)),
     update: async (personalDataAllowed: boolean) => requireAccountSettings(await apiRequest<AssistantAccountSettings>(
-      '/assistant/mvp/settings', { method: 'PUT', signal, body: JSON.stringify({ personalDataAllowed }) }, true, session)),
+      '/assistant/mvp/settings', { method: 'PUT', signal, body: JSON.stringify({ personalDataAllowed,
+        ...(personalDataAllowed ? { consentVersion: 'gemini-health-v1' } : {}) }) }, true, session)),
   };
 }
 
@@ -46,11 +47,11 @@ export function courseApi(session: number, signal: AbortSignal) {
   return {
     list: (page: number) => request<{ items: ConversationSummary[]; hasMore: boolean }>(`?page=${page}`),
     open: (id: string) => request<Conversation>(`/${id}`),
-    create: () => request<Conversation>('', 'POST', { accepted: true }),
+    create: () => request<Conversation>('', 'POST'),
     remove: (id: string) => request<void>(`/${id}`, 'DELETE'),
     permission: (id: string, allowed: boolean) => request<Conversation>(`/${id}/permission`, 'PUT', { allowed }),
-    send: (id: string, text: string, turnId: string, geminiAccepted = false) => request<Conversation>(
-      `/${id}/turns`, 'POST', { text, turnId, ...(geminiAccepted ? { geminiAccepted: true } : {}) }),
+    send: (id: string, text: string, turnId: string) => request<Conversation>(
+      `/${id}/turns`, 'POST', { text, turnId }),
     voiceTurn: (audio: Blob, turnId: string) => {
       const form = new FormData();
       form.append('audio', audio, 'recording.m4a');

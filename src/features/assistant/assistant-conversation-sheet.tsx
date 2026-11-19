@@ -1,4 +1,4 @@
-import { ActivityIndicator, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Switch, TextInput, View } from 'react-native';
+import { ActivityIndicator, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import type { ComponentRef } from 'react';
 import { useEffect, useRef } from 'react';
 import { useReducedMotion } from 'react-native-reanimated';
@@ -87,20 +87,6 @@ export function AssistantConversationSheet({ visible, onClose, conversation, onR
             onLayout={() => scroll.current?.scrollToEnd({ animated: false })}>
             {!conversation.messages.length ? <View style={{ flex: 1, justifyContent: 'flex-end', gap: spacing.md }}>
               <AssistantBubble text={t('welcome')} />
-              <View style={{ backgroundColor: theme.backgroundElement, borderColor: theme.border, borderWidth: 1,
-                borderRadius: radius.lg, padding: spacing.md, gap: spacing.sm }}>
-                <ThemedText variant="labelStrong">{t('consentTitle')}</ThemedText>
-                <ThemedText variant="subhead" themeColor="textSecondary">{t('consentDescription')}</ThemedText>
-                <View style={{ minHeight: sizing.controlComfortable, flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-                  <ThemedText variant="caption" style={{ flex: 1 }}>{t('agreeToSave')}</ThemedText>
-                  <Switch value={conversation.consentAccepted} onValueChange={value => {
-                    conversation.setConsentAccepted(value);
-                    conversation.dismissConsentRequired();
-                  }} accessibilityLabel={t('agreeToSave')} />
-                </View>
-                {conversation.consentRequired ? <ThemedText variant="caption" themeColor="danger" accessibilityRole="alert">
-                  {t('savingConversation')}</ThemedText> : null}
-              </View>
             </View> : conversation.messages.map(message => <View key={message.id}
               style={{ alignItems: message.role === 'user' ? 'flex-end' : 'flex-start' }}>
               {message.pending ? <View style={{ maxWidth: '86%', flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
@@ -148,20 +134,12 @@ export function AssistantConversationSheet({ visible, onClose, conversation, onR
             </Pressable>
           </View> : null}
 
-          {conversation.text.length > 0 && !conversation.busy ? <View style={{ flexDirection: 'row',
-            alignItems: 'center', gap: spacing.xs, paddingHorizontal: spacing.xs }}>
-            <ThemedText variant="caption" themeColor="textSecondary" style={{ flex: 1 }}>{t('allowGemini')}</ThemedText>
-            <Switch accessibilityLabel={t('allowGemini')} value={conversation.geminiAccepted}
-              onValueChange={conversation.setGeminiAccepted} />
-          </View> : null}
-
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm, padding: spacing.xs,
             borderRadius: radius.full, backgroundColor: theme.backgroundElement, boxShadow: shadows.card }}>
             <TextInput accessibilityLabel={t('input')} accessibilityHint={t('characterLimit')}
               placeholder={t('input')} placeholderTextColor={theme.textSecondary}
               value={conversation.text} onChangeText={value => {
                 conversation.setText(value.slice(0, 300));
-                conversation.setGeminiAccepted(false);
                 if (conversation.error) conversation.setError(undefined);
               }} editable={!conversation.busy} maxLength={300} multiline scrollEnabled
               returnKeyType="default" style={{ flex: 1, minHeight: sizing.controlComfortable, maxHeight: 112,
