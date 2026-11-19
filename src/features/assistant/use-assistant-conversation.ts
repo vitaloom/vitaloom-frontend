@@ -90,6 +90,7 @@ export function useAssistantConversation(personalDataAllowed: boolean) {
     pending.current = controller;
     setBusy(true);
     setError(undefined);
+    setText(current => current.trim() === content ? '' : current);
     setMessages(previous => [
       ...previous.filter(message => message.id !== `${turnId}:user`),
       { id: `${turnId}:user`, role: 'user', text: content },
@@ -106,7 +107,6 @@ export function useAssistantConversation(personalDataAllowed: boolean) {
         });
       if (!row || !mounted.current || controller.signal.aborted || session !== getApiSessionGeneration()) return;
       applyConversation(row);
-      setText('');
       retry.current = undefined;
     } catch (failure) {
       if (mounted.current && !controller.signal.aborted && session === getApiSessionGeneration()) {

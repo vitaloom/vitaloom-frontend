@@ -49,8 +49,8 @@ export default function AssistantCourseScreen({ initialConversationId }: { initi
   const pending = useRef<AbortController | null>(null);
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
   const turnCount = current?.turns.length ?? 0;
-  const canRetry = retry?.id === current?.id && retry?.text === text.trim()
-    && !!retry?.turnId;
+  const draft = text.trim();
+  const retryTurn = retry && retry.id === current?.id && (!draft || retry.text === draft) ? retry : undefined;
 
   const clearVoiceRetry = useCallback(() => {
     removeVoiceFile(voiceRetry.current?.audio.uri);
@@ -125,13 +125,13 @@ export default function AssistantCourseScreen({ initialConversationId }: { initi
   }, [turnCount]);
 
   function send() {
-    if (!current || !text.trim() || pending.current) return;
-    const trimmed = text.trim();
-    const turnId = canRetry && retry ? retry.turnId : createTurnId();
+    const trimmed = draft || retryTurn?.text;
+    if (!current || !trimmed || pending.current) return;
+    const turnId = retryTurn?.turnId ?? createTurnId();
     setRetry({ id: current.id, text: trimmed, turnId });
+    setText('');
     void perform(client => client.send(current.id, trimmed, turnId), row => {
       setCurrent(row);
-      setText('');
       setRetry(undefined);
     });
   }
@@ -240,8 +240,8 @@ export default function AssistantCourseScreen({ initialConversationId }: { initi
             style={{ backgroundColor: theme.backgroundElement, color: theme.text, borderRadius: radius.lg,
               minHeight: sizing.controlComfortable, padding: spacing.md }} />
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
-            <Button title={canRetry ? t('retry') : t('send')}
-              disabled={busy || !text.trim() || turnCount >= 50} onPress={send} />
+            <Button title={retryTurn ? t('retry') : t('send')}
+              disabled={busy || (!draft && !retryTurn) || turnCount >= 50} onPress={send} />
             {voiceRetryAvailable ? <Button title={t('retry')} disabled={busy} onPress={retryVoice} /> : null}
             {voiceEnabled ? <AssistantVoiceInput disabled={busy || turnCount >= 50} onStart={() => {
               if (busy || pending.current || turnCount >= 50) return false;
