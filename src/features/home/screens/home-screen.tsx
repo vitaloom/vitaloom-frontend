@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,7 +14,7 @@ import { useHeartRateRefresh } from '@/features/heart-rate/hooks/use-heart-rate-
 import { isStatisticsRateLimit, statisticsCoolingDown } from '@/lib/api/http-client';
 import { useSleepRead, useSleepRepository } from '@/features/sleep/hooks/use-sleep';
 import { DashboardHeader } from '../components/dashboard-header';
-import { MetricCard, type HeartRateTile, type SleepTile, type StepsTile } from '../components/metric-card';
+import { MetricCard, type HeartRateTile, type SleepTile, type StepsTile, type WaterTile } from '../components/metric-card';
 import { Reminder } from '../components/reminder';
 import { WellnessBanner } from '../components/wellness-banner';
 import { dashboardMetrics, dashboardUser } from '../data/dashboard';
@@ -22,6 +22,8 @@ import { useTranslations } from '@/i18n';
 import { courseMessages } from '@/features/assistant/course-messages';
 import { useAssistantAccess } from '@/features/assistant/assistant-access-provider';
 import { homeMessages } from '../messages';
+import { useWaterDaily } from '@/features/water/hooks/use-water';
+import { localDateFromInstant } from '@/features/water/utils/water-date';
 
 export default function HomeScreen() {
   const theme = useTheme();
@@ -32,10 +34,13 @@ export default function HomeScreen() {
   const compact = width < 370;
   const { status, user } = useAuth();
   const assistantAccess = useAssistantAccess();
+  const waterHasFocused = useRef(false);
   const [request, setRequest] = useState(0);
   const [settled, setSettled] = useState<{ key: string; summary?: HeartRateSummary; failed?: true } | null>(null);
   const [stepsSettled, setStepsSettled] = useState<{ key: string; totalSteps: number | null; goal?: number; progressPercent?: number | null; buckets: (number | null)[] } | { key: string; failed: true } | null>(null);
+  const [waterDate, setWaterDate] = useState(() => localDateFromInstant(new Date()));
   const sessionKey = `${status}:${user?.id ?? ''}`;
+  const { summary: waterSummary, loading: waterLoading, error: waterError, reload: reloadWater } = useWaterDaily(waterDate, status === 'authenticated', sessionKey);
   const sleepRepository = useSleepRepository();
   const { state: sleepDaily, reload: reloadSleep } = useSleepRead(
     () => sleepRepository.getDaily(sleepRepository.getContext().today), 'home:daily-sleep');
@@ -46,7 +51,14 @@ export default function HomeScreen() {
   const refresh = useCallback(() => {
     retry();
     reloadSleep();
-  }, [retry, reloadSleep]);
+    setWaterDate(localDateFromInstant(new Date()));
+    reloadWater();
+  }, [retry, reloadSleep, reloadWater]);
+  useFocusEffect(useCallback(() => {
+    setWaterDate(localDateFromInstant(new Date()));
+    if (waterHasFocused.current) reloadWater();
+    waterHasFocused.current = true;
+  }, [reloadWater]));
   useHeartRateRefresh(retry);
 
   useEffect(() => {
@@ -88,7 +100,12 @@ export default function HomeScreen() {
   const sleep: SleepTile = sleepDaily.kind === 'ready' && sleepDaily.data.status === 'recorded' && sleepDaily.data.minutes != null
     ? { state: 'ready', minutes: sleepDaily.data.minutes, goal: sleepDaily.data.goal.minutes }
     : { state: sleepDaily.kind === 'loading' ? 'loading' : sleepDaily.kind === 'ready' && sleepDaily.data.status === 'no-data' ? 'empty' : 'error' };
-  return <ScrollView refreshControl={<RefreshControl refreshing={status === 'authenticated' && !current} onRefresh={refresh} tintColor={theme.accent} />} style={{ flex: 1, backgroundColor: theme.background }} contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: spacing.lg, paddingHorizontal: spacing.md, alignItems: 'center' }}>
+  const water: WaterTile = status !== 'authenticated' ? { state: 'empty' }
+    : waterError ? { state: 'error' }
+      : waterLoading ? { state: 'loading' }
+        : waterSummary ? { state: 'ready', summary: waterSummary }
+          : { state: 'empty' };
+  return <ScrollView refreshControl={<RefreshControl refreshing={status === 'authenticated' && (!current || waterLoading)} onRefresh={refresh} tintColor={theme.accent} />} style={{ flex: 1, backgroundColor: theme.background }} contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: spacing.lg, paddingHorizontal: spacing.md, alignItems: 'center' }}>
     <View style={{ width: '100%', maxWidth: 520, gap: 12 }}>
       <DashboardHeader user={dashboardUser} />
       {typeof document !== 'undefined' ? <Pressable accessibilityRole="button" accessibilityLabel={t('home.refresh')} onPress={refresh} style={{ alignSelf: 'flex-end', minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.sm }}><ThemedText variant="labelStrong" style={{ color: theme.accent }}>{t('home.refresh')}</ThemedText></Pressable> : null}
@@ -98,7 +115,7 @@ export default function HomeScreen() {
         <ThemedText variant="labelStrong" themeColor="accent">{tCourse('title')}</ThemedText>
       </Pressable> : null}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10 }}>
-        {dashboardMetrics.map((metric) => <MetricCard key={metric.key} metric={metric} compact={compact} heartRate={metric.key === 'heart-rate' ? heartRate : undefined} steps={metric.key === 'steps' ? steps : undefined} sleep={metric.key === 'sleep' ? sleep : undefined} onRetry={metric.key === 'sleep' ? reloadSleep : retry} />)}
+        {dashboardMetrics.map((metric) => <MetricCard key={metric.key} metric={metric} compact={compact} heartRate={metric.key === 'heart-rate' ? heartRate : undefined} steps={metric.key === 'steps' ? steps : undefined} sleep={metric.key === 'sleep' ? sleep : undefined} water={metric.key === 'water' ? water : undefined} onRetry={metric.key === 'sleep' ? reloadSleep : metric.key === 'water' ? refresh : retry} />)}
       </View>
       <Reminder />
     </View>
