@@ -1,4 +1,5 @@
 import { ActivityIndicator, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { Image } from 'expo-image';
 import type { ComponentRef } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { useReducedMotion } from 'react-native-reanimated';
@@ -17,10 +18,11 @@ import { courseMessages } from './course-messages';
 
 type ConversationController = ReturnType<typeof useAssistantConversation>;
 
-export function AssistantConversationSheet({ visible, onClose, conversation, onRetryVoice, onDismissVoiceError,
+export function AssistantConversationSheet({ visible, onClose, onOpenHistory, conversation, onRetryVoice, onDismissVoiceError,
   allowVoice, onVoiceReady, onVoiceFailure }: {
   visible: boolean;
   onClose: () => void;
+  onOpenHistory: () => void;
   conversation: ConversationController;
   onRetryVoice: () => void;
   onDismissVoiceError: () => void;
@@ -82,6 +84,13 @@ export function AssistantConversationSheet({ visible, onClose, conversation, onR
               <ThemedText variant="heading">{t('assistantTitle')}</ThemedText>
               <ThemedText variant="subhead" themeColor="textSecondary">{t('assistantSubtitle')}</ThemedText>
             </View>
+            <Pressable accessibilityRole="button" accessibilityLabel={t('history')} onPress={onOpenHistory}
+              style={({ pressed }) => ({ width: sizing.controlComfortable, height: sizing.controlComfortable,
+                borderRadius: radius.full, backgroundColor: theme.backgroundElement, alignItems: 'center', justifyContent: 'center',
+                opacity: pressed ? 0.7 : 1 })}>
+              <Image source={require('../../../assets/assistant/conversation-history.svg')} tintColor={theme.accent}
+                accessible={false} contentFit="contain" style={{ width: sizing.iconMd, height: sizing.iconMd }} />
+            </Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel={t('close')} onPress={onClose}
               style={({ pressed }) => ({ width: sizing.controlComfortable, height: sizing.controlComfortable,
                 borderRadius: radius.full, backgroundColor: theme.backgroundElement, alignItems: 'center', justifyContent: 'center',

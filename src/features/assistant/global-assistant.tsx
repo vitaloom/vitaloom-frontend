@@ -1,5 +1,5 @@
 import type { File } from 'expo-file-system';
-import { usePathname, useSegments } from 'expo-router';
+import { router, usePathname, useSegments } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Keyboard, Platform, StyleSheet, View, type LayoutRectangle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -140,7 +140,10 @@ export function GlobalAssistant() {
       hintAlignment={hintAlignment} hintMaxWidth={hintMaxWidth}
       onPositionChange={updateLauncherPosition} onOpen={showSheet} onVoiceRelease={handleVoiceRelease}
       onVoiceReady={handleVoiceReady} onVoiceFailure={handleVoiceFailure} />
-    <AssistantConversationSheet visible={open} onClose={closeSheet}
+    <AssistantConversationSheet visible={open} onClose={closeSheet} onOpenHistory={() => {
+      closeSheet();
+      router.push('/assistant');
+    }}
       conversation={conversation} onDismissVoiceError={discardVoiceError}
       onRetryVoice={() => void retryVoice()} allowVoice={voiceEnabled && open} onVoiceReady={handleInConversationVoice}
       onVoiceFailure={failVoice} />

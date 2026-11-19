@@ -19,7 +19,8 @@
       "screenId": "ASSISTANT-CONVERSATION-SHEET",
       "approvedReference": "not provided",
       "assets": [
-        { "role": "assistant-avatar", "path": "./vita-ai-launcher-idle.png", "states": ["header", "assistant-message"] }
+        { "role": "assistant-avatar", "path": "./vita-ai-launcher-idle.png", "states": ["header", "assistant-message"] },
+        { "role": "conversation-history", "path": "./conversation-history.svg", "states": ["header"], "source": "Assistant-owned original SVG, user request 2026-11-19" }
       ]
     }
   ]
