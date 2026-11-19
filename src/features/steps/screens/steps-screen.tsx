@@ -10,7 +10,7 @@ import { useHeartRateRefresh } from '@/features/heart-rate/hooks/use-heart-rate-
 import { useTheme } from '@/hooks/use-theme';
 import { useAppearance } from '@/theme/appearance-provider';
 import { useI18n, useTranslations } from '@/i18n';
-import { ApiError } from '@/lib/api/http-client';
+import { ApiError, isStatisticsRateLimit, statisticsCoolingDown } from '@/lib/api/http-client';
 import { radius, shadows, sizing, spacing } from '@/theme';
 import { stepsApi, type StepsGoal, type StepsSeries } from '../api/steps-api';
 import { StepsDetailChart } from '../components/steps-detail-chart';
@@ -59,10 +59,11 @@ export default function StepsScreen() {
   const pending = status === 'authenticated' && settledQueryKey !== queryKey;
   const loading = pending && !displayed && !error;
   const refresh = useCallback(() => {
+    if (pending || statisticsCoolingDown()) return;
     const nextRetry = retryRef.current + 1;
     retryRef.current = nextRetry;
     setRetry(nextRetry);
-  }, []);
+  }, [pending]);
   useHeartRateRefresh(refresh, period === 'day' && selectedDate === today ? 15_000 : undefined);
   const dates = useMemo(() => weekDates(selectedDate), [selectedDate]);
   const monday = getMonday(today);
@@ -91,7 +92,7 @@ export default function StepsScreen() {
       .catch((cause: unknown) => {
         if (id !== requestId.current || controller.signal.aborted) return;
         const message = cause instanceof ApiError && cause.status === 401 ? 'sessionAttention' : 'loadFailed';
-        setFailure({ key: queryKey, message });
+        if (!isStatisticsRateLimit(cause)) setFailure({ key: queryKey, message });
         setSettledQueryKey(queryKey);
       });
     return () => { controller.abort(); if (requestId.current === id) requestId.current += 1; };

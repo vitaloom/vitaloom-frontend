@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { HealthMetricsSidebar } from '@/components/ui/health-metrics-sidebar';
 import { useAuth } from '@/features/auth/store/auth-context';
+import { statisticsCoolingDown } from '@/lib/api/http-client';
 import { useHeartRateRefresh } from '@/features/heart-rate/hooks/use-heart-rate-refresh';
 import { dateInHcm } from '@/features/heart-rate/utils/heart-rate-date';
 import { useTranslations } from '@/i18n';
@@ -32,16 +33,17 @@ export default function StatisticsScreen() {
   const [selectedDate, setSelectedDate] = useState<string>();
   const [refresh, setRefresh] = useState(0);
   const period = useMemo(() => makePeriod(mode, selectedDate ?? today, today), [mode, selectedDate, today]);
-  const refreshAll = useCallback(() => {
-    setToday(dateInHcm());
-    setRefresh((value) => value + 1);
-  }, []);
-  useHeartRateRefresh(refreshAll);
-
   const heartRate = useStatisticsMetric(statisticsSources.heartRate, period, accountId, refresh);
   const steps = useStatisticsMetric(statisticsSources.steps, period, accountId, refresh);
   const water = useStatisticsMetric(statisticsSources.water, period, accountId, refresh);
   const sleep = useStatisticsMetric(statisticsSources.sleep, period, accountId, refresh);
+  const pending = heartRate.pending || steps.pending || water.pending;
+  const refreshAll = useCallback(() => {
+    if (pending || statisticsCoolingDown()) return;
+    setToday(dateInHcm());
+    setRefresh((value) => value + 1);
+  }, [pending]);
+  useHeartRateRefresh(refreshAll);
   const cards = [
     { metric: 'heartRate', route: '/heart-rate', query: heartRate },
     { metric: 'steps', route: '/steps', query: steps },

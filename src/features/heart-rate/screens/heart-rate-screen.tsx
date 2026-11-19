@@ -13,6 +13,7 @@ import { radius, shadows, sizing, spacing } from '@/theme';
 import { heartRateApi, type HeartRateSeries, type HeartRateSummary } from '../api/heart-rate-api';
 import { HeartRateRangeChart } from '../components/heart-rate-range-chart';
 import { useHeartRateRefresh } from '../hooks/use-heart-rate-refresh';
+import { isStatisticsRateLimit, statisticsCoolingDown } from '@/lib/api/http-client';
 import { aggregateHeartRateSeries } from '../utils/heart-rate-analytics';
 import { dateInHcm, getMonday, isFutureHcmDate, shiftCalendarDate, weekDates } from '../utils/heart-rate-date';
 import { heartRateMessages } from '../messages';
@@ -84,9 +85,9 @@ export default function HeartRateScreen() {
         setSummaryFailure(null);
         setSettledSummaryKey(summaryRequestKey);
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         if (controller.signal.aborted || id !== summaryRequestId.current) return;
-        setSummaryFailure({ key: summaryRequestKey });
+        if (!isStatisticsRateLimit(error)) setSummaryFailure({ key: summaryRequestKey });
         setSettledSummaryKey(summaryRequestKey);
       });
     return () => { controller.abort(); if (summaryRequestId.current === id) summaryRequestId.current += 1; };
@@ -103,16 +104,20 @@ export default function HeartRateScreen() {
         setSeriesFailure(null);
         setSettledSeriesKey(seriesRequestKey);
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         if (controller.signal.aborted || id !== seriesRequestId.current) return;
-        setSeriesFailure({ key: seriesRequestKey });
+        if (!isStatisticsRateLimit(error)) setSeriesFailure({ key: seriesRequestKey });
         setSettledSeriesKey(seriesRequestKey);
       });
     return () => { controller.abort(); if (seriesRequestId.current === id) seriesRequestId.current += 1; };
   }, [authStatus, period, params, seriesDataKey, seriesRequestKey]);
 
-  const retrySummary = useCallback(() => setSummaryRetry((value) => value + 1), []);
-  const retrySeries = useCallback(() => setSeriesRetry((value) => value + 1), []);
+  const retrySummary = useCallback(() => {
+    if (!summaryLoading && !statisticsCoolingDown()) setSummaryRetry((value) => value + 1);
+  }, [summaryLoading]);
+  const retrySeries = useCallback(() => {
+    if (!seriesLoading && !statisticsCoolingDown()) setSeriesRetry((value) => value + 1);
+  }, [seriesLoading]);
   const refreshAll = useCallback(() => { retrySummary(); retrySeries(); }, [retrySummary, retrySeries]);
   useHeartRateRefresh(refreshAll, dayDate === today ? 15_000 : undefined);
 

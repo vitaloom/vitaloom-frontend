@@ -7,9 +7,11 @@ import { useAuth } from '@/features/auth/store/auth-context';
 import { spacing } from '@/theme';
 import { useTranslations } from '@/i18n';
 import { authMessages } from '@/features/auth/messages';
+import { useRetryCountdown } from '@/features/auth/lib/use-retry-countdown';
 
 export default function IndexRoute() {
-  const { status, pendingProfileInvitation, retryRestore, signOut } = useAuth();
+  const { status, pendingProfileInvitation, retryRestore, refreshRateLimit, signOut } = useAuth();
+  const secondsLeft = useRetryCountdown(refreshRateLimit?.retryAt);
   const theme = useTheme();
   const t = useTranslations(authMessages);
 
@@ -22,8 +24,10 @@ export default function IndexRoute() {
 
   return <View style={{ flex: 1, justifyContent: 'center', padding: spacing.lg, gap: spacing.md, backgroundColor: theme.background }}>
     <ThemedText variant="heading">{t('restoreFailed')}</ThemedText>
-    <ThemedText themeColor="textSecondary">{t('restoreHelp')}</ThemedText>
-    <Pressable accessibilityRole="button" accessibilityLabel={t('tryAgain')} onPress={() => void retryRestore()}><ThemedText themeColor="accent">{t('tryAgain')}</ThemedText></Pressable>
+    <ThemedText themeColor="textSecondary">{secondsLeft > 0
+      ? t('restoreRetryCountdown', { seconds: secondsLeft })
+      : t(refreshRateLimit ? 'restoreRateLimited' : 'restoreHelp')}</ThemedText>
+    <Pressable accessibilityRole="button" accessibilityLabel={t('tryAgain')} accessibilityState={{ disabled: secondsLeft > 0 }} disabled={secondsLeft > 0} onPress={() => void retryRestore()}><ThemedText themeColor={secondsLeft > 0 ? 'textSecondary' : 'accent'}>{t('tryAgain')}</ThemedText></Pressable>
     <Pressable accessibilityRole="button" accessibilityLabel={t('signIn')} onPress={() => { void signOut().finally(() => router.replace('/(auth)/sign-in')); }}><ThemedText themeColor="accent">{t('signIn')}</ThemedText></Pressable>
   </View>;
 }

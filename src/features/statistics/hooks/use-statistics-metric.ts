@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { isStatisticsRateLimit, statisticsCoolingDown } from '@/lib/api/http-client';
 import type { MetricSource, MetricState, StatisticsPeriod } from '../types/statistics';
 
 type Query = { period: StatisticsPeriod; accountId: string; refresh: number; retry: number };
@@ -18,7 +19,15 @@ export function useStatisticsMetric(source: MetricSource | undefined, period: St
         const state: MetricState = hasData ? { status: data.partial ? 'partial' : 'ready', data } : { status: 'empty' };
         setResult({ query, state });
       },
-      () => { if (!controller.signal.aborted) setResult({ query, state: { status: 'error' } }); },
+      (error: unknown) => {
+        if (controller.signal.aborted) return;
+        setResult((previous) => ({
+          query,
+          state: isStatisticsRateLimit(error)
+            ? previous?.query.period === period && previous.query.accountId === accountId ? previous.state : { status: 'empty' }
+            : { status: 'error' },
+        }));
+      },
     );
     return () => controller.abort();
   }, [source, accountId, period, refresh, retry]);
@@ -28,7 +37,9 @@ export function useStatisticsMetric(source: MetricSource | undefined, period: St
     const sameScope = result?.query.period === period && result.query.accountId === accountId;
     const pending = !sameScope || result.query.refresh !== refresh || result.query.retry !== retry;
     state = pending ? { status: 'loading' } : result.state;
-    return { state, pending, retry: () => setRetry((value) => value + 1), previous: pending && sameScope ? result.state : null };
+    return { state, pending, retry: () => {
+      if (!pending && !statisticsCoolingDown()) setRetry((value) => value + 1);
+    }, previous: pending && sameScope ? result.state : null };
   }
   return { state, pending: false, retry: () => setRetry((value) => value + 1), previous: null };
 }
