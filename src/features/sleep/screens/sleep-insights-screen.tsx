@@ -1,47 +1,112 @@
-import { useState } from 'react';
-import { SleepInsightCard } from '../components/sleep-insight-card';
-import { SleepInsightsFallback } from '../components/sleep-insights-fallback';
-import { SleepTimeZoneChoices } from '../components/sleep-time-zone-choices';
-import { SleepNotice, SleepPage, SleepSegments } from '../components/sleep-ui';
-import { SleepWeekPicker } from '../components/sleep-week-picker';
+import { router } from 'expo-router';
+import { SymbolView } from 'expo-symbols';
+import { Pressable, StyleSheet, View, type ImageSourcePropType } from 'react-native';
+import { ThemedText } from '@/components/themed-text';
+import { useTheme } from '@/hooks/use-theme';
+import { useI18n, useTranslations } from '@/i18n';
+import { radius, sizing, spacing } from '@/theme';
+import { SemanticInfoCard, SleepCard, SleepNotice, SleepPage } from '../components/sleep-ui';
 import { useSleepRead, useSleepRepository } from '../hooks/use-sleep';
-import type { InsightCategory } from '../types/sleep';
-import { shiftDay, startOfWeek } from '../utils/sleep-date';
-import { distinctInsights, insightFallback } from '../utils/sleep-insights';
+import { sleepMessages } from '../messages';
+import type { SleepInsightItem, SleepInsightStatus } from '../types/sleep';
+import { sleepArt } from '../assets/sleep-art';
+import { sleepGoalInsightCopy } from '../utils/sleep-goal-insight-copy';
+import { sleepTrendInsightCopy } from '../utils/sleep-trend-insight-copy';
+import { sleepCatalogInsightCopy } from '../utils/sleep-catalog-insight-copy';
 
-const filters = [
-  { value: 'all', label: 'All' },
-  { value: 'patterns', label: 'Patterns' },
-  { value: 'feelings', label: 'Feelings' },
-  { value: 'discoveries', label: 'Discoveries' },
-] as const;
+function statusMessage(status: SleepInsightStatus, t: (key: keyof typeof sleepMessages.en) => string) {
+  if (status === 'READY') return t('insightStatusReady');
+  if (status === 'INSUFFICIENT_DATA') return t('insightStatusInsufficient');
+  if (status === 'NO_DATA') return t('insightStatusNoData');
+  return t('insightStatusUnverified');
+}
+
+function insightArtwork(code: string): ImageSourcePropType {
+  switch (code) {
+    case 'A01': return sleepArt.moon;
+    case 'A02': return sleepArt.bed;
+    case 'A03': return sleepArt.trend;
+    case 'A04': return sleepArt.moon;
+    case 'A05': return sleepArt.bars;
+    case 'B01': return sleepArt.comfortable;
+    case 'B02': return sleepArt.tired;
+    case 'B03': return sleepArt.normal;
+    case 'B04': return sleepArt.tired;
+    default: return sleepArt.moon;
+  }
+}
+
+function InsightRow({ item, t }: {
+  item: SleepInsightItem;
+  t: (key: keyof typeof sleepMessages.en, values?: Record<string, string | number>) => string;
+}) {
+  const { locale } = useI18n();
+  const goalCopy = item.code === 'A02' || item.code === 'B04'
+    ? sleepGoalInsightCopy(item.code, item.sample, item.evidence, t) : null;
+  const trendCopy = item.code === 'A03' || item.code === 'B03'
+    ? sleepTrendInsightCopy(item.code, item.sample, item.evidence, t, locale) : null;
+  const newCopy = sleepCatalogInsightCopy(item.code, t);
+  const theme = useTheme();
+  const title = goalCopy?.title ?? trendCopy?.title ?? newCopy?.title ?? item.title;
+  const summary = goalCopy ? goalCopy.summary : trendCopy?.summary ?? newCopy?.summary ?? item.summary;
+  return <SemanticInfoCard artwork={insightArtwork(item.code)} title={title} tone={item.locked ? 'default' : item.category === 'B' ? 'warm' : 'mint'} muted={item.locked}
+    onPress={item.locked ? undefined
+    : () => router.push({ pathname: '/sleep/insights/[code]', params: { code: item.code } })}
+    label={`${title}. ${item.locked ? statusMessage(item.status, t) : summary ?? ''}`}>
+    <View style={styles.row}>
+      <ThemedText variant="subhead" themeColor="textSecondary">
+        {item.locked ? statusMessage(item.status, t) : summary || t('insightStatusReady')}
+      </ThemedText>
+      {item.locked ? <SymbolView size={sizing.iconSm} tintColor={theme.textSecondary}
+        name={{ ios: 'lock.fill', android: 'lock', web: 'lock' }} /> : <ThemedText accessible={false} variant="heading" themeColor="accent">›</ThemedText>}
+    </View>
+  </SemanticInfoCard>;
+}
+
 export default function SleepInsightsScreen() {
   const repository = useSleepRepository();
-  const { today } = repository.getContext();
-  const [week, setWeek] = useState(() => shiftDay(startOfWeek(today), -7));
-  const [category, setCategory] = useState<InsightCategory | 'all'>('all');
-  const [timeZone, setTimeZone] = useState('');
-  const query = { week, timeZone: timeZone || undefined };
-  const queryKey = `insights:${week}:${timeZone}`;
-  const { state, reload } = useSleepRead(() => repository.getInsights(query), queryKey);
-  const list = state.kind === 'ready' ? state.data : null;
-  const candidates = list?.items.filter((item) => category === 'all' || item.category === category) ?? [];
-  const items = distinctInsights(candidates);
-  const fallback = list ? insightFallback(list, category) : null;
-  const changeWeek = (next: string) => { setTimeZone(''); setWeek(next); };
+  const theme = useTheme();
+  const { state, reload } = useSleepRead(() => repository.getAllInsights(), 'sleep-insights:all');
+  const t = useTranslations(sleepMessages);
+  const items = state.kind === 'ready' ? state.data.items : [];
+  const timeZones = state.kind === 'ready' ? state.data.timeZones : [];
+  const selectedTimeZone = repository.getReferenceTimeZone();
+  const patterns = items.filter(({ category }) => category === 'A');
+  const feelings = items.filter(({ category }) => category === 'B');
 
-  return <SleepPage title="Sleep Insights" subtitle={items.length ? 'Explore patterns in recorded sleep and feelings.' : undefined}
-    hero={true} wellness={items.length === 0}>
-    <SleepSegments options={filters} value={category} onChange={setCategory} />
-    <SleepWeekPicker week={week} today={today} onChange={changeWeek} />
-    {(category === 'patterns' || category === 'all') && list?.status === 'ready'
-      ? <SleepTimeZoneChoices options={list.timeZones} value={timeZone} onChange={setTimeZone} /> : null}
-    {state.kind === 'loading' ? <SleepNotice title="Loading insights" loading /> : null}
-    {state.kind === 'error' ? <SleepNotice title="Could not load insights" message={state.message} error actionLabel="Retry" onAction={reload} /> : null}
-    {list?.status === 'unverified' ? <SleepNotice title="History is unverified" message="Sleep history could not be fully verified." actionLabel="Retry" onAction={reload} /> : null}
-    {list?.status === 'stale' ? <SleepNotice title="Evidence changed" message="Refresh to check for current insights." actionLabel="Refresh" onAction={reload} /> : null}
-    {fallback && (list?.status === 'ready' || list?.status === 'no-data') ?
-      <SleepInsightsFallback key={`${queryKey}:${category}`} state={fallback} onRetry={reload} /> : null}
-    {items.map((item) => <SleepInsightCard key={item.key.code} insight={item} />)}
+  return <SleepPage title={t('insightsTitle')} subtitle={t('insightsSubtitle')} wellness wellnessHero>
+    {state.kind === 'loading' ? <SleepNotice title={t('loadingInsights')} loading /> : null}
+    {state.kind === 'error' ? <SleepNotice title={t('failedInsights')} message={state.message} error
+      actionLabel={t('insightRetry')} onAction={reload} /> : null}
+    {state.kind === 'ready' && items.length === 0 ? <SleepNotice title={t('insightsEmpty')} /> : null}
+    {timeZones.length ? <SleepCard>
+      <ThemedText accessibilityRole="header" variant="bodyStrong">{t('referenceTimeZoneTitle')}</ThemedText>
+      <ThemedText variant="caption" themeColor="textSecondary">{t('referenceTimeZoneHelp')}</ThemedText>
+      <View style={styles.timeZones}>
+        {timeZones.map((zone) => <Pressable key={zone} accessibilityRole="button"
+          accessibilityState={{ selected: zone === selectedTimeZone }} onPress={() => repository.setReferenceTimeZone(zone)}
+          style={[styles.zoneChip, { backgroundColor: zone === selectedTimeZone ? theme.backgroundSelected : theme.backgroundElement,
+            borderColor: zone === selectedTimeZone ? theme.accent : theme.border }]}>
+          <ThemedText variant="labelStrong" themeColor={zone === selectedTimeZone ? 'accent' : 'text'}>{zone}</ThemedText>
+        </Pressable>)}
+        {selectedTimeZone ? <Pressable accessibilityRole="button" onPress={() => repository.setReferenceTimeZone(null)}
+          style={styles.clearZone}><ThemedText variant="label" themeColor="accent">{t('referenceTimeZoneClear')}</ThemedText></Pressable> : null}
+      </View>
+    </SleepCard> : null}
+    {patterns.length ? <>
+      <ThemedText accessibilityRole="header" variant="heading">{t('insightGroupA')}</ThemedText>
+      {patterns.map((item) => <InsightRow key={item.code} item={item} t={t} />)}
+    </> : null}
+    {feelings.length ? <>
+      <ThemedText accessibilityRole="header" variant="heading">{t('insightGroupB')}</ThemedText>
+      {feelings.map((item) => <InsightRow key={item.code} item={item} t={t} />)}
+    </> : null}
   </SleepPage>;
 }
+
+const styles = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  timeZones: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+  zoneChip: { borderWidth: 1, borderRadius: radius.md, paddingVertical: spacing.xs, paddingHorizontal: spacing.sm },
+  clearZone: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.xs },
+});

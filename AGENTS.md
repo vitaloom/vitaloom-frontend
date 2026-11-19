@@ -1,5 +1,13 @@
 This is an Expo/React Native mobile application. Prioritize mobile-first patterns, performance, and cross-platform compatibility.
 
+## Canonical visual standard
+
+Sleep Tracking visual work follows the canonical [Visual Experience Standard](../design/VISUAL_EXPERIENCE_STANDARD.md). Read it before changing screens, informational cards, charts, assets, UI states, micro-interactions, presentation components, or visual QA. The Design repository owns the standard; this sibling path is the configured workspace-relative dependency. Reuse mapped assets, preserve API/business behavior, and evaluate VEX-G01 through VEX-G12.
+
+## VitaLoom development workflow
+
+For tasks in the VitaLoom workspace, read the [workspace instructions](../AGENTS.md), [workflow and source map](../vitaloom-business-docs-and-tools/docs/development-workflow/README.md) and [Decision Ledger](../vitaloom-business-docs-and-tools/docs/development-workflow/decisions.md). Use the owning Business, Backend and Design documents and the current feature integration before editing. Apply the local conventions and checks below.
+
 ## Expo has changed — do not trust your training data
 
 Expo ships breaking changes every SDK release. APIs you remember are likely renamed, moved, or removed. Before writing any code that touches an Expo, EAS, or React Native API:

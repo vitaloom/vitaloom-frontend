@@ -4,11 +4,17 @@ import { AuthProvider, useAuth } from '@/features/auth/store/auth-context';
 import { AppearanceProvider, useAppearance } from '@/theme/appearance-provider';
 import { colors } from '@/theme/colors';
 import { StatusBar } from 'expo-status-bar';
+import { ActivityIndicator, View } from 'react-native';
 import { I18nProvider, useTranslations } from '@/i18n';
+import { authMessages } from '@/features/auth/messages';
 import { sleepMessages } from '@/features/sleep/messages';
+import { ScreenOverlayProvider } from '@/components/ui/screen-overlay-context';
+import { GlobalAssistant } from '@/features/assistant/global-assistant';
+import { AssistantAccessProvider, useAssistantAccess } from '@/features/assistant/assistant-access-provider';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 export default function RootLayout() {
-  return <I18nProvider><AppearanceProvider><AuthProvider><ThemedNavigator /></AuthProvider></AppearanceProvider></I18nProvider>;
+  return <GestureHandlerRootView style={{ flex: 1 }}><I18nProvider><AppearanceProvider><AuthProvider><AssistantAccessProvider><ThemedNavigator /></AssistantAccessProvider></AuthProvider></AppearanceProvider></I18nProvider></GestureHandlerRootView>;
 }
 
 function ThemedNavigator() {
@@ -36,13 +42,22 @@ function ThemedNavigator() {
 
 function AuthenticatedNavigator() {
   const { scheme } = useAppearance();
-  const { status, pendingProfileInvitation } = useAuth();
+  const { status, user, pendingProfileInvitation } = useAuth();
+  const assistantAccess = useAssistantAccess();
   const t = useTranslations(sleepMessages);
+  const tAuth = useTranslations(authMessages);
   const themeColors = colors[scheme];
   const authenticated = status === 'authenticated';
   const authenticationScreenAvailable = status === 'unauthenticated' || status === 'temporarilyUnavailable';
 
-  return <Stack screenOptions={{
+  // Wait for session restoration before route protection handles the incoming URL.
+  if (status === 'checking') return <View accessibilityRole="progressbar" accessibilityLabel={tAuth('restoreLoading')}
+    style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: themeColors.background }}>
+    <ActivityIndicator color={themeColors.accent} />
+  </View>;
+
+  return <ScreenOverlayProvider>
+  <Stack screenOptions={{
     headerShown: false,
     contentStyle: { backgroundColor: themeColors.background },
     headerStyle: { backgroundColor: themeColors.backgroundElement },
@@ -56,6 +71,10 @@ function AuthenticatedNavigator() {
       <Stack.Screen name="sleep" options={{ headerShown: false, title: t('title') }} />
       <Stack.Screen name="steps" options={{ headerShown: false }} />
       <Stack.Screen name="heart-rate" options={{ headerShown: false }} />
+      <Stack.Protected guard={assistantAccess.personalDataAllowed}
+        redirectTo="/(tabs)/home">
+        <Stack.Screen name="assistant" />
+      </Stack.Protected>
       <Stack.Screen name="profile-edit" />
       <Stack.Screen name="profile-setup" />
       <Stack.Protected guard={pendingProfileInvitation} redirectTo="/(tabs)/home">
@@ -65,5 +84,8 @@ function AuthenticatedNavigator() {
     <Stack.Protected guard={authenticationScreenAvailable} redirectTo="/">
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
     </Stack.Protected>
-  </Stack>;
+  </Stack>
+  {authenticated && user
+    ? <GlobalAssistant key={user.id} /> : null}
+  </ScreenOverlayProvider>;
 }

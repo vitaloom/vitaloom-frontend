@@ -1,6 +1,6 @@
 # Sleep Tracking
 
-This folder documents Sleep tracking and the F1 backend integration.
+This folder documents Sleep tracking, the F1 Journal integration, the P1 Recent Sleep Report and P2 Insights.
 
 1. [Source analysis](01-source-analysis.md)
 2. [API contract](02-api-contract.md)
@@ -12,6 +12,10 @@ This folder documents Sleep tracking and the F1 backend integration.
 8. [Backend integration handoff](08-backend-integration-handoff.md)
 9. [F1 integration report](09-api-integration-report.md)
 10. [Main Sleep implementation handoff](10-main-sleep-handoff.md)
+11. [Recent Sleep Report integration](11-recent-report-integration.md)
+12. [All Insights and detail integration](12-insights-integration.md)
+13. [P5B completed trend integration](13-p5b-trend-integration.md)
+14. [P6 focus refresh and pending AI lifecycle](14-p6-fe-refresh.md)
 
 Open the authenticated Sleep entry at /sleep. F1 uses the backend by default. The handoff describes backend setup and the explicit development fixture mode.
 

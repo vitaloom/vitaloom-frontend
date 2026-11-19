@@ -17,6 +17,6 @@ export const dashboardUser: DashboardUser = {
 export const dashboardMetrics: MetricSummary[] = [
   { key: 'steps', chart: [], route: '/steps' },
   { key: 'heart-rate', chart: [], route: '/heart-rate' },
-  { key: 'water', current: 1.5, goal: 2, chart: [32, 18, 38, 20, 44, 23, 36, 50, 22, 46, 24, 38], route: '/water' },
+  { key: 'water', chart: [], route: '/water' },
   { key: 'sleep', chart: [], route: '/sleep' },
 ];

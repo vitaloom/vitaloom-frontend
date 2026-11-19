@@ -48,8 +48,8 @@ test('time series routes encode the mode-specific calendar parameters', () => {
 test('statistics date rules use local Monday and validate custom bounds', () => {
   assert.equal(getMonday('2026-11-08'), '2026-11-02');
   assert.equal(validateHeartRateRange('2026-11-05', '2026-11-06', '2026-11-06'), null);
-  assert.match(validateHeartRateRange('2026-11-06', '2026-11-05', '2026-11-06'), /on or before/);
-  assert.match(validateHeartRateRange('2026-11-01', '2026-12-01', '2026-12-01'), /30 days/);
-  assert.match(validateHeartRateRange('2026-11-05', '2026-11-07', '2026-11-06'), /future/);
-  assert.match(validateHeartRateRange('2026-02-30', '2026-03-01', '2026-03-01'), /valid dates/);
+  assert.equal(validateHeartRateRange('2026-11-06', '2026-11-05', '2026-11-06'), 'orderDates');
+  assert.equal(validateHeartRateRange('2026-11-01', '2026-12-01', '2026-12-01'), 'maxRange');
+  assert.equal(validateHeartRateRange('2026-11-05', '2026-11-07', '2026-11-06'), 'futureEnd');
+  assert.equal(validateHeartRateRange('2026-02-30', '2026-03-01', '2026-03-01'), 'invalidDates');
 });

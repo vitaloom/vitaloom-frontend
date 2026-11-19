@@ -1,7 +1,8 @@
 import type {
   AiRequest, AiResponse, AnalyticsQuery, DailySummary, Day, GoalState, HomeSummary, Insight,
-  InsightKey, InsightList, JournalPage, JournalQuery, Mutation, ReadResult, SleepContext, SleepSession,
-  WeeklySummary, WriteResult,
+  InsightKey, InsightList, JournalPage, JournalQuery, Mutation, ReadResult, RecentSleepReport, SleepContext, SleepSession,
+  WeeklySummary, WriteResult, AiConsent, RecentStory,
+  CatalogSleepInsightCode, SleepInsightDetail, SleepInsightList,
 } from '../types/sleep';
 
 export interface SleepRepository {
@@ -11,12 +12,18 @@ export interface SleepRepository {
   getDaily(day: Day): Promise<ReadResult<DailySummary>>;
   getJournal(query?: JournalQuery): Promise<ReadResult<JournalPage>>;
   getSession(id: string): Promise<ReadResult<SleepSession | null>>;
+  getRecent(): Promise<ReadResult<RecentSleepReport>>;
   getGoal(day?: Day): Promise<ReadResult<GoalState>>;
   getWeekly(query: AnalyticsQuery): Promise<ReadResult<WeeklySummary>>;
   getInsights(query: AnalyticsQuery): Promise<ReadResult<InsightList>>;
   getInsight(key: InsightKey): Promise<ReadResult<Insight | null>>;
-  getAiConsent(): Promise<ReadResult<boolean>>;
+  getAllInsights(): Promise<ReadResult<SleepInsightList>>;
+  getReferenceTimeZone(): string | null;
+  setReferenceTimeZone(timeZone: string | null): void;
+  getInsightDetail(code: CatalogSleepInsightCode): Promise<ReadResult<SleepInsightDetail>>;
+  getAiConsent(): Promise<ReadResult<AiConsent>>;
   getAi(request: AiRequest): Promise<ReadResult<AiResponse>>;
+  getRecentStory(): Promise<ReadResult<RecentStory>>;
   mutate(attemptId: string, mutation: Mutation): Promise<WriteResult>;
   reconcile(attemptId: string): Promise<WriteResult>;
 }

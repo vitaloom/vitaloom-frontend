@@ -3,6 +3,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { WellnessIcon } from '@/components/ui/wellness-icon';
+import { AssistantAccountSettings } from '@/features/assistant/assistant-account-settings';
 import { useTheme } from '@/hooks/use-theme';
 import { radius, shadows, sizing, spacing } from '@/theme';
 import { useI18n, useTranslations, type TranslationValues } from '@/i18n';
@@ -16,9 +17,10 @@ import { profileMessages } from '../profile-messages';
 type ProfileMessageKey = keyof typeof profileMessages.en;
 type ProfileTranslator = (key: ProfileMessageKey, values?: TranslationValues) => string;
 
-export function ProfileOverview({ snapshot, saved, onEdit, onBack, onSignOut }: {
+export function ProfileOverview({ snapshot, saved, accountId, onEdit, onBack, onSignOut }: {
   snapshot: ProfileSnapshot;
   saved: boolean;
+  accountId: string;
   onEdit: () => void;
   onBack: () => void;
   onSignOut: () => void;
@@ -51,6 +53,7 @@ export function ProfileOverview({ snapshot, saved, onEdit, onBack, onSignOut }: 
         <ProfileCard cardId="about" title={t('About you')} fields={basicFields} snapshot={snapshot} locale={locale} t={t} />
         <ProfileCard cardId="body" title={t('Body & lifestyle')} fields={lifestyleFields} snapshot={snapshot} locale={locale} t={t} />
         <AppearanceSettings />
+        <AssistantAccountSettings key={accountId} accountId={accountId} />
 
         <View style={{ marginTop: 12, gap: spacing.sm }}>
           <ProfileButton label="Edit profile" onPress={onEdit} />

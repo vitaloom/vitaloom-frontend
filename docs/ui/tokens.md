@@ -4,7 +4,7 @@ All visual values below are **provisional** inferences from the reference mockup
 
 ## Color
 
-Primitive groups are `palette.teal`, `aqua`, `mint`, `violet`, `coral`, and `neutral`, with numbered steps where a scale is useful. The exact hex values live in [`colors.ts`](../../src/theme/colors.ts). Aqua describes hydration, violet can distinguish sleep data, and mint supports general activity. These category colors never carry meaning alone.
+Primitive groups are `palette.teal`, `aqua`, `mint`, `violet`, `coral`, and `neutral`, with numbered steps where a scale is useful. The exact hex values live in [`colors.ts`](../../src/theme/colors.ts). Aqua describes hydration, and mint supports activity and Sleep. These category colors never carry meaning alone.
 
 | Semantic role | Light | Dark | Intended use |
 | --- | --- | --- | --- |
@@ -21,7 +21,9 @@ Primitive groups are `palette.teal`, `aqua`, `mint`, `violet`, `coral`, and `neu
 | `border` | `#D0E2E0` | `#456365` | Dividers and outlines |
 | `focus` | `#087F7A` | `#9EE5EB` | Visible focus indicator |
 | `success`, `warning`, `danger` | teal, ochre, coral | lighter counterparts | Status with icon and text |
-| `water`, `sleep`, `activity` | aqua, violet, mint | lighter counterparts | Chart series with text labels |
+| `water`, `sleep`, `activity` | aqua, green-mint, mint | lighter counterparts | Chart series with text labels |
+| `sleepSoft`, `sleepTrack` | `#D7EFE3`, `#A6CFBD` | `#244C43`, `#456B60` | Sleep accent surface and chart track |
+| `sleepAiSoft` | pale violet | muted violet | Optional Sleep AI panel |
 | `overlay` | translucent teal-black | translucent black | Modal scrim |
 | `waterTrack`, `waterPanel`, `waterPanelEdge` | pale teal, pale aqua, aqua | deep teal variants | Water progress track and hero surface |
 | `illustrationSurface` | pale aqua-neutral | pale aqua-neutral | Light canvas behind illustrations that contain fixed dark lettering |

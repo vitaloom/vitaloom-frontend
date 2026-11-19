@@ -24,6 +24,19 @@ export type DailySummary = {
 };
 export type JournalQuery = { from?: Day; to?: Day; cursor?: string; limit?: number; sourceIds?: string[] };
 export type JournalPage = { sessions: SleepSession[]; verified: boolean; nextCursor: string | null; version: string };
+export type RecentSleepDay = { day: Day; status: 'recorded' | 'not-recorded' | 'unverified'; minutes: number | null };
+export type RecentSleepInsight = { code: 'A01'; status: 'ready'; sampleDays: number; denominatorDays: 7 };
+export type RecentSleepHighlight = { code: CatalogSleepInsightCode; status: 'READY'; title: string; summary: string };
+export type RecentSleepReport = {
+  period: { start: Day; end: Day; timeZone: 'Asia/Ho_Chi_Minh' };
+  dataStatus: 'no-data' | 'verified' | 'unverified-data';
+  days: RecentSleepDay[];
+  recordedDays: number | null;
+  coverageDenominator: 7;
+  averageMinutesPerRecordedDay: number | null;
+  insights: RecentSleepInsight[];
+  highlights?: RecentSleepHighlight[];
+};
 
 export type InsightCode = 'A01' | 'A02' | 'A03' | 'A04' | 'A05' | 'B01' | 'B02' | 'B03' | 'B04' | 'C01' | 'C03' | 'C04';
 export type InsightCategory = 'patterns' | 'feelings' | 'discoveries';
@@ -67,13 +80,28 @@ export type WeeklySummary = {
   timeZones: string[];
   storyEligible: boolean;
 };
-export type HomeSummary = { latest: SleepSession | null; daily: DailySummary; featured: Insight | null };
+export type HomeRecentHighlight = { source: 'recent'; code: RecentSleepHighlight['code']; title: string; summary: string };
+export type HomeSummary = {
+  latest: SleepSession | null;
+  daily: DailySummary;
+  recentDays: RecentSleepDay[] | null;
+  featured: Insight | HomeRecentHighlight | null;
+};
 export type AiRequest =
   | { kind: 'explanation'; insight: InsightKey & { version: string } }
   | { kind: 'story'; query: AnalyticsQuery; version: string };
 export type AiResponse =
   | { status: 'fixture'; version: string; headline: string; observations: string[]; limitations: string; sources: InsightCode[] }
+  | { status: 'explanation' | 'fallback'; observation: string; evidenceBasis: string; limitations: string; evidenceFingerprint: string }
   | { status: 'ineligible' | 'consent-required' | 'unavailable' | 'stale' };
+export type AiConsent = { enabled: boolean; available: boolean };
+export type RecentStoryObservation = {
+  insightCode: CatalogSleepInsightCode; text: string; dataContext: string; evidenceFingerprint: string;
+};
+export type RecentStory = {
+  status: 'DISABLED' | 'CONSENT_REQUIRED' | 'INELIGIBLE' | 'STORY' | 'FALLBACK';
+  headline?: string; observations?: RecentStoryObservation[];
+};
 
 export type Mutation =
   | { kind: 'create-session'; draft: SleepDraft }
@@ -91,3 +119,20 @@ export type WriteResult =
 export type ReadResult<T> =
   | { kind: 'ready'; data: T }
   | { kind: 'error'; message: string; code?: string };
+
+export type SleepInsightStatus = 'READY' | 'INSUFFICIENT_DATA' | 'NO_DATA' | 'UNVERIFIED_DATA';
+export type SleepInsightCategory = 'A' | 'B';
+export type GoalInsightCode = 'A02' | 'B04';
+export type CatalogSleepInsightCode = 'A01' | 'A02' | 'A03' | 'A04' | 'A05' | 'B01' | 'B02' | 'B03' | 'B04';
+export type SleepInsightItem = {
+  code: CatalogSleepInsightCode; category: SleepInsightCategory; status: SleepInsightStatus;
+  title: string; highlight?: unknown; locked: boolean; summary?: string; sample?: unknown;
+  evidence?: unknown; sourceRefs?: unknown; limitations?: unknown; policyVersion?: string; evidenceVersion?: string;
+};
+export type SleepInsightPeriod = { start: Day; end: Day; timeZone: string };
+export type SleepInsightList = { period: SleepInsightPeriod; items: SleepInsightItem[]; timeZones: string[] };
+export type SleepInsightDetail = {
+  code: CatalogSleepInsightCode; category: SleepInsightCategory; status: SleepInsightStatus;
+  period: SleepInsightPeriod; title: string; summary?: string; sample?: unknown; evidence?: unknown;
+  sourceRefs: unknown; limitations: unknown; policyVersion: string; evidenceVersion: string;
+};

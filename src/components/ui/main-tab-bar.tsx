@@ -1,5 +1,5 @@
 import { Tabs, router } from 'expo-router';
-import type { ComponentProps } from 'react';
+import { useEffect, type ComponentProps } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -17,11 +17,33 @@ const tabs: Record<string, { labelKey: 'nav.home' | 'nav.statistics' | 'nav.prof
 
 type BottomTabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>['tabBar']>>[0];
 
+export const MAIN_TAB_BAR_HEIGHT = 72;
+
+let measuredMainTabBarHeight: number | undefined;
+const mainTabBarHeightListeners = new Set<(height: number | undefined) => void>();
+
+function publishMainTabBarHeight(height: number | undefined) {
+  if (measuredMainTabBarHeight === height) return;
+  measuredMainTabBarHeight = height;
+  for (const listener of mainTabBarHeightListeners) listener(height);
+}
+
+export function subscribeMainTabBarHeight(listener: (height: number | undefined) => void) {
+  mainTabBarHeightListeners.add(listener);
+  return () => { mainTabBarHeightListeners.delete(listener); };
+}
+
+export function getMainTabBarHeight() {
+  return measuredMainTabBarHeight;
+}
+
 export function MainTabBar({ state, navigateToTab }: BottomTabBarProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const t = useTranslations(sharedUiMessages);
-  return <View style={{ flexDirection: 'row', backgroundColor: theme.backgroundElement, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, paddingHorizontal: 12, paddingTop: 5, paddingBottom: Math.max(insets.bottom, 9), minHeight: 72 + insets.bottom, boxShadow: shadows.floating }}>
+  useEffect(() => () => publishMainTabBarHeight(undefined), []);
+  return <View onLayout={event => publishMainTabBarHeight(event.nativeEvent.layout.height)}
+    style={{ flexDirection: 'row', backgroundColor: theme.backgroundElement, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, paddingHorizontal: 12, paddingTop: 5, paddingBottom: Math.max(insets.bottom, 9), minHeight: MAIN_TAB_BAR_HEIGHT + insets.bottom, boxShadow: shadows.floating }}>
     {state.routes.map((route, index) => {
       const tab = tabs[route.name];
       if (!tab) return null;

@@ -1,6 +1,6 @@
 import type {
   AiRequest, AnalyticsQuery, GoalEntry, Insight, InsightKey, JournalPage, JournalQuery, Mutation,
-  ReadResult, SleepContext, SleepSession, WriteResult,
+  ReadResult, SleepContext, SleepSession, WriteResult, SleepInsightDetail, SleepInsightItem, SleepInsightList,
 } from '../types/sleep';
 import type { SleepRepository } from '../api/sleep-repository';
 import { aiFixture, dailySummary, featuredInsight, insightList, type AnalyticsState, weeklySummary } from './sleep-analytics';
@@ -21,6 +21,7 @@ export class MockSleepRepository implements SleepRepository {
   private versionNumber = 1;
   private confirmedCounter: number;
   private consent = false;
+  private referenceTimeZone: string | null = null;
   private listeners = new Set<() => void>();
   private receipts = new Map<string, PendingWrite>();
   private nextFault: SleepMockFault | null = null;
@@ -45,6 +46,13 @@ export class MockSleepRepository implements SleepRepository {
     if (this.scenario === 'unverified') this.readFault = 'read-error';
   }
 
+  getReferenceTimeZone(): string | null { return this.referenceTimeZone; }
+
+  setReferenceTimeZone(timeZone: string | null): void {
+    this.referenceTimeZone = timeZone;
+    this.listeners.forEach((listener) => listener());
+  }
+
   getContext(): SleepContext {
     return { ...this.context, today: this.fixedToday ?? dayInZone(new Date(), this.context.timeZone) };
   }
@@ -60,7 +68,17 @@ export class MockSleepRepository implements SleepRepository {
     const latestDay = this.sessions.filter((session) => session.sleepType === 'main')
       .reduce<string | null>((latest, session) => !latest || session.day > latest ? session.day : latest, null);
     const latest = latestDay ? this.sessions.find((session) => session.sleepType === 'main' && session.day === latestDay) ?? null : null;
-    return { kind: 'ready' as const, data: { latest: latest && { ...copySession(latest), editable: this.isEditable(latest) }, daily: dailySummary(state, this.getContext().today), featured: featuredInsight(state) } };
+    const today = this.getContext().today;
+    const recentDays = Array.from({ length: 7 }, (_, index) => {
+      const summary = dailySummary(state, shiftDay(today, index - 6));
+      return {
+        day: summary.day,
+        status: summary.status === 'recorded' ? 'recorded' as const
+          : summary.status === 'unverified' ? 'unverified' as const : 'not-recorded' as const,
+        minutes: summary.minutes,
+      };
+    });
+    return { kind: 'ready' as const, data: { latest: latest && { ...copySession(latest), editable: this.isEditable(latest) }, daily: dailySummary(state, today), recentDays, featured: featuredInsight(state) } };
   }
 
   async getDaily(day: string) {
@@ -103,6 +121,10 @@ export class MockSleepRepository implements SleepRepository {
     return this.read(session ? { ...copySession(session), editable: this.isEditable(session) } : null);
   }
 
+  async getRecent() {
+    return { kind: 'error' as const, message: 'Recent Sleep is available from the authenticated service only.' };
+  }
+
   async getGoal(day = this.getContext().today) {
     const entry = [...this.goals].reverse().find((candidate) => candidate.effectiveDay <= day);
     return this.read({ minutes: entry?.minutes ?? null, revision: this.revision, effectiveDay: entry?.effectiveDay ?? null, verified: this.scenario !== 'unverified' });
@@ -117,6 +139,48 @@ export class MockSleepRepository implements SleepRepository {
     return this.read(insightList(this.analyticsState(), query));
   }
 
+  async getAllInsights(): Promise<ReadResult<SleepInsightList>> {
+    const context = this.getContext();
+    const result = await this.getInsights({ week: startOfWeek(context.today) });
+    if (result.kind === 'error') return result;
+    const items = result.data.items.filter(({ key }) => key.code === 'A01' || key.code === 'B01').map((insight): SleepInsightItem => {
+      const status = insight.status === 'ready' && insight.eligible ? 'READY'
+        : insight.status === 'no-data' ? 'NO_DATA'
+          : insight.status === 'unverified' || insight.status === 'stale' ? 'UNVERIFIED_DATA' : 'INSUFFICIENT_DATA';
+      const base: SleepInsightItem = {
+        code: insight.key.code as 'A01' | 'B01', category: insight.key.code === 'A01' ? 'A' : 'B',
+        status, title: insight.title, locked: status !== 'READY',
+      };
+      return status === 'READY' ? {
+        ...base, summary: insight.summary, sample: insight.sample, evidence: insight.evidence,
+        sourceRefs: insight.sourceIds, limitations: insight.limitations,
+        policyVersion: 'fixture', evidenceVersion: insight.key.version,
+      } : base;
+    });
+    return { kind: 'ready', data: { period: { start: shiftDay(context.today, -6), end: context.today, timeZone: context.timeZone }, items, timeZones: [] } };
+  }
+
+  async getInsightDetail(code: 'A01' | 'A02' | 'B01' | 'B04'): Promise<ReadResult<SleepInsightDetail>> {
+    const context = this.getContext();
+    const legacy = await this.getInsight({ code, week: startOfWeek(context.today) });
+    if (legacy.kind === 'error') return legacy;
+    if (!legacy.data) return { kind: 'error', message: 'This insight is unavailable.' };
+    const insight = legacy.data;
+    const status = insight.status === 'ready' && insight.eligible ? 'READY'
+      : insight.status === 'no-data' ? 'NO_DATA'
+        : insight.status === 'unverified' || insight.status === 'stale' ? 'UNVERIFIED_DATA' : 'INSUFFICIENT_DATA';
+    return { kind: 'ready', data: {
+      code, category: code.startsWith('A') ? 'A' : 'B', status,
+      period: { start: shiftDay(context.today, -6), end: context.today, timeZone: context.timeZone },
+      title: insight.title,
+      ...(status === 'READY' ? {
+        summary: insight.summary, sample: insight.sample, evidence: insight.evidence,
+        sourceRefs: insight.sourceIds, limitations: insight.limitations,
+      } : { sourceRefs: [], limitations: [] }),
+      policyVersion: 'fixture', evidenceVersion: insight.key.version,
+    } };
+  }
+
   async getInsight(key: InsightKey): Promise<ReadResult<Insight | null>> {
     if (!this.validQuery(key)) return { kind: 'error', message: 'Choose a Monday on or before the current week.' };
     const result = insightList(this.analyticsState(), key).items.find((insight) => insight.key.code === key.code);
@@ -127,12 +191,16 @@ export class MockSleepRepository implements SleepRepository {
     return this.read(copyInsight(result));
   }
 
-  async getAiConsent() { return this.read(this.consent); }
+  async getAiConsent() { return this.read({ enabled: this.consent, available: true }); }
 
   async getAi(request: AiRequest) {
     const state = this.analyticsState();
     const response = aiFixture(state, request, this.consent, this.scenario === 'ai-unavailable');
     return this.read(response);
+  }
+
+  async getRecentStory() {
+    return this.read({ status: this.consent ? 'INELIGIBLE' as const : 'DISABLED' as const });
   }
 
   async mutate(attemptId: string, mutation: Mutation): Promise<WriteResult> {

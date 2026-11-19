@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import { SymbolView } from 'expo-symbols';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
@@ -7,16 +8,18 @@ import { radius, sizing, spacing } from '@/theme';
 import { sleepArt } from '../assets/sleep-art';
 import { sleepFixturesEnabled } from '../api/get-sleep-repository';
 import { SleepButton, SleepCard, SleepNotice, SleepPage } from '../components/sleep-ui';
+import { SleepSevenDayChart } from '../components/sleep-seven-day-chart';
 import { useSleepRead, useSleepRepository } from '../hooks/use-sleep';
 import { sleepMessages } from '../messages';
-import type { DailySummary, SleepSession } from '../types/sleep';
+import type { SleepSession } from '../types/sleep';
 import { sleepDay } from '../utils/sleep-format';
 import { insightHref } from '../utils/sleep-navigation';
+import { sleepCatalogInsightCopy } from '../utils/sleep-catalog-insight-copy';
 
 const destinations = [
-  { key: 'journal', path: '/sleep/journal', icon: '▤' },
-  { key: 'insights', path: '/sleep/insights', icon: '▥' },
-  { key: 'weeklyReport', path: '/sleep/weekly', icon: '▦' },
+  { key: 'journal', path: '/sleep/journal', icon: { ios: 'calendar', android: 'calendar_month', web: 'calendar_month' } },
+  { key: 'sleepGoal', path: '/sleep/goal', icon: { ios: 'target', android: 'track_changes', web: 'track_changes' } },
+  { key: 'recentReport', path: '/sleep/recent', icon: { ios: 'chart.bar.fill', android: 'bar_chart', web: 'bar_chart' } },
 ] as const;
 
 function homeDuration(minutes: number, language: Language) {
@@ -30,10 +33,18 @@ function homeDuration(minutes: number, language: Language) {
 export default function SleepScreen() {
   const theme = useTheme();
   const t = useTranslations(sleepMessages);
+  const { language, locale } = useI18n();
   const repository = useSleepRepository();
-  const { state, reload } = useSleepRead(() => repository.getHome(), 'sleep-home');
+  const { state, reload } = useSleepRead(() => repository.getHome(), 'sleep-home', false, true);
+  const openRecordedDay = async (day: string) => {
+    const result = await repository.getJournal({ from: day, to: day });
+    if (result.kind !== 'ready') return;
+    const session = result.data.sessions.find((item) => item.sleepType === 'main' && item.day === day);
+    if (session) router.push({ pathname: '/sleep/journal/[id]', params: { id: session.id } });
+  };
   const summary = state.kind === 'ready' ? state.data : null;
   const featured = summary?.featured;
+  const featuredCopy = featured && 'source' in featured ? sleepCatalogInsightCopy(featured.code, t) : null;
 
   const fixtures = sleepFixturesEnabled();
 
@@ -42,28 +53,44 @@ export default function SleepScreen() {
     {state.kind === 'error' ? <SleepNotice title={t('loadError')} message={state.message}
       actionLabel={t('tryAgain')} onAction={reload} error /> : null}
     {summary ? <>
-      {fixtures && summary.daily.status === 'unverified' ? <SleepNotice title={t('unverified')}
-        actionLabel={t('reload')} onAction={reload} /> : <LatestSleep session={summary.latest} />}
-      <DailyGoal summary={summary.daily} />
-    </> : null}
-    {featured?.eligible && featured.status === 'ready' ? <SleepCard tone="warm"
-      onPress={() => router.push(insightHref(featured))} label={t('openFeatured')}>
+      {/* {fixtures && summary.daily.status === 'unverified' ? <SleepNotice title={t('unverified')}
+        actionLabel={t('reload')} onAction={reload} /> : <LatestSleep session={summary.latest} />} */}
+        
+            {featured && ('source' in featured || (featured.eligible && featured.status === 'ready')) ? <SleepCard tone="warm"
+      onPress={() => router.push('source' in featured
+        ? { pathname: '/sleep/insights/[code]', params: { code: featured.code } }
+        : insightHref(featured))} label={t('openFeatured')}>
       <View style={styles.row}>
         <View style={styles.fill}>
           <ThemedText variant="labelStrong" themeColor="accent">{t('featuredInsight')}</ThemedText>
-          <ThemedText variant="body">{featured.summary}</ThemedText>
+          <ThemedText variant="body">{'source' in featured ? featuredCopy?.title ?? featured.title : featured.summary}</ThemedText>
+          {'source' in featured ? <ThemedText variant="subhead">{featuredCopy?.summary ?? featured.summary}</ThemedText> : null}
         </View>
         <Image source={sleepArt.pillow} resizeMode="contain" style={styles.pillow} accessible={false} />
       </View>
     </SleepCard> : null}
+      {summary.recentDays ? <SleepCard>
+        <ThemedText accessibilityRole="header" variant="heading">{t('reportMetricsShort')}</ThemedText>
+        <SleepSevenDayChart locale={locale}
+          onRecordedDayPress={openRecordedDay}
+          labels={{ recorded: t('calendarRecorded'), missing: t('notRecorded'), unverified: t('dayUnverified') }}
+          days={summary.recentDays.map((day) => day.status === 'recorded' && day.minutes !== null
+            ? { date: day.day, state: 'recorded', duration: { minutes: day.minutes, label: homeDuration(day.minutes, language) } }
+            : { date: day.day, state: day.status === 'not-recorded' ? 'missing' : 'unverified' })} />
+      </SleepCard> : null}
+    </> : null}
     <SleepButton label={t('recordSleep')} onPress={() => router.push('/sleep/record')} />
+    <SleepButton label={t('insights')} variant="secondary" onPress={() => router.push('/sleep/insights')} />
     <View style={styles.tiles}>
       {destinations.map(({ key, path, icon }) => {
         const label = t(key);
         return <Pressable key={path} accessibilityRole="button"
           accessibilityLabel={t('openDestination', { destination: label })} onPress={() => router.push(path)}
           style={({ pressed }) => [styles.tile, { backgroundColor: pressed ? theme.backgroundSelected : theme.backgroundElement, borderColor: theme.border }]}>
-          <ThemedText variant="heading" themeColor="accent" accessible={false}>{icon}</ThemedText>
+          <View style={[styles.tileIcon, { backgroundColor: theme.sleepSoft }]} accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants">
+            <SymbolView name={icon} tintColor={theme.accent} size={sizing.iconMd} />
+          </View>
           <ThemedText variant="labelStrong" style={styles.center}>{label}</ThemedText>
         </Pressable>;
       })}
@@ -71,56 +98,28 @@ export default function SleepScreen() {
   </SleepPage>;
 }
 
-function LatestSleep({ session }: { session: SleepSession | null }) {
-  const theme = useTheme();
-  const t = useTranslations(sleepMessages);
-  const { language, locale } = useI18n();
-  const feelingLabel = { comfortable: t('comfortable'), normal: t('normal'), tired: t('tired') } as const;
-  return <SleepCard onPress={session ? () => router.push({ pathname: '/sleep/journal/[id]', params: { id: session.id } }) : undefined}>
-    <View style={styles.row}>
-      <ThemedText variant="heading" style={styles.fill}>{t('latestSleep')}</ThemedText>
-      {session ? <ThemedText variant="label" themeColor="textSecondary">{sleepDay(session.day, locale)}</ThemedText> : null}
-    </View>
-    {session ? <>
-      <View style={styles.row}>
-        <ThemedText variant="display" style={styles.fill}>{homeDuration(session.minutes, language)}</ThemedText>
-        {session.feeling ? <View style={[styles.feeling, { backgroundColor: theme.stepsSoft }]}>
-          <ThemedText variant="labelStrong">{feelingLabel[session.feeling]}</ThemedText>
-        </View> : null}
-        <ThemedText variant="heading" themeColor="accent" accessible={false}>›</ThemedText>
-      </View>
-      <ThemedText variant="subhead" themeColor="textSecondary">{t(session.sleepType === 'main' ? 'mainSleep' : 'nap')}</ThemedText>
-    </> : <ThemedText variant="body" themeColor="textSecondary">{t('noRecordedSleep')}</ThemedText>}
-  </SleepCard>;
-}
-
-function DailyGoal({ summary }: { summary: DailySummary }) {
-  const theme = useTheme();
-  const t = useTranslations(sleepMessages);
-  const { language, locale } = useI18n();
-  const goal = summary.goal;
-  const progress = summary.progress === null ? null : Math.round(summary.progress);
-  return <SleepCard onPress={() => router.push('/sleep/goal')}>
-    <View style={styles.row}>
-      <ThemedText variant="heading" style={styles.fill}>{t('sleepGoal')}</ThemedText>
-      {goal.minutes !== null && goal.verified ? <ThemedText variant="label" themeColor="textSecondary">{t('daily', { duration: homeDuration(goal.minutes, language) })}</ThemedText> : null}
-    </View>
-    <ThemedText variant={summary.minutes === null ? 'subhead' : 'metric'}>
-      {summary.minutes !== null ? homeDuration(summary.minutes, language) : summary.status === 'unverified' ? t('todayUnavailable') : t('noSleepToday')}
-    </ThemedText>
-    {summary.minutes !== null ? <ThemedText variant="caption" themeColor="textSecondary">{t('totalToday')}</ThemedText> : null}
-    {progress !== null ? <View style={styles.row}>
-      <View style={[styles.track, { backgroundColor: theme.accentSoft }]} accessibilityElementsHidden>
-        <View style={[styles.bar, { backgroundColor: theme.accent, width: `${Math.min(100, progress)}%` }]} />
-      </View>
-      <ThemedText variant="labelStrong" themeColor="accent" accessibilityLabel={t('percentGoal', { percent: progress })}>
-        {new Intl.NumberFormat(locale, { style: 'percent' }).format(progress / 100)}
-      </ThemedText>
-    </View> : null}
-    {goal.verified && goal.minutes === null ? <ThemedText variant="subhead" themeColor="textSecondary">{t('noActiveGoal')}</ThemedText> : null}
-    {!goal.verified ? <ThemedText variant="subhead" themeColor="textSecondary">{t('goalHistoryUnavailable')}</ThemedText> : null}
-  </SleepCard>;
-}
+// function LatestSleep({ session }: { session: SleepSession | null }) {
+//   const theme = useTheme();
+//   const t = useTranslations(sleepMessages);
+//   const { language, locale } = useI18n();
+//   const feelingLabel = { comfortable: t('comfortable'), normal: t('normal'), tired: t('tired') } as const;
+//   return <SleepCard tone="mint" onPress={session ? () => router.push({ pathname: '/sleep/journal/[id]', params: { id: session.id } }) : undefined}>
+//     <View style={styles.row}>
+//       <ThemedText variant="heading" style={styles.fill}>{t('latestSleep')}</ThemedText>
+//       {session ? <ThemedText variant="label" themeColor="textSecondary">{sleepDay(session.day, locale)}</ThemedText> : null}
+//     </View>
+//     {session ? <>
+//       <View style={styles.row}>
+//         <ThemedText variant="display" style={styles.fill}>{homeDuration(session.minutes, language)}</ThemedText>
+//         {session.feeling ? <View style={[styles.feeling, { backgroundColor: theme.backgroundElement }]}>
+//           <ThemedText variant="labelStrong">{feelingLabel[session.feeling]}</ThemedText>
+//         </View> : null}
+//         <ThemedText variant="heading" themeColor="accent" accessible={false}>›</ThemedText>
+//       </View>
+//       <ThemedText variant="subhead" themeColor="textSecondary">{t(session.sleepType === 'main' ? 'mainSleep' : 'nap')}</ThemedText>
+//     </> : <ThemedText variant="body" themeColor="textSecondary">{t('noRecordedSleep')}</ThemedText>}
+//   </SleepCard>;
+// }
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.sm },
@@ -130,7 +129,6 @@ const styles = StyleSheet.create({
   tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   tile: { flexGrow: 1, flexBasis: 84, minHeight: sizing.controlComfortable * 1.6, borderRadius: radius.lg, borderWidth: 1,
     alignItems: 'center', justifyContent: 'center', padding: spacing.sm, gap: spacing.xs },
+  tileIcon: { borderRadius: radius.md, padding: spacing.sm },
   center: { textAlign: 'center' },
-  track: { flex: 1, borderRadius: radius.full, height: 12, overflow: 'hidden' },
-  bar: { height: '100%', borderRadius: radius.full },
 });
