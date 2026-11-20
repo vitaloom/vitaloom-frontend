@@ -12,7 +12,7 @@ import { removeVoiceFile } from './assistant-voice-files';
 export type AssistantMessage = { id: string; role: 'user' | 'assistant'; text: string; pending?: boolean };
 export type AssistantVoiceError = { retryable: boolean };
 type TextRetry = { text: string; turnId: string };
-type TextError = 'blockedError' | 'conflictError' | 'requestError';
+type TextError = 'blockedError' | 'conflictError' | 'requestError' | 'writeUncertain';
 
 function conversationMessages(row: Conversation): AssistantMessage[] {
   const messages: AssistantMessage[] = [];
@@ -43,6 +43,7 @@ export function useAssistantConversation(personalDataAllowed: boolean) {
 
   const messageError = useCallback((failure: unknown): TextError => {
     if (!(failure instanceof ApiError)) return 'requestError';
+    if (failure.code === 'ASSISTANT_WRITE_UNCERTAIN') return 'writeUncertain';
     if (failure.status === 403) void refresh();
     if ([401, 403, 404].includes(failure.status)) return 'blockedError';
     if (failure.status === 409) return 'conflictError';
