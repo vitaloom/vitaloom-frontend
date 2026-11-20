@@ -5,6 +5,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { HealthMetricsSidebar } from '@/components/ui/health-metrics-sidebar';
+import { useAuth } from '@/features/auth/store/auth-context';
+import { ApiError } from '@/lib/api/http-client';
 import { useTheme } from '@/hooks/use-theme';
 import { useI18n, useTranslations } from '@/i18n';
 import { layout, sizing, spacing } from '@/theme';
@@ -22,8 +24,10 @@ export default function WaterLandingScreen() {
   const t = useTranslations(waterMessages);
   const insets = useSafeAreaInsets();
   const [today, setToday] = useState(() => localDateFromInstant(new Date()));
-  const [actionError, setActionError] = useState<string | null>(null);
-  const { summary, loading, error } = useWaterDaily(today);
+  const [actionError, setActionError] = useState<'addError' | 'duplicateLogError' | null>(null);
+  const { status, user } = useAuth();
+  const authenticated = status === 'authenticated';
+  const { summary, loading, error } = useWaterDaily(today, authenticated, `${status}:${user?.id ?? ''}`);
   const { createLog, submitting } = useCreateWaterLog();
 
   useFocusEffect(useCallback(() => {
@@ -34,8 +38,8 @@ export default function WaterLandingScreen() {
     setActionError(null);
     try {
       await createLog({ amountMl, source: 'quick-add' });
-    } catch {
-      setActionError(t('addError'));
+    } catch (error) {
+      setActionError(error instanceof ApiError && error.status === 409 ? 'duplicateLogError' : 'addError');
     }
   }
 
@@ -48,11 +52,10 @@ export default function WaterLandingScreen() {
         <ThemedText variant="largeTitle">{t('title')}</ThemedText>
         <ThemedText variant="body" themeColor="textSecondary" style={{ maxWidth: 280 }}>{t('intro')}</ThemedText>
       </View>
-      {loading && !summary ? <ThemedText variant="body" themeColor="textSecondary">{t('loadingToday')}</ThemedText> : null}
-      {error ? <ThemedText variant="body" themeColor="danger">{t('dailyError')}</ThemedText> : null}
-      {summary ? <ProgressCard summary={summary} theme={theme} loading={loading || submitting} /> : null}
-      <QuickAddCard onAdd={addIntake} onCustom={() => router.push('/water/add')} submitting={submitting} theme={theme} />
-      {actionError ? <ThemedText variant="body" themeColor="danger">{actionError}</ThemedText> : null}
+      <ProgressCard summary={summary} theme={theme} loading={loading || submitting} />
+      <QuickAddCard onAdd={addIntake} onCustom={() => router.push('/water/add')} disabled={!authenticated || loading || submitting} theme={theme} />
+      {error ? <ThemedText variant="body" themeColor="danger">{t(summary ? 'dailyRefreshError' : 'dailyError')}</ThemedText> : null}
+      {actionError ? <ThemedText variant="body" themeColor="danger">{t(actionError)}</ThemedText> : null}
       {summary ? <IntakeCard logs={summary.logs} limit={5} title={t('todayIntake')} onSeeAll={() => router.push('/water/progress' as never)} theme={theme} locale={locale} /> : null}
     </View>
   </ScrollView>;

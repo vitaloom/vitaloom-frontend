@@ -1,9 +1,10 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
+import { ApiError } from '@/lib/api/http-client';
 import { useTheme } from '@/hooks/use-theme';
 import { useI18n, useTranslations } from '@/i18n';
 import { layout, radius, sizing, spacing } from '@/theme';
@@ -25,12 +26,10 @@ export default function WaterDetailEntryScreen() {
   const [loggedAt, setLoggedAt] = useState<Date | null>(initialTime);
   const [amountError, setAmountError] = useState<string | null>(null);
   const [timeError, setTimeError] = useState<string | null>(null);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const pendingRef = useRef(false);
+  const [saveError, setSaveError] = useState<'saveError' | 'duplicateLogError' | null>(null);
   const { createLog, submitting } = useCreateWaterLog();
 
   async function save() {
-    if (pendingRef.current) return;
     const amountMl = Number(amountInput);
     const validAmount = amountInput.trim() !== '' && validateWaterAmount(amountMl) === null && /^\d+$/.test(amountInput.trim());
     if (!validAmount) {
@@ -48,15 +47,12 @@ export default function WaterDetailEntryScreen() {
     }
     setTimeError(null);
     if (!validAmount) return;
-    pendingRef.current = true;
     setSaveError(null);
     try {
-      await createLog({ amountMl, loggedAt: loggedAt.toISOString(), source: 'custom' });
-      router.back();
-    } catch {
-      setSaveError(t('saveError'));
-    } finally {
-      pendingRef.current = false;
+      const created = await createLog({ amountMl, loggedAt: loggedAt.toISOString(), source: 'custom' });
+      if (created) router.back();
+    } catch (error) {
+      setSaveError(error instanceof ApiError && error.status === 409 ? 'duplicateLogError' : 'saveError');
     }
   }
 
@@ -93,7 +89,7 @@ export default function WaterDetailEntryScreen() {
           {timeError ? <ThemedText variant="caption" themeColor="danger">{timeError}</ThemedText> : null}
         </View>
         <View style={{ padding: spacing.md, borderRadius: radius.lg, backgroundColor: theme.surfaceTint }}><ThemedText variant="subhead" themeColor="textSecondary">{t('accountNote')}</ThemedText></View>
-        {saveError ? <ThemedText variant="body" themeColor="danger">{saveError}</ThemedText> : null}
+        {saveError ? <ThemedText variant="body" themeColor="danger">{t(saveError)}</ThemedText> : null}
         <Pressable onPress={save} disabled={submitting} accessibilityRole="button" accessibilityLabel={t('saveLabel')} accessibilityState={{ disabled: submitting, busy: submitting }} style={({ pressed }) => ({ minHeight: sizing.controlComfortable, borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.accent, opacity: submitting ? 0.5 : pressed ? 0.8 : 1 })}><ThemedText variant="bodyStrong" themeColor="onAccent">{submitting ? t('saving') : t('saveLabel')}</ThemedText></Pressable>
       </View>
     </ScrollView>

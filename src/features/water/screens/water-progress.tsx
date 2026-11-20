@@ -4,6 +4,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
+import { useAuth } from '@/features/auth/store/auth-context';
 import { useTheme } from '@/hooks/use-theme';
 import { useI18n, useTranslations } from '@/i18n';
 import { layout, sizing, spacing } from '@/theme';
@@ -29,8 +30,11 @@ export default function WaterProgressScreen() {
   const [today, setToday] = useState(() => localDateFromInstant(new Date()));
   const [weekStart, setWeekStart] = useState(() => getMondayOfWeek(localDateFromInstant(new Date())));
   const [selectedDate, setSelectedDate] = useState(() => localDateFromInstant(new Date()));
-  const { summary: weekly, loading: weeklyLoading, error: weeklyError } = useWaterWeekly(weekStart);
-  const { summary: daily, loading: dailyLoading, error: dailyError } = useWaterDaily(selectedDate);
+  const { status, user } = useAuth();
+  const authenticated = status === 'authenticated';
+  const scopeKey = `${status}:${user?.id ?? ''}`;
+  const { summary: weekly, loading: weeklyLoading, error: weeklyError } = useWaterWeekly(weekStart, authenticated, scopeKey);
+  const { summary: daily, loading: dailyLoading, error: dailyError } = useWaterDaily(selectedDate, authenticated, scopeKey);
   const currentWeek = getMondayOfWeek(today);
   const canGoNext = weekStart < currentWeek;
 
@@ -62,8 +66,8 @@ export default function WaterProgressScreen() {
       {weeklyError ? <ThemedText variant="body" themeColor="danger">{t('weeklyError')}</ThemedText> : null}
       {weekly ? <WaterWeeklyBarChart summary={weekly} selectedDate={selectedDate} today={today} onSelect={setSelectedDate} theme={theme} /> : null}
       {dailyLoading && !daily ? <ThemedText variant="body" themeColor="textSecondary">{t('loadingDay')}</ThemedText> : null}
-      {dailyError ? <ThemedText variant="body" themeColor="danger">{t('dayError')}</ThemedText> : null}
-      {daily ? <ProgressCard summary={daily} theme={theme} label={dayLabel} /> : null}
+      {dailyError ? <ThemedText variant="body" themeColor="danger">{t(daily ? 'dailyRefreshError' : 'dayError')}</ThemedText> : null}
+      {daily ? <ProgressCard summary={daily} theme={theme} label={dayLabel} loading={dailyLoading} /> : null}
       {daily ? <IntakeCard logs={daily.logs} title={t('logsFor', { day: dayLabel })} theme={theme} locale={locale} /> : null}
     </View>
   </ScrollView>;
