@@ -7,6 +7,7 @@ export class ApiError extends Error {
     message: string,
     public readonly field?: string,
     public readonly retryAt?: number,
+    public readonly responseBody?: Record<string, unknown>,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -74,6 +75,7 @@ async function parseResponse<T>(response: Response): Promise<T> {
       message,
       typeof body.field === 'string' ? body.field : undefined,
       response.status === 429 ? parseRetryAt(response.headers.get('Retry-After')) : undefined,
+      body,
     );
   }
   return parsedBody as T;
