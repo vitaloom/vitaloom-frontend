@@ -2,44 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { ApiError, resetApiSession, setAccessToken, setRefreshHandler } from '@/lib/api/http-client';
 import { authStorage } from '@/lib/storage/auth-storage';
 import { authApi } from '../api/auth-api';
-import type { AuthStatus, AuthTokens, AuthUser, RegisterResult } from '../types/auth';
-import * as SecureStore from 'expo-secure-store';
-import { Platform } from 'react-native';
-
-type ProfileInvitationDecision = 'skipped' | 'completed';
-
-const invitationDecisionMemory = new Map<string, ProfileInvitationDecision>();
-const invitationDecisionKey = (userId: string) => {
-  const hex = userId.split('').map((unit) => unit.charCodeAt(0).toString(16).padStart(4, '0')).join('');
-  return `vitaloom.profile-invitation.${hex}`;
-};
-
-async function loadProfileInvitationDecision(userId: string): Promise<ProfileInvitationDecision | null> {
-  const cached = invitationDecisionMemory.get(userId);
-  if (cached) return cached;
-  try {
-    const stored = Platform.OS === 'web'
-      ? globalThis.localStorage?.getItem(invitationDecisionKey(userId))
-      : await SecureStore.getItemAsync(invitationDecisionKey(userId));
-    if (stored === 'skipped' || stored === 'completed') {
-      invitationDecisionMemory.set(userId, stored);
-      return stored;
-    }
-  } catch {
-    // Keep the invitation decision usable in memory if platform storage is unavailable.
-  }
-  return null;
-}
-
-async function saveProfileInvitationDecision(userId: string, decision: ProfileInvitationDecision) {
-  invitationDecisionMemory.set(userId, decision);
-  try {
-    if (Platform.OS === 'web') globalThis.localStorage?.setItem(invitationDecisionKey(userId), decision);
-    else await SecureStore.setItemAsync(invitationDecisionKey(userId), decision);
-  } catch {
-    // This is local invitation metadata, never profile data. Session state remains resolved.
-  }
-}
+import type { AuthStatus, AuthTokens, AuthUser, ProfileInvitationDecision, RegisterResult } from '../types/auth';
 
 type AuthContextValue = {
   status: AuthStatus;
@@ -50,7 +13,7 @@ type AuthContextValue = {
   retryRestore: () => Promise<void>;
   refreshRateLimit: { retryAt?: number } | null;
   pendingProfileInvitation: boolean;
-  resolveProfileInvitation: (decision: ProfileInvitationDecision) => Promise<void>;
+  resolveProfileInvitation: (decision: Exclude<ProfileInvitationDecision, 'pending'>) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -58,16 +21,10 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>('checking');
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [pendingProfileInvitation, setPendingProfileInvitation] = useState(false);
   const [refreshRateLimit, setRefreshRateLimit] = useState<{ retryAt?: number } | null>(null);
   const refreshRetryAtRef = useRef(0);
   const refreshTokenRef = useRef<string | null>(null);
   const generationRef = useRef(0);
-
-  const updateProfileInvitation = useCallback(async (authenticatedUser: AuthUser, expectedGeneration: number) => {
-    const decision = await loadProfileInvitationDecision(authenticatedUser.id);
-    if (generationRef.current === expectedGeneration) setPendingProfileInvitation(decision === null);
-  }, []);
 
   const refreshAccess = useCallback(async (expectedGeneration: number) => {
     if (refreshRetryAtRef.current > Date.now()) {
@@ -120,8 +77,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const currentUser = await authApi.me();
       if (generationRef.current !== generation) return;
       setUser(currentUser);
-      await updateProfileInvitation(currentUser, generation);
-      if (generationRef.current !== generation) return;
       setStatus('authenticated');
     } catch {
       if (generationRef.current !== generation) return;
@@ -129,7 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // refreshAccess already clears a definitively rejected refresh token.
       setStatus('temporarilyUnavailable');
     }
-  }, [refreshAccess, updateProfileInvitation]);
+  }, [refreshAccess]);
 
   useEffect(() => {
     setRefreshHandler(() => refreshAccess(generationRef.current));
@@ -148,10 +103,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     resetApiSession();
     setAccessToken(tokens.accessToken);
     setUser(tokens.user);
-    await updateProfileInvitation(tokens.user, generation);
-    if (generationRef.current !== generation) return;
     setStatus('authenticated');
-  }, [updateProfileInvitation]);
+  }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {
     const generation = generationRef.current;
@@ -173,18 +126,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refreshTokenRef.current = null;
     resetApiSession();
     setUser(null);
-    setPendingProfileInvitation(false);
     setStatus('unauthenticated');
     await authStorage.clear();
   }, []);
 
-  const resolveProfileInvitation = useCallback(async (decision: ProfileInvitationDecision) => {
+  const resolveProfileInvitation = useCallback(async (decision: Exclude<ProfileInvitationDecision, 'pending'>) => {
     const currentUser = user;
     const generation = generationRef.current;
-    if (status !== 'authenticated' || !currentUser) return;
-    await saveProfileInvitationDecision(currentUser.id, decision);
-    if (generationRef.current === generation && user?.id === currentUser.id) setPendingProfileInvitation(false);
+    if (status !== 'authenticated' || !currentUser) throw new Error('The authenticated account changed.');
+    const confirmed = decision === 'skipped'
+      ? await authApi.saveProfileInvitation('skipped')
+      : { decision: 'completed' as const };
+    if (generationRef.current !== generation) throw new Error('The authenticated account changed.');
+    if (confirmed.decision !== 'skipped' && confirmed.decision !== 'completed') {
+      throw new Error('The profile invitation decision could not be verified.');
+    }
+    setUser((current) => current?.id === currentUser.id
+      ? { ...current, profileInvitation: confirmed.decision } : current);
   }, [status, user]);
+  const pendingProfileInvitation = user?.profileInvitation === 'pending';
   const value = useMemo(() => ({ status, user, signIn, register, signOut, retryRestore: restore, refreshRateLimit, pendingProfileInvitation, resolveProfileInvitation }), [status, user, signIn, register, signOut, restore, refreshRateLimit, pendingProfileInvitation, resolveProfileInvitation]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

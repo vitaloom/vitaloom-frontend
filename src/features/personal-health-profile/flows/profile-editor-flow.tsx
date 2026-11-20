@@ -17,9 +17,9 @@ type FlowProps = {
   onAuthRetry: () => Promise<void>;
 };
 
-type SetupProps = FlowProps & { onComplete: () => void; onSkip: () => void };
+type SetupProps = FlowProps & { onComplete: () => void; onSkip: () => void; skipError?: boolean; skipBusy?: boolean };
 
-export function ProfileSetupFlow({ accountId, onCancel, onAuthRetry, onComplete, onSkip }: SetupProps) {
+export function ProfileSetupFlow({ accountId, onCancel, onAuthRetry, onComplete, onSkip, skipError, skipBusy }: SetupProps) {
   const repository = getProfileRepository(accountId);
   const editor = useProfileEditor({
     mode: 'setup',
@@ -48,6 +48,8 @@ export function ProfileSetupFlow({ accountId, onCancel, onAuthRetry, onComplete,
       editor={editor}
       onCancel={onCancel}
       onSkip={onSkip}
+      skipError={skipError}
+      skipBusy={skipBusy}
       onAuthRetry={() => void onAuthRetry().then(editor.retryAccess)}
     />
   );

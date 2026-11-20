@@ -1,5 +1,6 @@
 import { router } from 'expo-router';
 import { Pressable, ScrollView, View } from 'react-native';
+import { useRef, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
@@ -15,12 +16,26 @@ export default function ProfileSetupPromptScreen() {
   const theme = useTheme();
   const t = useTranslations(authMessages);
   const { resolveProfileInvitation } = useAuth();
+  const [skipping, setSkipping] = useState(false);
+  const [skipError, setSkipError] = useState(false);
+  const skipInFlight = useRef(false);
   function startSetup() {
     router.push('/profile-setup');
   }
   async function skipSetup() {
-    await resolveProfileInvitation('skipped');
-    router.replace('/(tabs)/home');
+    if (skipInFlight.current) return;
+    skipInFlight.current = true;
+    setSkipping(true);
+    setSkipError(false);
+    try {
+      await resolveProfileInvitation('skipped');
+      router.replace('/(tabs)/home');
+    } catch {
+      setSkipError(true);
+      setSkipping(false);
+    } finally {
+      skipInFlight.current = false;
+    }
   }
 
   return (
@@ -73,19 +88,22 @@ export default function ProfileSetupPromptScreen() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={t('setupProfile')}
+              disabled={skipping}
               onPress={startSetup}
-              style={({ pressed }) => ({ minHeight: sizing.controlComfortable + spacing.sm, borderRadius: radius.full, paddingHorizontal: spacing.lg, backgroundColor: theme.accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, opacity: pressed ? 0.82 : 1, boxShadow: shadows.card })}
+              style={({ pressed }) => ({ minHeight: sizing.controlComfortable + spacing.sm, borderRadius: radius.full, paddingHorizontal: spacing.lg, backgroundColor: theme.accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, opacity: pressed || skipping ? 0.82 : 1, boxShadow: shadows.card })}
             >
               <ThemedText variant="labelStrong" themeColor="onAccent">{t('setupProfile')}</ThemedText>
               <ThemedText variant="labelStrong" themeColor="onAccent" accessible={false}>→</ThemedText>
             </Pressable>
             <Pressable
               accessibilityRole="button"
+              disabled={skipping}
               onPress={() => void skipSetup()}
-              style={({ pressed }) => ({ minHeight: sizing.controlComfortable + spacing.sm, borderRadius: radius.full, paddingHorizontal: spacing.lg, borderColor: theme.accent, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.72 : 1 })}
+              style={({ pressed }) => ({ minHeight: sizing.controlComfortable + spacing.sm, borderRadius: radius.full, paddingHorizontal: spacing.lg, borderColor: theme.accent, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', opacity: pressed || skipping ? 0.72 : 1 })}
             >
-              <ThemedText variant="labelStrong" themeColor="accent">{t('maybeLater')}</ThemedText>
+              <ThemedText variant="labelStrong" themeColor="accent">{skipping ? t('savingChoice') : t('maybeLater')}</ThemedText>
             </Pressable>
+            {skipError ? <ThemedText accessibilityRole="alert" themeColor="textSecondary" style={{ textAlign: 'center' }}>{t('errorNetwork')}</ThemedText> : null}
           </View>
         </View>
       </ScrollView>

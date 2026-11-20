@@ -28,11 +28,13 @@ type Option = { value: string; label: string; description?: string };
 type ProfileMessageKey = keyof typeof profileMessages.en;
 type ProfileTranslator = (key: ProfileMessageKey, values?: TranslationValues) => string;
 
-export function ProfileFormScreen({ mode, editor, onCancel, onSkip, onAuthRetry }: {
+export function ProfileFormScreen({ mode, editor, onCancel, onSkip, skipError, skipBusy, onAuthRetry }: {
   mode: 'setup' | 'edit';
   editor: ProfileEditor;
   onCancel: () => void;
   onSkip?: () => void;
+  skipError?: boolean;
+  skipBusy?: boolean;
   onAuthRetry: () => void;
 }) {
   const theme = useTheme();
@@ -44,7 +46,7 @@ export function ProfileFormScreen({ mode, editor, onCancel, onSkip, onAuthRetry 
   const showBasics = !setup || editor.step === 1;
   const hasUnknown = editor.recovery?.kind === 'unconfirmed';
   const conflict = editor.recovery?.kind === 'conflict' ? editor.recovery : undefined;
-  const inputDisabled = editor.busy || !!editor.recovery || editor.notice?.kind === 'unauthorized';
+  const inputDisabled = editor.busy || !!editor.recovery || editor.notice?.kind === 'unauthorized' || !!skipBusy;
   const pairDirection = width < 350 || fontScale > 1.25 ? 'column' : 'row';
 
   function save() {
@@ -78,7 +80,7 @@ export function ProfileFormScreen({ mode, editor, onCancel, onSkip, onAuthRetry 
               <ThemedText variant="heading">‹</ThemedText>
             </Pressable>
             <ThemedText accessibilityRole="header" variant="bodyStrong">{setup ? t('Profile setup') : t('Edit personal profile')}</ThemedText>
-            {setup && onSkip ? <Pressable accessibilityRole="button" accessibilityLabel={t('Skip profile setup')} disabled={inputDisabled} onPress={onSkip} style={{ minWidth: sizing.controlMin, minHeight: sizing.controlMin, alignItems: 'flex-end', justifyContent: 'center' }}><ThemedText variant="labelStrong" themeColor="accent">{t('Skip')}</ThemedText></Pressable> : <View style={{ width: sizing.controlMin }} />}
+            {setup && onSkip ? <Pressable accessibilityRole="button" accessibilityLabel={t('Skip profile setup')} disabled={inputDisabled} onPress={onSkip} style={{ minWidth: sizing.controlMin, minHeight: sizing.controlMin, alignItems: 'flex-end', justifyContent: 'center' }}><ThemedText variant="labelStrong" themeColor="accent">{skipBusy ? t('Saving…') : t('Skip')}</ThemedText></Pressable> : <View style={{ width: sizing.controlMin }} />}
           </View>
 
           {setup && !hasUnknown ? <ProfileHero step={editor.step} eyebrow={t('Profile setup · {step} of 2', { step: editor.step })} title={title} subtitle={subtitle} compact /> : setup ? null : (
@@ -98,6 +100,7 @@ export function ProfileFormScreen({ mode, editor, onCancel, onSkip, onAuthRetry 
           {editor.notice?.kind === 'no-changes' ? <StatusBanner text={t('No changes to save.')} /> : null}
           {editor.notice?.kind === 'network-error' ? <StatusBanner text={t('This attempt didn’t save. Your draft is ready to retry.')} /> : null}
           {editor.notice?.kind === 'unauthorized' ? <StatusBanner text={t('Your session needs attention before you can save.')} /> : null}
+          {skipError ? <StatusBanner text={t('Your choice could not be saved. Check your connection and try again.')} /> : null}
           {hasUnknown && editor.recovery?.kind === 'unconfirmed' && !editor.recovery.visible ? (
             <View style={{ gap: spacing.sm, marginBottom: spacing.md }}>
               <StatusBanner text={t('Your save is still unconfirmed. Check the latest profile before saving again.')} />
