@@ -41,7 +41,7 @@ export default function AssistantCourseScreen({ initialConversationId }: { initi
   const [current, setCurrent] = useState<Conversation>();
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<'error' | 'blocked' | 'conflict'>();
+  const [error, setError] = useState<'error' | 'blocked' | 'conflict' | 'writeUncertain'>();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [retry, setRetry] = useState<{ id: string; text: string; turnId: string }>();
   const [voiceRetryAvailable, setVoiceRetryAvailable] = useState(false);
@@ -74,7 +74,11 @@ export default function AssistantCourseScreen({ initialConversationId }: { initi
       if (!active()) return;
       const status = failure instanceof ApiError ? failure.status : 0;
       if (status === 403) void refresh();
-      setError([401, 403, 404].includes(status) ? 'blocked' : status === 409 ? 'conflict' : 'error');
+      if (failure instanceof ApiError && failure.code === 'ASSISTANT_WRITE_UNCERTAIN') {
+        setError('writeUncertain');
+      } else {
+        setError([401, 403, 404].includes(status) ? 'blocked' : status === 409 ? 'conflict' : 'error');
+      }
       onFailure?.(status);
     } finally {
       if (pending.current === abort) pending.current = null;

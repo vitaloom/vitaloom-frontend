@@ -10,7 +10,15 @@ const row = { id: 'conversation', turns: [] };
 const element = (type, props) => ({ type, props });
 const flush = () => new Promise(resolve => setImmediate(resolve));
 
-function mount(file, initialState, api) {
+class ApiError extends Error {
+  constructor(status, code) {
+    super(code);
+    this.status = status;
+    this.code = code;
+  }
+}
+
+function mount(file, initialState, api, push = () => {}) {
   const state = [...initialState];
   const refs = [];
   let index = 0;
@@ -24,13 +32,13 @@ function mount(file, initialState, api) {
         return [state[slot], next => { state[slot] = typeof next === 'function' ? next(state[slot]) : next; }];
       } },
     'react/jsx-runtime': { jsx: element, jsxs: element },
-    'expo-router': { Stack: { Screen: 'Screen' } },
-    'react-native': { Button: 'Button', Platform: { OS: 'web' }, TextInput: 'TextInput' },
+    'expo-router': { Stack: { Screen: 'Screen' }, router: { push } },
+    'react-native': { Button: 'Button', Platform: { OS: 'web' }, Pressable: 'Pressable', TextInput: 'TextInput' },
     'react-native-safe-area-context': {},
     '@/components/themed-text': {},
     '@/hooks/use-theme': { useTheme: () => ({}) },
     '@/i18n': { useTranslations: () => key => key, useI18n: () => ({ locale: 'vi' }) },
-    '@/lib/api/http-client': { ApiError: class extends Error {}, getApiSessionGeneration: () => 1 },
+    '@/lib/api/http-client': { ApiError, getApiSessionGeneration: () => 1 },
     '@/theme': { layout: {}, radius: {}, sizing: {}, spacing: {} },
     './assistant-access-provider': { useAssistantAccess: () => ({ refresh() {} }) },
     './assistant-api': { createTurnId: () => `turn-${++turn}` },
@@ -98,4 +106,62 @@ test('full chat clears before the response and offers retry with an empty compos
   button('retry').onPress();
   await flush();
   assert.deepEqual(calls, [[row.id, text, 'turn-1'], [row.id, text, 'turn-1']]);
+});
+
+test('bottom sheet warns the user to check their journal and retries the original uncertain turn', async () => {
+  const calls = [];
+  const render = mount('use-assistant-conversation.ts', [[], text], {
+    create: async () => row,
+    send: async (...args) => {
+      calls.push(args);
+      if (calls.length === 1) throw new ApiError(503, 'ASSISTANT_WRITE_UNCERTAIN');
+      return row;
+    },
+  });
+  const hook = () => render('useAssistantConversation', true);
+  await hook().sendText();
+  assert.equal(hook().error, 'writeUncertain');
+  await hook().retrySend();
+  assert.deepEqual(calls, [[row.id, text, 'turn-1'], [row.id, text, 'turn-1']]);
+});
+
+test('full chat shows the journal warning for an uncertain write', async () => {
+  const render = mount('assistant-course-screen.tsx', [[], 0, false, row, text], {
+    send: async () => { throw new ApiError(503, 'ASSISTANT_WRITE_UNCERTAIN'); },
+  });
+  find(render('default', {}), node => node.type === 'Button' && node.props.title === 'send').props.onPress();
+  await flush();
+  assert.ok(find(render('default', {}), node => node.props.children === 'writeUncertain'));
+});
+
+test('native and historical turns render in both surfaces and the course links secondary sources', async () => {
+  const replies = ['Chào bạn!', 'Bạn đã ngủ bao lâu?', 'Đã ghi 390 phút ngủ.',
+    'Hãy kiểm tra nhật ký trước khi gửi yêu cầu mới.', 'Bạn muốn ngày nào?'];
+  const secondary = { status: 'ANSWERED', text: '', source: {
+    id: 'sleep-recent', title: 'Giấc ngủ gần đây', version: 1, route: '/sleep/recent', from: '2026-11-14',
+  } };
+  const result = { id: row.id, turns: replies.map((text, index) => {
+    const status = index === 3 ? 'DEPENDENCY_UNAVAILABLE' : 'ANSWERED';
+    return {
+      turnId: `native-${index}`, text: `Lượt ${index + 1}`,
+      outcome: index === 4 ? 'WRITE_CLARIFICATION' : status,
+      parts: index === 0 ? [{ status, text }, secondary] : [{ status, text }],
+    };
+  }) };
+  const renderSheet = mount('use-assistant-conversation.ts', [[], text], {
+    create: async () => row, send: async () => result,
+  });
+  const hook = () => renderSheet('useAssistantConversation', true);
+  await hook().sendText();
+  assert.deepEqual(Array.from(hook().messages.filter(message => message.role === 'assistant'), message => message.text),
+    replies);
+
+  const routes = [];
+  const renderCourse = mount('assistant-course-screen.tsx', [[], 0, false, result, ''], {}, route => routes.push(route));
+  const course = renderCourse('default', {});
+  for (const reply of replies) assert.ok(find(course, node => node.props.children === reply), reply);
+  const link = find(course, node => node.props.accessibilityRole === 'link');
+  assert.ok(find(link, node => Array.isArray(node.props.children) && node.props.children.includes(secondary.source.title)));
+  link.props.onPress();
+  assert.deepEqual(routes, ['/sleep/recent']);
 });
